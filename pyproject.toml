@@ -1,0 +1,16 @@
+[project]
+name = "smart-business-local"
+dynamic = ["version"]
+description = "Free, open-source, offline-first AI assistant for Telegram/Bale shop owners and consultants (Iran)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+
+[tool.ruff]
+line-length = 140
+target-version = "py311"
+extend-exclude = ["build", "dist"]
+
+[tool.ruff.lint]
+# فقط خطاهای واقعی (سینتکس، import/متغیرِ بلااستفاده، نام‌های تعریف‌نشده)؛ سلیقه‌ای نیست
+select = ["E9", "F"]

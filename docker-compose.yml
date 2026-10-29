@@ -1,0 +1,14 @@
+# اجرا:   docker compose up -d        توقف:  docker compose down
+# لاگ:    docker compose logs -f      وضعیت: docker compose ps  (ستونِ health)
+# تنظیمِ اولیه: برنامه‌ی دسکتاپ رو یک‌بار اجرا کن، توکن‌ها رو وارد کن، بعد پوشه‌ی داده‌اش
+# (تنظیمات ← امنیتِ داده ← «محل داده») رو به‌جای ./data این‌جا بذار؛ یا فقط settings.json + secret.key + *.db رو کپی کن.
+services:
+  smart-business:
+    build: .
+    image: smart-business:latest
+    restart: unless-stopped
+    volumes:
+      - ./data:/data
+    environment:
+      - TZ=Asia/Tehran
+    # نیازی به باز کردنِ پورت نیست: ربات‌ها با polling به تلگرام/بله وصل می‌شن.

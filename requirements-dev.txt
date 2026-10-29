@@ -1,0 +1,8 @@
+# فقط برای توسعه/تست محلی و بسته‌بندی — نه بخشی از خودِ برنامه
+-r requirements.txt
+flet-cli==1.0.1
+flet-web==1.0.1
+pyinstaller>=6.0.0
+pytest>=8.0.0
+# فقط برای scripts/make_icons.py (ساختِ آیکن)؛ خودِ برنامه به Pillow نیاز نداره و خروجی‌ها در مخزن commit شده‌اند
+Pillow>=10.0.0

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>Smart Business Local</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#243B7A"/>
+      <stop offset="1" stop-color="#2BA77F"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="230" fill="url(#bg)"/>
+  <g transform="translate(512 512) scale(1.22) translate(-541 -563.5)">
+  <path d="M332 400 A118 118 0 0 1 568 400" fill="none" stroke="#FFFFFF" stroke-width="40"/>
+  <rect x="250" y="390" width="400" height="400" rx="60" fill="#FFFFFF"/>
+  <g fill="#1B2B55" stroke="#1B2B55" stroke-width="44" stroke-linejoin="round">
+    <rect x="520" y="530" width="290" height="215" rx="72"/>
+    <polygon points="590,735 575,830 680,740"/>
+  </g>
+  <g fill="#F5B83D">
+    <rect x="520" y="530" width="290" height="215" rx="72"/>
+    <polygon points="590,735 575,830 680,740"/>
+  </g>
+  <circle cx="594" cy="638" r="25" fill="#1B2B55"/><circle cx="665" cy="638" r="25" fill="#1B2B55"/><circle cx="736" cy="638" r="25" fill="#1B2B55"/>
+  </g>
+</svg>

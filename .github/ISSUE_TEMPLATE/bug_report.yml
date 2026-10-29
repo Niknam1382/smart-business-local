@@ -1,0 +1,57 @@
+name: گزارش باگ | Bug report
+description: چیزی درست کار نمی‌کنه | Something is not working
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        قبل از ارسال، **توکن ربات، مرچنت‌کد زرین‌پال و توکن بله‌پی** رو از هر متنی که می‌چسبونی پاک کن.
+        (فایل `bot.log` برنامه خودش اسرار رو پاک می‌کنه، ولی یه بار چشمی نگاهش کن؛ ممکنه اسم/شماره‌ی مشتری داشته باشه.)
+        Remove bot tokens, Zarinpal merchant IDs and Bale Pay tokens from anything you paste.
+  - type: textarea
+    id: what
+    attributes:
+      label: چی شد؟ | What happened?
+      description: چی انتظار داشتی و چی دیدی؟ | What did you expect and what did you see?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: مراحل تکرار | Steps to reproduce
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: حالت کسب‌وکار | Business mode
+      options: [فروشگاه | Store, مشاوره | Consultant]
+  - type: dropdown
+    id: ai
+    attributes:
+      label: نوع هوش مصنوعی | AI mode
+      options: [API (OpenAI-compatible), مدل محلی | Local model]
+  - type: input
+    id: model
+    attributes:
+      label: نام مدل | Model name
+      placeholder: gpt-4o-mini / qwen2.5-3b ...
+  - type: dropdown
+    id: platform
+    attributes:
+      label: پیام‌رسان | Messenger
+      options: [Telegram, Bale, هر دو | Both]
+  - type: input
+    id: version
+    attributes:
+      label: نسخه‌ی برنامه و سیستم‌عامل | App version & OS
+      placeholder: "1.0.0 / Windows 11"
+  - type: textarea
+    id: log
+    attributes:
+      label: لاگ (اختیاری) | Log (optional)
+      description: |
+        بهتره به‌جای لاگ، از «تنظیمات ← داده و ایمنی ← ساخت فایل تشخیصی» استفاده کنی و فایل رو پیوست کنی
+        (اسرار، مکالمه و مشتری توش نیست). | Better: Settings → Data & safety → Create diagnostics file, and attach it
+        (no secrets, chats or customers inside).
+      render: text

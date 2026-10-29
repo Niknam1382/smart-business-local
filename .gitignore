@@ -1,0 +1,42 @@
+# پایتون
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# خروجی بسته‌بندی (با فاز CI ساخته می‌شن، نباید توی گیت‌هاب باشن)
+build/
+dist/
+*.spec
+
+# داده‌ی محلی کاربر (تنظیمات، کلید رمزنگاری) — هیچ‌وقت نباید کامیت بشه
+*.db
+*.sqlite3
+secret.key
+settings.json
+
+# ابزارهای ادیتور/سیستم‌عامل
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# لاگ ربات‌ها (ممکنه اطلاعات مشتری‌ها رو داشته باشه)
+*.log
+.pytest_cache/
+
+# ابزارهای کیفیت/پوشش
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+.env
+
+# خروجی بسته‌بندی انتشار و داده‌ی حالت قابل‌حمل/توسعه (هیچ‌وقت کامیت نشن)
+release/
+SmartBusinessData/
+portable.flag
+backups/
+diagnostics/
+settings.corrupt-*.json

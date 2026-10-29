@@ -1,0 +1,148 @@
+name: Release builds
+
+# ساخت فایل‌های قابل‌اجرا برای ویندوز، مک و لینوکس روی ماشین‌های واقعیِ گیت‌هاب
+# (پروژه از یه محیط لینوکسی توسعه داده می‌شه و نمی‌تونه مستقیم exe ویندوزی بسازه).
+#
+# فقط وقتی تگِ نسخه (مثلاً v1.0.0) زده می‌شه یا دستی از تبِ Actions اجرا می‌شه — نه با هر push.
+# تگ باید با app/version.py بخونه؛ مرحله‌ی اول همینو چک می‌کنه.
+#
+# خروجی هر سیستم‌عامل (scripts/package_release.py):
+#   ویندوز: SmartBusinessLocal-<v>-windows-setup.exe (نصب‌کننده) · ...-windows.exe (فایل تکی) · ...-windows-portable.zip
+#   مک:     SmartBusinessLocal-<v>-macos-portable.zip
+#   لینوکس: SmartBusinessLocal-<v>-linux-portable.zip
+# و یه SHA256SUMS.txt. با تگ، همه به Release پیوست می‌شن.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build (${{ matrix.os_name }})
+    runs-on: ${{ matrix.runner }}
+    # ویندوز مسیرِ اصلیه و باید سبز باشه؛ مک/لینوکس تازه اضافه شدن و «آزمایشی»‌ان (شکستشون ساخت رو قرمز نمی‌کنه).
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os_name: windows
+            runner: windows-latest
+            add_data: "assets;assets"
+            icon: "assets/icons/app.ico"
+            experimental: false
+          - os_name: macos
+            runner: macos-latest
+            add_data: "assets:assets"
+            icon: "assets/icons/app.icns"
+            experimental: true
+          - os_name: linux
+            runner: ubuntu-latest
+            add_data: "assets:assets"
+            icon: "assets/icons/app-icon-256.png"
+            experimental: true
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check tag matches app/version.py
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          PYTHONUTF8: "1"  # تا پیامِ فارسیِ خطا روی ویندوز (cp1252) نشکنه
+        shell: python
+        run: |
+          import os, sys
+          sys.path.insert(0, ".")
+          from app.version import __version__
+          tag = os.environ["GITHUB_REF_NAME"].lstrip("v")
+          if tag != __version__:
+              sys.exit(f"تگ ({tag}) با app/version.py ({__version__}) نمی‌خونه")
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      # غیرمسدودکننده: تست‌های ویندوز/مک هنوز هیچ‌وقت اجرا نشده‌ن؛ دروازه‌ی کیفیتِ اصلی، CIِ لینوکسه (ci.yml).
+      # وقتی هر سه سیستم‌عامل سبز شدن، continue-on-error رو بردار.
+      - name: Run tests before building (informational)
+        continue-on-error: true
+        run: python -m pytest
+
+      # نکته: آرگومانِ PyInstaller باید به شکلِ «--pyinstaller-build-args=--collect-all=llama_cpp» (با علامتِ =) بیاد؛
+      # شکلِ جداشده رو argparse گزینه‌ی ناشناخته حساب می‌کنه و ساخت با «unrecognized arguments» می‌شکنه
+      # (با flet-cli 1.0.1 آزمایش شده). متادیتای فایل عمداً ASCII‌ه تا کدگذاریِ ویندوز مشکلی درست نکنه.
+      - name: Build with flet pack
+        run: |
+          flet pack run.py \
+            --name SmartBusinessLocal \
+            --add-data "${{ matrix.add_data }}" \
+            --icon "${{ matrix.icon }}" \
+            --product-name "Smart Business Local" \
+            --file-description "Smart Business Local - AI assistant for shops and consultants" \
+            --pyinstaller-build-args=--collect-all=llama_cpp \
+            -y
+
+      - name: Package (portable zip + raw executable)
+        run: python scripts/package_release.py --os "${{ matrix.os_name }}" --dist dist --out release
+
+      # آزمایشی: نصب‌کننده‌ی ویندوز با Inno Setup. شکستش نه exe و نه zipِ قابل‌حمل رو خراب نمی‌کنه.
+      - name: Build Windows installer (Inno Setup)
+        if: matrix.os_name == 'windows'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          $version = python -c "from app.version import __version__; print(__version__)"
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" "installer\SmartBusinessLocal.iss"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: SmartBusinessLocal-${{ matrix.os_name }}
+          path: release/*
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # برای ساختنِ Release و پیوست‌کردنِ فایل‌ها
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release
+          pattern: SmartBusinessLocal-*
+          merge-multiple: true
+
+      - name: Checksums
+        run: |
+          cd release
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true
+          # تگ‌هایی مثلِ v1.1.0-alpha.1 «پیش‌انتشار» حساب می‌شن و به کاربران خبرِ به‌روزرسانی نمی‌دن (updater آن‌ها را نادیده می‌گیرد)
+          prerelease: ${{ contains(github.ref_name, '-') }}

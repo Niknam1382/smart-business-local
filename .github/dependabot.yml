@@ -1,0 +1,8 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+  # pip عمداً خاموشه: flet و aiogram پین شدن چون API بین نسخه‌ها فرق می‌کنه؛
+  # ارتقای اونا باید دستی و با اجرای کاملِ تست‌ها انجام بشه.

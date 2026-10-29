@@ -1,0 +1,14 @@
+.git
+__pycache__
+*.pyc
+tests
+docs
+installer
+scripts
+assets
+build
+dist
+data
+*.db
+secret.key
+settings.json

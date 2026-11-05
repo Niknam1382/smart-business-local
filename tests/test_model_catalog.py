@@ -29,6 +29,23 @@ def test_entries_are_complete_and_ids_unique():
         assert e.license == "apache-2.0"
 
 
+def test_the_catalog_declares_every_host_a_real_download_redirects_to():
+    """اندازه‌گیری‌شده روی شبکه: ``huggingface.co`` با ۳۰۲ به ``us.aws.cdn.hf.co`` می‌رود و
+    ``hf-mirror.com`` با ۳۰۸ به خودِ ``huggingface.co``. اگر این دامنه‌ها اعلام نشوند، گاردِ
+    ریدایرکت هر دانلودِ واقعی را رد می‌کند."""
+    for e in mc.entries():
+        hosts = {u.split("/")[2] for u in e.urls}
+        assert hosts and hosts <= e.allowed_hosts
+        assert "hf.co" in e.allowed_hosts
+        assert e.allowed_hosts == set(mc.SOURCE_HOSTS) | set(mc.CDN_DOMAINS)
+
+
+def test_the_unreachable_third_mirror_is_no_longer_offered():
+    """``cache.fuyuan.top`` هیچ‌جا resolve نمی‌شد و فقط علتِ واقعیِ خطا را می‌پوشاند."""
+    assert all("fuyuan" not in url for e in mc.entries() for url in e.urls)
+    assert [u.split("/")[2] for u in mc.entries()[0].urls] == list(mc.SOURCE_HOSTS)
+
+
 def test_entries_returns_a_copy_so_callers_cannot_mutate_the_catalog():
     items = mc.entries()
     items.clear()
@@ -124,6 +141,15 @@ def test_gpu_note_is_honest_about_cpu_only_builds():
     assert mc.gpu_acceleration_note(hw(gpu="NVIDIA GeForce RTX 4060")) == "ai.local.gpu_note_nvidia"
     assert mc.gpu_acceleration_note(hw(gpu="NVIDIA T4")) == "ai.local.gpu_note_nvidia"
     assert mc.gpu_acceleration_note(hw(gpu="Intel Iris Xe")) == "ai.local.gpu_note_other"
+
+
+def test_the_gpu_note_follows_the_installed_build_not_the_card_name():
+    """یک کارتِ NVIDIA به‌تنهایی وعده‌ی شتاب نمی‌ده؛ پاسخِ بیلدِ llama.cpp تعیین‌کننده است."""
+    nvidia = hw(gpu="NVIDIA GeForce RTX 4060")
+    assert mc.gpu_acceleration_note(nvidia, cuda_available=False) == "ai.local.gpu_note_nvidia"
+    assert mc.gpu_acceleration_note(nvidia, cuda_available=True) == "ai.local.gpu_note_ready"
+    assert mc.gpu_acceleration_note(hw(gpu="Intel Iris Xe"), cuda_available=True) == "ai.local.gpu_note_other"
+    assert mc.gpu_acceleration_note(hw(gpu=""), cuda_available=True) == "ai.local.gpu_note_none"
 
 
 # ------------------------------------------------------------ اندازه‌هایِ خودکار

@@ -286,6 +286,10 @@ STRINGS: dict[str, dict[str, str]] = {
     "ai_setup.adv_gpu_label": {"fa": "لایه‌هایِ GPU", "en": "GPU layers"},
     "ai_setup.adv_gpu_auto": {"fa": "۰ = خودکار: فقط CPU (پیش‌فرضِ بیلدِ رسمیِ برنامه)", "en": "0 = auto: CPU only (the official build default)"},
     "ai_setup.adv_gpu_hint": {"fa": "فقط وقتی زیادش کن که خودت بیلدِ CUDA را نصب کرده باشی؛ وگرنه مدل در رم جا نمی‌شه.", "en": "Raise it only if you installed a CUDA build yourself; otherwise the model will not fit in RAM."},
+    "ai_setup.adv_gpu_no_cuda": {
+        "fa": "⚠️ بیلدِ نصب‌شدهی llama.cpp روی این سیستم CUDA ندارد؛ با این عددِ بالا، محاسبه همان‌جا روی CPU می‌مونه و فقط ریسکِ جا‌نشدنِ مدل در رم زیاد می‌شه. راهنما: «CUDA را فعال کنم» در صفحه‌ی هوش مصنوعی.",
+        "en": "⚠️ The llama.cpp build installed on this system has no CUDA; with a high value here the work still runs on the CPU and you only raise the risk of the model not fitting in RAM. See the “Enable CUDA” article on the AI page.",
+    },
     "ai_setup.adv_kill_label": {"fa": "خاموش‌کردنِ اضطراریِ همه‌ی پاسخ‌های AI", "en": "Emergency stop for all AI replies"},
     "ai_setup.adv_cap_chat_label": {"fa": "سقفِ پاسخ به هر مشتری در روز", "en": "Replies per customer per day"},
     "ai_setup.adv_cap_total_label": {"fa": "سقفِ کلِ پاسخ‌ها در روز", "en": "Total replies per day"},
@@ -305,6 +309,10 @@ STRINGS: dict[str, dict[str, str]] = {
     "ai.local.gpu_note_other": {
         "fa": "کارتِ گرافیکِ غیر-NVIDIA پیدا شد (مثلاً AMD یا Intel)؛ محاسبه رویِ CPU انجام می‌شه.",
         "en": "A non-NVIDIA GPU was detected (e.g. AMD or Intel); computing runs on the CPU.",
+    },
+    "ai.local.gpu_note_ready": {
+        "fa": "کارتِ NVIDIA پیدا شد و بیلدِ نصب‌شدهی llama.cpp هم GPU را می‌شناسه؛ از «پیشرفته» لایه‌ها را بالا ببر تا محاسبه رویِ کارت بیاد.",
+        "en": "An NVIDIA card was found and the installed llama.cpp build supports GPU offload — raise the layers under Advanced to compute on the card.",
     },
 
     # --- فاز ۳: ناوبری، اتصال ربات‌ها، گفتگوها ---

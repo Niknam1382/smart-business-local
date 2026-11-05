@@ -221,7 +221,7 @@ def main(
             show_welcome()
         elif not state.business_mode:
             show_mode_select()
-        elif not state.model_id and not state.model_file_path:
+        elif not state.ai_declined and not state.model_id and not state.model_file_path:
             show_ai_select()
         else:
             if not state.onboarding_complete:
@@ -279,7 +279,12 @@ def main(
         def on_back() -> None:
             show_settings() if editing else show_mode_select()
 
-        set_content(ai_select.build(page, state.language, state, save, on_done, on_back))
+        def on_skip() -> None:
+            # بدونِ این پرچم، route دوباره همین صفحه را می‌سازد و «بعداً» معنایش بی‌خطر می‌ماند
+            state.ai_declined = True
+            on_done()
+
+        set_content(ai_select.build(page, state.language, state, save, on_done, on_back, on_skip=on_skip))
 
     # ---------------- پوسته‌ی اصلی (پس از آنبوردینگ) ----------------
 

@@ -7,7 +7,7 @@ Qwen3.5 فقط وقتی `enable_thinking is true` فرستاده بشه بلوک
 معیارهای ۲۰۲۶ (MEA/DivanBench) خوب گزارش شده. مجوز: Apache-2.0.
 
 هرِ فایل با `sha256` و حجمِ دقیقِ قفل‌شده می‌آید (گرفته‌شده از API عمومیِ Hugging Face).
-آدرس‌ها با دسترس‌پذیریِ کاربرِ ایرانی در نظر گرفته شدن: منبعِ اصلی + آینه‌ها؛ اگه هیچ‌کدام کار
+آدرس‌ها با دسترس‌پذیریِ کاربرِ ایرانی در نظر گرفته شدن: منبعِ اصلی + یک آینه؛ اگه هیچ‌کدام کار
 نکرد، کاربر می‌تونه فایلِ GGUF را خودش از جای دیگر بگیره و به برنامه نشون بده.
 """
 
@@ -19,6 +19,15 @@ from typing import Optional
 from app.core.hardware import HardwareInfo
 
 _GIB = 1024**3
+
+# ترتیبِ تلاشِ دانلود. ``cache.fuyuan.top`` (آینه‌ی سومِ قبلی) حذف شد: اسمش در هیچ
+# شبکه‌ای resolve نمی‌شد و فقط علتِ خطایِ منبع‌هایِ سالم را می‌پوشاند.
+SOURCE_HOSTS = ("huggingface.co", "hf-mirror.com")
+
+# دامنه‌هایی که فایلِ GGUF *واقعاً* از آن‌ها سرو می‌شه: هر منبعِ بالا با ۳۰۲/۳۰۸ به CDN
+# خودش هدایت می‌کنه (اندازه‌گیری‌شده: ``us.aws.cdn.hf.co``). ریدایرکت به بیرونِ این
+# دامنه‌ها رد می‌شه — آینه‌ها شخصِ ثالث‌ان و نباید هر مقصدی را پذیرفت.
+CDN_DOMAINS = ("hf.co", "huggingface.co", "hf-mirror.com")
 
 
 @dataclass(frozen=True)
@@ -45,13 +54,14 @@ class ModelEntry:
 
     @property
     def urls(self) -> list:
-        """ترتیبِ تلاش: هاستِ اصلی، بعدِ آینه‌ها (برای کاربرهایی که به Hugging Face دسترسی ندارند)."""
+        """ترتیبِ تلاش: هاستِ اصلی، بعدِ آینه (برای کاربرهایی که به Hugging Face دسترسی ندارند)."""
         tail = f"{self.repo}/resolve/main/{self.filename}"
-        return [
-            f"https://huggingface.co/{tail}",
-            f"https://hf-mirror.com/{tail}",
-            f"https://cache.fuyuan.top/{tail}",
-        ]
+        return [f"https://{host}/{tail}" for host in SOURCE_HOSTS]
+
+    @property
+    def allowed_hosts(self) -> set:
+        """هرچه دانلودِ این فایل مجاز است به آن وصل شود: منابعِ کاتالوگ + دامنه‌هایِ CDNشان."""
+        return set(SOURCE_HOSTS) | set(CDN_DOMAINS)
 
     def weight_ram_gb(self) -> float:
         """رمِ لازمِ تقریبی: وزنِ مدل + ~۲۵٪ سربارِ اجرایِ GGUF + ۰٫۸ گیگ برایِ زمینه."""
@@ -260,16 +270,20 @@ def reason_for(hw: HardwareInfo, entry: ModelEntry, path_free_gb: Optional[float
     return "ai.local.rec_no_ram"
 
 
-def gpu_acceleration_note(hw: HardwareInfo) -> str:
+def gpu_acceleration_note(hw: HardwareInfo, cuda_available: bool = False) -> str:
     """کلیدِ i18nِ وضعیتِ شتابِ گرافیکی — برایِ نمایشِ شفاف اینکه آیا GPU به کار می‌ره یا نه.
 
-    توجهِ مهم: بیلدِ رسمیِ برنامه llama-cpp-python نسخه‌ی CPU است؛ یعنی حتی با کارتِ NVIDIA هم
-    محاسبه روی پردازنده انجام می‌شه. کاربرِ حرفه‌ای می‌تونه بیلدِ CUDA را خودش نصب کنه.
-    """
+    ``cuda_available`` از خودِ بیلدِ نصب‌شده پرسیده می‌شه (``ai_engine.gpu_offload_available``)،
+    نه از نامِ کارت: بیلدِ رسمیِ برنامه llama-cpp-python نسخه‌ی CPU است، پس حتی با کارتِ NVIDIA
+    محاسبه روی پردازنده انجام می‌شه. کاربرِ حرفه‌ای می‌تونه بیلدِ CUDA را خودش نصب کنه
+    (راهنمایِ «CUDA» در صفحه‌ی هوش مصنوعی)."""
     if not hw.gpu_model:
         return "ai.local.gpu_note_none"
     name = hw.gpu_model.lower()
-    if "nvidia" in name or "geforce" in name or "rtx" in name or "gtx" in name:
+    nvidia = "nvidia" in name or "geforce" in name or "rtx" in name or "gtx" in name
+    if nvidia and cuda_available:
+        return "ai.local.gpu_note_ready"
+    if nvidia:
         return "ai.local.gpu_note_nvidia"
     return "ai.local.gpu_note_other"
 

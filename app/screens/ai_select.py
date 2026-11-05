@@ -119,7 +119,7 @@ def build_hardware_card(page: ft.Page, lang: str, hw=None, free_gb: float | None
                 common.section_header(ft.Icons.MEMORY_ROUNDED, t("ai_setup.local.hw_title", lang)),
                 block,
                 ft.Text(t("ai.local.hw_why", lang), size=12, color=theme.text_secondary(page)),
-                ft.Text(t(model_catalog.gpu_acceleration_note(hw), lang), size=12, color=theme.ACCENT_DARK, italic=True),
+                ft.Text(t(model_catalog.gpu_acceleration_note(hw, ai_engine.gpu_offload_available()), lang), size=12, color=theme.ACCENT_DARK, italic=True),
             ],
         ),
         padding=18,
@@ -227,6 +227,7 @@ class ModelHub:
                     expected_size=entry.size_bytes,
                     on_progress=on_progress,
                     should_cancel=lambda: bool(job.get("cancel")),
+                    allowed_hosts=entry.allowed_hosts,
                 )
                 job["status"] = "done"
             except downloader.DownloadCancelled:
@@ -589,6 +590,7 @@ def build(
     save_callback,
     on_next,
     on_back,
+    on_skip=None,
 ) -> ft.Control:
     """گامِ سومِ آنبوردینگ: انتخابِ مدلِ محلی (بدونِ هیچ سوالِ API)."""
 
@@ -607,7 +609,7 @@ def build(
         disabled=not bool(settings.model_id or (settings.model_file_path or "").strip()),
     )
     next_btn.key = "next_button"
-    skip_btn = ft.TextButton(key="skip_button", content=t("ai.local.skip", lang), on_click=lambda e: on_next())
+    skip_btn = ft.TextButton(key="skip_button", content=t("ai.local.skip", lang), on_click=lambda e: (on_skip or on_next)())
     back_btn = ft.TextButton(key="back_button", content=t("common.back", lang), on_click=lambda e: on_back())
 
     header = ft.Column(

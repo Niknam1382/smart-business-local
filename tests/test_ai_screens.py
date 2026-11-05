@@ -56,9 +56,9 @@ def dl(monkeypatch):
     """دانلودرِ جعلیِ بدونِ شبکه؛ رفتار قابل‌تنظیم: ok/fail/cancel/verify_fail."""
     state = {"behavior": "ok", "calls": []}
 
-    def fake_download(urls, dest, expected_sha256="", expected_size=0, on_progress=None, should_cancel=None, timeout=30):
+    def fake_download(urls, dest, expected_sha256="", expected_size=0, on_progress=None, should_cancel=None, timeout=30, allowed_hosts=None):
         dest = Path(dest)
-        state["calls"].append({"urls": list(urls), "dest": dest, "sha": expected_sha256})
+        state["calls"].append({"urls": list(urls), "dest": dest, "sha": expected_sha256, "allowed_hosts": set(allowed_hosts or ())})
         dest.parent.mkdir(parents=True, exist_ok=True)
         if state["behavior"] == "fail":
             raise downloader.DownloadError("قطعیِ تستیِ اینترنت")
@@ -156,6 +156,7 @@ def test_ai_setup_one_click_download_selects_and_completes(monkeypatch, s0, dl):
     assert s0.model_id == rec.id
     assert dl["calls"][0]["urls"][0] == rec.urls[0] and dl["calls"][0]["dest"].name == rec.filename
     assert dl["calls"][0]["sha"] == rec.sha256
+    assert "hf.co" in dl["calls"][0]["allowed_hosts"]  # CDNِ اعلام‌شده باید ردِ گارد نشه
     card_text = collect_text(find(ctl, f"model_card_{rec.id}"))
     assert "کامل و آماده است" in card_text and "اکنون استفاده می‌شه" in card_text
     assert ai_engine.resolve_model_path(load_settings()) == rec_path(s0, rec)
@@ -355,6 +356,20 @@ def test_ai_select_download_from_onboarding_and_skip(monkeypatch, s0, dl):
     assert nxt == [1]  # رویِ سیستم‌هایِ خیلی ضعیف می‌شه بدونِ مدل رد شد
 
 
+def test_the_skip_button_uses_the_skip_route_not_the_next_one(monkeypatch, s0, dl):
+    """«بعداً انتخاب میکنم» باید مسیرِ *ردکردن* را صدا بزند؛ اگر همان «بعدی» را بزند،
+    مسیریابِ برنامه چون مدلی نیست دوباره همین گام را می‌سازد و کلیک بی‌معنی می‌ماند."""
+    patch_hw(monkeypatch)
+    page = FakePage()
+    nxt, skipped = [], []
+    ctl = ai_select.build(page, "fa", s0, lambda: None, lambda: nxt.append(1), lambda: None,
+                          on_skip=lambda: skipped.append(1))
+    assert not s0.model_id and not (s0.model_file_path or "")  # هنوز هیچ مدلی انتخاب نشده
+    fire(find(ctl, "skip_button"), "on_click")
+    assert skipped == [1] and nxt == []
+    assert find(ctl, "next_button").disabled is True  # بدونِ مدل، «بعدی» قفله و فقط «بعداً» راه دارد
+
+
 def test_ai_select_onboarding_has_no_api_fields(monkeypatch, s0, dl):
     patch_hw(monkeypatch)
     ctl = ai_select.build(FakePage(), "fa", s0, lambda: None, lambda: None, lambda: None)
@@ -427,3 +442,56 @@ def test_english_pages_build(monkeypatch, s0, dl, tmp_path):
         ai_select.build(FakePage(), "en", en, lambda: None, lambda: None, lambda: None))
     manager = types.SimpleNamespace(usage=UsageStore(ConversationStore(db_path=tmp_path / "c.db")))
     assert "AI usage" in collect_text(usage.build(FakePage(), "en", en, manager))
+
+
+# ---------------------------------------------------------------- CUDA
+
+
+def test_the_gpu_field_warns_when_layers_are_asked_without_a_cuda_build(monkeypatch, s0, dl):
+    """ابهامِ CUDA تمام شود: با بیلدِ بدونِ CUDA، عددِ بالا هیچ اثری ندارد و صفحه باید همین را
+    صریح بگوید تا کاربر حدس نزند."""
+    patch_hw(monkeypatch)
+    monkeypatch.setattr(ai_engine, "gpu_offload_available", lambda: False)
+    s0.ai_gpu_layers = 99
+    note = collect_text(find(ai_setup.build(FakePage(), "fa", s0, lambda: None), "adv_gpu_note"))
+    assert "CUDA ندارد" in note
+
+
+def test_the_gpu_field_is_quiet_when_the_build_supports_gpu(monkeypatch, s0, dl):
+    patch_hw(monkeypatch)
+    monkeypatch.setattr(ai_engine, "gpu_offload_available", lambda: True)
+    s0.ai_gpu_layers = 99
+    note = collect_text(find(ai_setup.build(FakePage(), "fa", s0, lambda: None), "adv_gpu_note"))
+    assert note and "CUDA ندارد" not in note
+
+
+def test_the_gpu_field_stays_neutral_at_zero_layers(monkeypatch, s0, dl):
+    """با ۰ (پیش‌فرض) کاربر چیزی را درخواست نکرده، پس هشدارِ GPU لازم نیست."""
+    patch_hw(monkeypatch)
+    monkeypatch.setattr(ai_engine, "gpu_offload_available", lambda: False)
+    s0.ai_gpu_layers = 0
+    note = collect_text(find(ai_setup.build(FakePage(), "fa", s0, lambda: None), "adv_gpu_note"))
+    assert "CUDA ندارد" not in note
+
+
+def test_the_hardware_card_reports_the_build_answer_not_the_card_name(monkeypatch, s0, dl):
+    """کارتِ NVIDIA به‌تنهایی وعده‌ی شتاب نیست؛ پاسخِ خودِ llama.cpp نشان داده می‌شه."""
+    nvidia = hardware.HardwareInfo(ram_gb=16.0, cpu_cores=12, cpu_model="Test CPU X", gpu_model="NVIDIA GeForce RTX 4060",
+                                   gpu_vram_gb=8.0, free_disk_gb=200.0)
+    monkeypatch.setattr(hardware, "detect", lambda force=False, disk_path=None: nvidia)
+    monkeypatch.setattr(hardware, "free_disk_gb_at", lambda path: 200.0)
+    monkeypatch.setattr(ai_engine, "gpu_offload_available", lambda: False)
+    cpu_build = collect_text(ai_select.build(FakePage(), "fa", s0, lambda: None, lambda: None, lambda: None))
+    assert "CPU" in cpu_build and "GPU را می‌شناسه" not in cpu_build
+    monkeypatch.setattr(ai_engine, "gpu_offload_available", lambda: True)
+    cuda_build = collect_text(ai_select.build(FakePage(), "fa", s0, lambda: None, lambda: None, lambda: None))
+    assert "GPU را می‌شناسه" in cuda_build
+
+
+def test_the_gpu_warning_is_bilingual(monkeypatch, s0, dl):
+    """همه‌ی متن‌هایِ کاربر دوزبانه‌اند؛ هشدارِ CUDA هم در انگلیسی دیده می‌شه."""
+    patch_hw(monkeypatch)
+    monkeypatch.setattr(ai_engine, "gpu_offload_available", lambda: False)
+    en = AppSettings(business_mode="store", language="en", ai_gpu_layers=99)
+    note = collect_text(find(ai_setup.build(FakePage(), "en", en, lambda: None), "adv_gpu_note"))
+    assert "no CUDA" in note

@@ -42,7 +42,7 @@ runs on it too (llama.cpp, GGUF files).
 > card-to-card confirmation is always a human decision.
 
 *Screenshots of the model picker, the shop and the orders page will be added here; until then the in-app guide
-(Persian, offline, 182 articles) explains what every screen does.*
+(Persian, offline, 183 articles) explains what every screen does.*
 
 ### Highlights
 
@@ -68,7 +68,7 @@ runs on it too (llama.cpp, GGUF files).
 | 📢 **Required channel** | Customers must join your Telegram channel(s) first (menu, AI chat, or both). You and your managers are exempt; if the check ever breaks, nobody is locked out and you are told. |
 | 🔌 **Proxy pool** | Several proxies (one per line) with automatic failover, your own **subscription link** and automatic return to the fastest one — Telegram is often unreachable without it in Iran. |
 | 🛡 **Guardrails you cannot delete** | The app appends fixed rules to every prompt (limits, menu map, tone, privacy, content boundaries) and shows you exactly what the model will read. |
-| 📚 **Built-in guide** | An offline, searchable Persian guide (182 articles: 26 troubleshooting, 58 FAQ), a **?** button on every page and an automatic troubleshooter. |
+| 📚 **Built-in guide** | An offline, searchable Persian guide (183 articles: 26 troubleshooting, 58 FAQ), a **?** button on every page and an automatic troubleshooter. |
 
 ### Download
 
@@ -126,12 +126,13 @@ virtual environment, install the dependencies and start the app. Architecture an
   would freeze your PC mid-reply.
 - **Download, resume, verify.** One click starts a background download with a progress bar, speed and time left;
   *Cancel* keeps what arrived and *Resume download* continues from the same byte — a dropped connection or a closed app
-  is not a restart. Three sources are tried in order (the main host and two mirrors) for users who cannot reach it.
+  is not a restart. Two sources are tried in order (the main host and one mirror) for users who cannot reach it.
   A finished file is checked against a pinned SHA-256; a corrupt or substituted file is refused, never loaded.
 - **Your own file.** If every source is blocked, take the GGUF from a friend or a manual download and use *Import a
   model file*; the app validates that it really is a GGUF (extension, size, magic header) before accepting it.
 - **CPU by default.** The official build computes on the CPU, so an NVIDIA GPU does not speed it up unless you install
-  a CUDA build yourself and raise the GPU-layers setting in the advanced panel.
+  a CUDA build yourself and raise the GPU-layers setting in the advanced panel. The app asks the installed runtime
+  instead of guessing from the card name, and the built-in guide has the step-by-step CUDA setup.
 - **Advanced panel.** Model folder, context tokens, thread count, GPU layers, per-customer and daily reply caps and an
   emergency kill switch. Caps slow the AI down; buttons, carts, orders and payments are never blocked by them.
 - **No cost, but there is time.** A local model costs electricity and CPU seconds, so the *Usage* page reports tokens,
@@ -237,7 +238,7 @@ died (let Docker restart it), `2` no bot configured, `3` data written by a newer
 **This is the first public release (1.0.0)**: local-only AI, Telegram-only messaging, Bale Pay as the only gateway
 besides card-to-card, a four-button customer menu and a central prompt studio. The version string lives in
 `app/version.py` and a release tag must match it; see [CHANGELOG](CHANGELOG.md) for what shipped and what was cut. The
-automated suite (1970 tests, 96 files) runs against fake Telegram and fake Bale-pay servers and covers the shop,
+automated suite (1987 tests, 96 files) runs against fake Telegram and fake Bale-pay servers and covers the shop,
 payments, receipts, delivery, support, migrations, backups, proxies, headless mode, injection and abuse cases.
 **Verification against real bots and a real gateway still has to be done per installation** — run one complete purchase
 with a small amount before you take real money. Bugs and ideas: Issues.
@@ -258,7 +259,7 @@ with a small amount before you take real money. Bugs and ideas: Issues.
 > حساب می‌کند و تأییدِ کارت‌به‌کارت همیشه کارِ یک آدم است.
 
 *اسکرین‌شاتِ صفحه‌ی انتخابِ مدل، فروشگاه و سفارش‌ها بعداً همین‌جا اضافه می‌شود؛ تا آن موقع راهنمای داخلِ برنامه (فارسی،
-آفلاین، ۱۸۲ مقاله) کارِ هر صفحه را نشان می‌دهد.*
+آفلاین، ۱۸۳ مقاله) کارِ هر صفحه را نشان می‌دهد.*
 
 ### امکانات
 
@@ -284,7 +285,7 @@ with a small amount before you take real money. Bugs and ideas: Issues.
 | 📢 **عضویتِ اجباریِ کانال** | مشتری اول باید در کانال(های) تلگرامی تو عضو باشد (منو، گفتگو، یا هر دو). خودت و مدیرها معافید؛ اگر بررسی خراب شود کسی قفل نمی‌شود و خبردار می‌شوی. |
 | 🔌 **استخرِ پروکسی** | چند پروکسی (هر خط یکی) با جابه‌جاییِ خودکار، **لینکِ اشتراکِ** خودت و بازگشتِ خودکار به سریع‌ترین‌شان — تلگرام در ایران بدونِ آن کار نمی‌کند. |
 | 🛡 **گاردریل‌های حذف‌نشدنی** | برنامه به هر پرامپت پنج قطعه‌ی ثابت اضافه می‌کند (حدودِ کار، منو، لحن، حریم، مرزها) و پیش‌نمایشِ همان چیزی را که مدل می‌خواند به تو نشان می‌دهد. |
-| 📚 **راهنمای داخلِ برنامه** | راهنمای آفلاین و قابلِ جستجو به فارسی (۱۸۲ مقاله؛ ۲۶ عیب‌یابی و ۵۸ پرسشِ متداول)، دکمه‌ی **؟** کنارِ هر صفحه و یک عیب‌یابِ خودکار. |
+| 📚 **راهنمای داخلِ برنامه** | راهنمای آفلاین و قابلِ جستجو به فارسی (۱۸۳ مقاله؛ ۲۶ عیب‌یابی و ۵۸ پرسشِ متداول)، دکمه‌ی **؟** کنارِ هر صفحه و یک عیب‌یابِ خودکار. |
 
 ### دانلود
 
@@ -341,13 +342,14 @@ python -m pytest         # کلِ تست‌ها — بدونِ اینترنت و
   مدل را حساب می‌کند؛ برایِ احتیاط فقط ۸۵٪ِ رم را قابل‌استفاده می‌داند، پس مدلی را که وسطِ کار سیستم را قفل می‌کند
   هرگز «راحت» اعلام نمی‌کند.
 - **دانلود، ادامه، راستی‌آزمایی.** با یک کلیک دانلود در پس‌زمینه شروع می‌شود، با درصد و سرعت و زمانِ باقی‌مانده؛ «توقف»
-  آنچه آمده را نگه می‌دارد و «ادامه» از همان بایت ادامه می‌دهد — قطعیِ اینترنت یا بستنِ برنامه یعنی ادامه، نه از اول. سه
-  منبع به‌ترتیب امتحان می‌شوند (سایتِ اصلی و دو آینه) چون دسترسی به آن برای خیلی از کاربرهای ایرانی سخت است. فایلِ
+  آنچه آمده را نگه می‌دارد و «ادامه» از همان بایت ادامه می‌دهد — قطعیِ اینترنت یا بستنِ برنامه یعنی ادامه، نه از اول. دو
+  منبع به‌ترتیب امتحان می‌شوند (سایتِ اصلی و یک آینه) چون دسترسی به آن برای خیلی از کاربرهای ایرانی سخت است. فایلِ
   تمام‌شده با اثرانگشتِ SHA-256ِ ثبت‌شده سنجیده می‌شود و فایلِ خراب یا دستکاری‌شده هرگز بارگذاری نمی‌شود.
 - **فایلِ خودت.** اگر هیچ منبعی باز نشد، فایل را از دوستت یا دانلودِ دستی بگیر و با «وارد کردن فایلِ مدل» به برنامه
   نشان بده؛ برنامه اول می‌سنجد که واقعاً یک فایلِ GGUF باشد.
 - **پیش‌فرض روی پردازنده.** بیلدِ رسمی محاسبه را روی CPU انجام می‌دهد، پس کارتِ گرافیکیِ NVIDIA بدونِ نصبِ نسخه‌ی CUDA
-  سرعت را زیاد نمی‌کند و برنامه این را صادقانه می‌نویسد.
+  سرعت را زیاد نمی‌کند و برنامه این را صادقانه می‌نویسد: به‌جای حدس‌زدن از نامِ کارت، از خودِ موتور می‌پرسه و راهنمایِ
+  داخلِ برنامه هم قدم‌به‌قدم فعال‌کردن CUDA را توضیح می‌دهد.
 - **پنلِ پیشرفته.** پوشه‌ی مدل، توکن‌هایِ زمینه، تعدادِ رشته‌ها، لایه‌های GPU، سقفِ پاسخ به هر مشتری در روز، سقفِ کلِ
   پاسخ‌ها و کلیدِ خاموشیِ اضطراری. سقف‌ها فقط مدل را محدود می‌کنند؛ دکمه‌ها، سبد، سفارش و پرداخت هرگز خاموش نمی‌شوند.
 - **هزینه‌اش پول نیست، زمان است.** چون مدل محلی است قبضی ندارد؛ صفحه‌ی «مصرف» توکن، میلی‌ثانیه‌ی هر پاسخ و زمانِ هر
@@ -450,7 +452,7 @@ docker compose up -d                                   # پوشه‌ی ./data ر
 این **نخستین انتشارِ عمومی است (۱.۰.۰)**: هوش مصنوعی فقط محلی، تلگرام تنها پیام‌رسان، بله‌پی تنها درگاهِ علاوه بر
 کارت‌به‌کارت، منویِ مشتری با دقیقاً چهار دکمه و یک استودیویِ مرکزیِ پرامپت. عددِ نسخه در فایلِ `app/version.py` زندگی
 می‌کند و تگِ انتشار باید همان باشد؛ چه چیزی آمد و چه چیزی حذف شد را در [CHANGELOG](CHANGELOG.md) بخوان.
-مجموعه‌تستِ خودکار (۱۹۷۰ تست در ۹۶ فایل) روی سرورهایِ جعلیِ تلگرام و درگاهِ بله اجرا می‌شود و فروشگاه، پرداخت، رسید،
+مجموعه‌تستِ خودکار (۱۹۸۷ تست در ۹۶ فایل) روی سرورهایِ جعلیِ تلگرام و درگاهِ بله اجرا می‌شود و فروشگاه، پرداخت، رسید،
 تحویل، پشتیبانی، مهاجرت، پشتیبان، پروکسی، حالتِ بی‌پنجره، تزریقِ پرامپت و حالت‌هایِ سوءاستفاده را پوشش می‌دهد.
 **راستی‌آزمایی با رباتِ واقعی و درگاهِ واقعی هنوز باید برای هر نصب انجام شود** — قبل از پولِ واقعی، یک خریدِ کامل را با
 مبلغِ کم از اول تا آخر انجام بده. باگ و ایده: بخشِ Issues.

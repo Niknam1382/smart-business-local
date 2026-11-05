@@ -51,6 +51,7 @@ TEST_DATA_FILES: dict[str, str] = {
     "tests/test_update_install.py": "منطقِ مقایسه‌ی نسخه",
     "tests/test_updater.py": "منطقِ مقایسه‌ی نسخه",
     "app/screens/live.py": "کامنتِ «سورس Flet 1.0.1» — عددِ کتابخانه",
+    "tests/test_version_consistency.py": "خودِ جدولِ استثنا (پینِ کتابخانه‌ها را به‌عنوانِ داده نگه می‌دارد)",
 }
 
 QUOTED_VERSION = re.compile(r"[\"']((?:\d+\.){2}\d+)[\"']|[\"']([۰-۹]+(?:\.[۰-۹]+){2})[\"']")

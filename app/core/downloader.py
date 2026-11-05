@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -65,8 +66,20 @@ def _write_meta(part: Path, meta: ResumeMeta) -> None:
     )
 
 
+def host_allowed(host: str, allowed: set) -> bool:
+    """مقایسه بر پایهی *نام*: خودِ دامنه یا زیردامنه‌اش پذیرفته می‌شه.
+    ``localhost`` در برابر ``127.0.0.1`` هم رد می‌شه — چون مقایسه‌ی IP نیست."""
+    name = (host or "").strip().rstrip(".").lower()
+    if not name:
+        return False
+    return any(name == root or name.endswith("." + root) for root in allowed if root)
+
+
 class _GuardedRedirect(urllib.request.HTTPRedirectHandler):
-    """ریدایرکت فقط به همان هاست‌هایِ معرفی‌شده‌ی کاتالوگ و فقط http/https (آینه‌ها شخصِ ثالث‌ان)."""
+    """ریدایرکت فقط به هاستهایِ معرفیشده (منابعِ کاتالوگ و CDNهای اعلام‌شده‌ی آن‌ها) و فقط http/https.
+
+    CDN عمداً در فهرست هست: هر دو منبعِ فایلِ GGUF را با ۳۰۲/۳۰۸ به دامنه‌ی خودش می‌فرستند،
+    پس بدونِ آن **هیچ** مدلی دانلود نمی‌شد (آینه‌ها شخصِ ثالث‌ان؛ مقصدِ ناشناخته رد می‌شه)."""
 
     def __init__(self, allowed_hosts: set):
         super().__init__()
@@ -74,8 +87,8 @@ class _GuardedRedirect(urllib.request.HTTPRedirectHandler):
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: D401, ANN001
         parsed = urllib.parse.urlparse(newurl)
-        if parsed.scheme not in ("http", "https") or (parsed.hostname or "").lower() not in self._allowed:
-            raise urllib.error.URLError("آدرسِ دوباره‌هدایتِ غیرمجاز رد شد.")
+        if parsed.scheme not in ("http", "https") or not host_allowed(parsed.hostname or "", self._allowed):
+            raise urllib.error.URLError("آدرسِ دوباره‌هدایت‌شده خارج از فهرستِ مجاز رد شد.")
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
@@ -106,10 +119,13 @@ def download(
     on_progress: Optional[Callable[[int, int], None]] = None,
     should_cancel: Optional[Callable[[], bool]] = None,
     timeout: float = 30.0,
+    allowed_hosts: Optional[set] = None,
 ) -> Path:
     """فایل را از اولین منبعِ کاری دانلود می‌کند؛ ادامه می‌دهد؛ و در پایان sha256 را می‌سنجد.
 
-    ``urls`` ترتیبِ اولویت است (هاستِ اصلی، بعدِ آینه‌ها). ``on_progress(downloaded, total)``
+    ``urls`` ترتیبِ اولویت است (هاستِ اصلی، بعدِ آینه). ``allowed_hosts`` دامنه‌هایِ
+    اعلام‌شده‌ی اضافه است (CDNهایِ همان منابع — وگرنه ریدایرکتِ سرویسِ فایل رد می‌شود).
+    ``on_progress(downloaded, total)``
     بعدِ هر قطعه صدا زده می‌شود (total ممکن است ۰ باشد). ``should_cancel()`` که True بدهد،
     دانلود متوقف می‌شود و ``.part`` برای ادامه‌ی بعدی می‌ماند.
     """
@@ -118,9 +134,11 @@ def download(
     dest.parent.mkdir(parents=True, exist_ok=True)
     part, _meta_path = _part_paths(dest)
 
-    last_error = ""
-    allowed = {urllib.parse.urlparse(u).hostname or "" for u in urls}  # همان‌ها که کاتالوگ معرفی کرده
+    allowed = {urllib.parse.urlparse(u).hostname or "" for u in urls}
+    allowed |= {h.strip().lower() for h in (allowed_hosts or set()) if h}
+    failures: list = []
     for url in urls:
+        host = urllib.parse.urlparse(url).hostname or url
         try:
             return _download_one(url, dest, part, expected_sha256, expected_size, on_progress, should_cancel, timeout, allowed)
         except DownloadCancelled:
@@ -130,9 +148,21 @@ def download(
             raise  # اثرانگشت از هیچ آینه‌ای درست نمی‌شه اگه خودِ فایل باطل باشه؛ ولی اول بعدی را امتحان می‌کنیم
         except (urllib.error.URLError, OSError, TimeoutError, ValueError) as exc:
             _drop_meta(part)
-            last_error = str(exc) or type(exc).__name__
+            failures.append(f"{host}: {_reason(exc)}")
             continue
-    raise DownloadError(f"دانلود از هیچ منبعی ممکن نشد ({last_error[:180]}). اتصال اینترنت را چک کن.")
+    raise DownloadError(
+        "دانلود از هیچ منبعی ممکن نشد (" + " · ".join(failures)[:300] + ")."
+        " اتصال اینترنت/VPN را چک کن؛ اگر به این منابع دسترسی نداری، فایلِ GGUF را از جایِ مطمئن بگیر"
+        " و با «وارد کردن فایلِ مدل» به برنامه نشان بده."
+    )
+
+
+def _reason(exc: Exception) -> str:
+    """علتِ خامِ پایتون را خوانا و کوتاه می‌کند — تا خطایِ آخرینِ منبع، علتِ منابعِ سالم را پنهان نکند."""
+    text = str(exc).strip().strip("<>")
+    text = text.removeprefix("urlopen error ")
+    text = re.sub(r"\[Errno\s+\d+\]\s*", "", text)
+    return (re.sub(r"\s+", " ", text).strip() or type(exc).__name__)[:90]
 
 
 def _download_one(

@@ -211,7 +211,10 @@ class _AdvancedSection:
 
         self.ctx_note.value = self._auto_text(as_int(self.ctx_field.value), auto_ctx)
         self.threads_note.value = self._auto_text(as_int(self.threads_field.value), auto_threads)
-        if as_int(self.gpu_field.value):
+        layers = as_int(self.gpu_field.value)
+        if layers and not ai_engine.gpu_offload_available():
+            self.gpu_note.value = t("ai_setup.adv_gpu_no_cuda", self.lang)
+        elif layers:
             self.gpu_note.value = t("ai_setup.adv_gpu_hint", self.lang)
         else:
             self.gpu_note.value = t("ai_setup.adv_gpu_auto", self.lang)

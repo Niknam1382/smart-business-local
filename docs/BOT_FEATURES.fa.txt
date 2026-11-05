@@ -223,7 +223,7 @@ GitHub: https://github.com/niknam1382/smart-business-local
   مدلی را که وسطِ کار سیستم را قفل می‌کند هرگز «راحت» اعلام نمی‌کند.
 - دانلود با یک کلیک: نوارِ پیشرفت، سرعت، زمانِ باقی‌مونده. «توقف» آنچه آمده نگه
   می‌دارد و «ادامه» از همان بایت ادامه می‌دهد — قطعیِ اینترنت یا بستنِ برنامه یعنی
-  ادامه، نه از اول. سه منبع به‌ترتیب امتحان می‌شوند (سایتِ اصلی و دو آینه) چون دسترسی
+  ادامه، نه از اول. دو منبع به‌ترتیب امتحان می‌شوند (سایتِ اصلی و یک آینه) چون دسترسی
   به آن برای خیلی از کاربرهای ایرانی سخت است.
 - اثرانگشت: فایلِ تمام‌شده با SHA-256ِ ثبت‌شده سنجیده می‌شود؛ فایلِ خراب یا
   دستکاری‌شده هرگز بارگذاری نمی‌شود.
@@ -345,7 +345,7 @@ GitHub: https://github.com/niknam1382/smart-business-local
 
 ۲۳) راهنمای داخلِ برنامه
 
-راهنمای آفلاین و قابلِ جستجو به فارسی: ۱۸۲ مقاله در ۱۵ دسته، که ۵۸ تاش پرسشِ
+راهنمای آفلاین و قابلِ جستجو به فارسی: ۱۸۳ مقاله در ۱۵ دسته، که ۵۸ تاش پرسشِ
 متداول و ۲۶ تاش عیب‌یابی است. کنارِ هر صفحه‌ی برنامه دکمه‌ی «؟» هست و یک عیب‌یابِ
 خودکار که مشکلِ رایج را قبلِ مراجعه به تو حل می‌کند.
 
@@ -384,10 +384,10 @@ GitHub: https://github.com/niknam1382/smart-business-local
 
 ۲۶) عددهای قابلِ استناد (همه از خودِ کدِ نسخه ۱.۰.۰)
 
-- ۱۹۷۰ تستِ خودکار در ۹۶ فایلِ تست (بدونِ اینترنت، بدونِ رباتِ واقعی).
+- ۱۹۸۷ تستِ خودکار در ۹۶ فایلِ تست (بدونِ اینترنت، بدونِ رباتِ واقعی).
 - ۱۱۸ فایل پایتون در پوشه‌ی برنامه، حدودِ ۳۳٬۴۰۰ خط کد.
 - ۶ مدلِ آماده در کاتالوگ، از ۱٫۲ تا ۵٫۷ گیگابایت.
-- ۱۸۲ مقاله‌ی راهنما (۵۸ پرسشِ متداول، ۲۶ عیب‌یابی) در ۱۵ دسته.
+- ۱۸۳ مقاله‌ی راهنما (۵۸ پرسشِ متداول، ۲۶ عیب‌یابی) در ۱۵ دسته.
 - ۱۲ قالبِ آماده‌ی سیستم‌پرامپت (۶ فروشگاهی، ۶ مشاوره‌ای) و ۵ قانونِ حذف‌نشدنی.
 - ۲۱۹ متنِ ربات، همه دوزبانه (فارسی + انگلیسی) و قابلِ ویرایش در برنامه.
 - ۴ دکمه در منویِ مشتری · ۲ حالتِ کاری · ۲ روشِ پرداخت · ۶ وضعیتِ سفارش ·
@@ -395,7 +395,7 @@ GitHub: https://github.com/niknam1382/smart-business-local
 - ۶ نوعِ فیلد در فرمِ سفارش، تا ۱۲ فیلد · ۴ شکلِ تحویلِ کالای دیجیتال (متن، لینک،
   فایل، کلید).
 - رزروِ پیش‌فرضِ موجودی: ۱۵ دقیقه. بررسیِ به‌روزرسانی: هر ۲۴ ساعت.
-- ۳ منبعِ دانلودِ مدل (یک سایتِ اصلی + دو آینه).
+- ۲ منبعِ دانلودِ مدل (یک سایتِ اصلی + یک آینه).
 - ۲ سیستم‌عامل با بسته‌ی آماده (ویندوز، لینوکس) + اجرایِ از سورس روی مک. مجوز: MIT.
 - فناوری‌ها: Python 3.12 · Flet (رابط) · aiogram 3 (تلگرام) · llama.cpp/GGUF (مدل) ·
   SQLite (داده) · Inno Setup (نصب‌کننده).
@@ -460,9 +460,9 @@ GitHub: https://github.com/niknam1382/smart-business-local
 ۶. «فاکتورِ فارسیِ A4 که خودت لوگویش را گذاشته‌ای» + دفتری که با تأییدِ سفارش خودش
    پر می‌شود.
 ۷. «قفلِ موجودی»: دو مشتری آخرین کالا را هم‌زمان رزرو نمی‌کنند.
-۸. «۱۸۲ مقاله راهنما داخلِ خودِ برنامه»، دکمه‌ی «؟» در هر صفحه و عیب‌یابِ خودکار.
+۸. «۱۸۳ مقاله راهنما داخلِ خودِ برنامه»، دکمه‌ی «؟» در هر صفحه و عیب‌یابِ خودکار.
 ۹. «متن‌باز است، فورکش کن»: MIT، بدونِ قفل، بدونِ الزامِ لینکِ حمایتی.
-۱۰. «۱۹۷۰ تستِ خودکار» به‌عنوانِ مدرکِ مهندسی برای مخاطبِ فنی.
+۱۰. «۱۹۸۷ تستِ خودکار» به‌عنوانِ مدرکِ مهندسی برای مخاطبِ فنی.
 
 پیشنهادِ فرمت‌ها: یک GIF/ویدیوی ۳۰ ثانیه‌ای از همین مسیرِ واقعی — مشتری → دکمه‌ها →
 پرداخت → آلارمِ رسید → تأییدِ مالک → فاکتور و تحویل. این همان چیزی است که کلِ
@@ -519,7 +519,7 @@ FAQ. Skip the model entirely and the shop still works.
 
 Also included: digital products with automatic delivery (text, link, file, or
 one-time licence keys), human support handoff inside the same chat, an offline
-Persian guide with 182 articles (58 FAQ, 26 troubleshooting) and a "?" button on
+Persian guide with 183 articles (58 FAQ, 26 troubleshooting) and a "?" button on
 every page, broadcast with segmentation and daily caps, personal messages,
 discount codes and campaigns, required-channel gating, a customer book with CSV
 export, staff roles (manager/support/viewer) with an audit log, a proxy pool with
@@ -531,7 +531,7 @@ Honest limits, worth repeating: binaries are built in CI and not yet code-signed
 (SmartScreen/Gatekeeper warn on first run); real Telegram and real gateway
 behaviour must be checked per installation against the manual checklist; the
 finance section is a helper, not official accounting or tax filing; one shop per
-installation; Telegram only. 1970 automated tests, no internet or real bots
+installation; Telegram only. 1987 automated tests, no internet or real bots
 needed. Download from the repository's Releases page.
 
 

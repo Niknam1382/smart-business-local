@@ -3,6 +3,7 @@
 """
 
 import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -316,3 +317,49 @@ def test_engine_surface_has_no_api_left(tmp_path):
     path = gguf_file(tmp_path / "m.gguf")
     engine = LocalEngine(path)
     assert engine.model_path == path and engine.record_usage is True
+
+
+# ------------------------------------------------- پرس‌وجویِ توانِ GPU (ابهامِ CUDA)
+
+
+def fake_llama_module(**attrs):
+    module = types.ModuleType("llama_cpp")
+    for key, value in attrs.items():
+        setattr(module, key, value)
+    return module
+
+
+def test_gpu_offload_asks_the_installed_build_and_caches_the_answer(monkeypatch):
+    """«آیا GPU کار می‌کنه؟» پاسخِ llama.cpp است، نه نامِ کارتِ گرافیک."""
+    ai_engine.reset_gpu_offload_cache()
+    try:
+        monkeypatch.setitem(sys.modules, "llama_cpp", fake_llama_module(llama_supports_gpu_offload=lambda: True))
+        assert ai_engine.gpu_offload_available() is True
+        # پاسخِ اول کش می‌شه؛ پس یک بیلدِ دیگر در همان اجرا جوابِ قبلی را می‌دهد
+        monkeypatch.setitem(sys.modules, "llama_cpp", fake_llama_module(llama_supports_gpu_offload=lambda: False))
+        assert ai_engine.gpu_offload_available() is True
+        ai_engine.reset_gpu_offload_cache()
+        assert ai_engine.gpu_offload_available() is False
+    finally:
+        ai_engine.reset_gpu_offload_cache()
+
+
+def test_gpu_offload_is_false_when_the_build_cannot_answer(monkeypatch):
+    """نبودِ llama_cpp، نبودِ سمبل، یا crashِ خودِ سمبل = همان «CPU-only» بودن (نه خطایِ کاربر)."""
+    ai_engine.reset_gpu_offload_cache()
+    try:
+        monkeypatch.setitem(sys.modules, "llama_cpp", fake_llama_module())  # سمبل نیست
+        assert ai_engine.gpu_offload_available() is False
+        ai_engine.reset_gpu_offload_cache()
+
+        def boom():
+            raise RuntimeError("no native library")
+
+        monkeypatch.setitem(sys.modules, "llama_cpp", fake_llama_module(llama_supports_gpu_offload=boom))
+        assert ai_engine.gpu_offload_available() is False
+        ai_engine.reset_gpu_offload_cache()
+
+        monkeypatch.delitem(sys.modules, "llama_cpp", raising=False)
+        assert ai_engine.gpu_offload_available() is False
+    finally:
+        ai_engine.reset_gpu_offload_cache()

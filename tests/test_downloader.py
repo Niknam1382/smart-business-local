@@ -7,6 +7,7 @@ import hashlib
 import json
 import re
 import threading
+import urllib.error
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
@@ -384,3 +385,51 @@ def test_a_redirect_inside_the_allowed_host_is_still_followed(tmp_path, blob, sm
     primary.redirect_to = holder.url()  # هر دو روی 127.0.0.1 ⇒ مجاز
     dl.download([primary.url()], dest, expected_sha256=hashlib.sha256(blob).hexdigest(), expected_size=len(blob))
     assert dest.read_bytes() == blob
+
+
+def test_a_redirect_to_a_declared_extra_host_is_followed(tmp_path, blob, small_chunk, serve):
+    """CDNهایِ اعلام‌شده باید از same-hostِ سخت‌گیرانه رد بشوند: هر دو منبعِ واقعیِ کاتالوگ
+    فایلِ GGUF را با ۳۰۲/۳۰۸ به دامنه‌ی CDN خودشان می‌فرستند، پس بدونِ این، **هیچ** مدلی
+    دانلود نمی‌شد (باگِ اندازه‌گیری‌شده در نسخه‌ی ۱.۰.۰)."""
+    primary = serve(blob, redirect_to="")
+    holder = serve(blob)
+    dest = tmp_path / "model.gguf"
+    port = holder._server.server_address[1]  # noqa: SLF001
+    primary.redirect_to = f"http://localhost:{port}/models/model.gguf"  # هوستِ دیگر، همان فایل
+    with pytest.raises(dl.DownloadError, match="هیچ منبعی"):
+        dl.download([primary.url()], dest, expected_sha256=hashlib.sha256(blob).hexdigest(), expected_size=len(blob))
+    assert not dest.exists()
+    dl.download([primary.url()], dest, expected_sha256=hashlib.sha256(blob).hexdigest(), expected_size=len(blob),
+                allowed_hosts={"localhost"})
+    assert dest.read_bytes() == blob
+
+
+def test_host_matching_is_by_name_not_by_ip():
+    """``evil-hf.co`` یا ``huggingface.co.evil.io`` نباید به‌خاطرِ شباهتِ متنی رد بشوند؛
+    زیردامنه‌یِ دامنه‌یِ اعلام‌شده بله. ``localhost`` هم IPِ خودش نیست ⇒ رد."""
+    allowed = {"hf.co", "huggingface.co"}
+    assert dl.host_allowed("us.aws.cdn.hf.co", allowed)
+    assert dl.host_allowed("CDN.HF.CO", allowed)
+    assert dl.host_allowed("huggingface.co", allowed)
+    assert not dl.host_allowed("evil-hf.co", allowed)
+    assert not dl.host_allowed("huggingface.co.evil.io", allowed)
+    assert not dl.host_allowed("localhost", allowed)
+    assert not dl.host_allowed("", allowed)
+
+
+def test_the_failure_text_names_every_source_instead_of_blaming_the_last_one(tmp_path, blob, small_chunk, serve):
+    """پیامِ «از هیچ منبعی ممکن نشد» باید علتِ **هر** منبع را بگوید؛ در باگِ نسخه‌ی ۱.۰.۰
+    خطایِ آخرینِ منبع (DNSِ آینه‌ی مرده) جایِ علتِ واقعی را می‌گرفت."""
+    srv = serve(blob, status_error=500)
+    dead = "http://localhost:1/models/gone.gguf"  # هیچ سرویسی پشتش نیست
+    dest = tmp_path / "model.gguf"
+    with pytest.raises(dl.DownloadError) as caught:
+        dl.download([srv.url(), dead], dest, expected_sha256=hashlib.sha256(blob).hexdigest(), expected_size=len(blob))
+    text = str(caught.value)
+    assert "127.0.0.1" in text and "localhost" in text, text
+    assert "وارد کردن فایلِ مدل" in text  # راهِ جایگزین همان‌جا گفته می‌شه
+
+
+def test_the_reason_helper_strips_python_noise():
+    assert dl._reason(urllib.error.URLError("[Errno 11001] getaddrinfo failed")) == "getaddrinfo failed"  # noqa: SLF001
+    assert dl._reason(TimeoutError()) == "TimeoutError"  # noqa: SLF001

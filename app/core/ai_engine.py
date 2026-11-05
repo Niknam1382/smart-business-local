@@ -265,6 +265,35 @@ def _llama_available() -> bool:
     return importlib.util.find_spec("llama_cpp") is not None
 
 
+_gpu_offload_cache: Optional[bool] = None
+
+
+def gpu_offload_available(force: bool = False) -> bool:
+    """آیا *همین* بیلدِ llama-cpp می‌تواند لایه روی GPU بگذارد؟ حدس نه، پرس‌وجو.
+
+    بیلدِ رسمیِ برنامه (و بسته‌هایِ آماده) از شاخه‌ی CPU installed می‌شود، پس پاسخِ این تابع
+    False است و «لایه‌هایِ GPU» هیچ اثری ندارد — دقیقاً همان ابهامی که کاربر باید پیش از
+    تغییرِ عدد بداند. اگر llama_cpp نباشد یا تابع را نداشته باشد هم False برمی‌گردد."""
+    global _gpu_offload_cache
+    if _gpu_offload_cache is not None and not force:
+        return _gpu_offload_cache
+    supported = False
+    try:
+        import llama_cpp
+
+        supported = bool(llama_cpp.llama_supports_gpu_offload())
+    except Exception:  # noqa: BLE001 — نبودِ کتابخانه/سمبل = همان «CPU-only» بودن
+        supported = False
+    _gpu_offload_cache = supported
+    return supported
+
+
+def reset_gpu_offload_cache() -> None:
+    """برایِ تست‌ها و بعدِ نصبِ دوباره‌ی موتور."""
+    global _gpu_offload_cache
+    _gpu_offload_cache = None
+
+
 def resolve_model_path(settings) -> Optional[Path]:
     """مسیرِ فایلِ GGUFِ انتخاب‌شده.
 

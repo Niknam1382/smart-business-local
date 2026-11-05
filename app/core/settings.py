@@ -70,6 +70,7 @@ class AppSettings:
     model_storage_path: str = ""  # اگه خالی باشه، پیش‌فرض get_app_data_dir()/models استفاده می‌شه
     system_prompt: str = ""
     onboarding_complete: bool = False
+    ai_declined: bool = False  # کاربر گامِ «هوش مصنوعی» را با «بعداً» رد کرده؛ بدونِ مدل هم به خانه می‌ره
 
     # --- موتورِ مدلِ محلی (پیش‌فرض‌ها خودکار از سخت‌افزار حساب می‌شن؛ عدد > ۰ یعنی دستورِ کاربر) ---
     ai_threads: int = 0  # ۰ = خودکار (تعداد هسته‌ها)

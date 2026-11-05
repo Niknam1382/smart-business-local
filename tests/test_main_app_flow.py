@@ -43,6 +43,58 @@ def test_app_boots_past_onboarding_straight_to_home(tmp_path):
     assert page.controls[0].content is not None  # خانه (هوش مصنوعی) بلافاصله ساخته شده
 
 
+def fresh_owner_state(**overrides):
+    """کاربری که نام و نوعِ کسب‌وکار را گفته ولی هنوز *هیچ* مدلی ندارد."""
+    reset_bot_manager_singleton()
+    state = settings_module.load_settings()
+    state.user_name = "محمد مهدی"
+    state.business_mode = "store"
+    state.data_acknowledged = True
+    for key, value in overrides.items():
+        setattr(state, key, value)
+    settings_module.save_settings(state)
+    return state
+
+
+def test_without_a_model_the_ai_step_is_the_last_gate(tmp_path):
+    fresh_owner_state()
+    page = FakePage()
+    main(page)
+    root = page.controls[0].content
+    assert find(root, "skip_button") is not None, "گامِ مدل باید همان صفحه‌ی اول باشد"
+    assert find(root, "nav_bots") is None, "هنوز خانه باز نشده"
+
+
+def test_skipping_the_ai_step_opens_home_and_stays_skipped(tmp_path):
+    """رگرسیون: «بعداً انتخاب میکنم» قبلاً همان گام را دوباره می‌ساخت — یعنی کاربرِ بدونِ
+    مدل هیچ‌وقت به برنامه نمی‌رسید، درحالی‌که فروشِ دکمه‌ای به هوش مصنوعی نیازی ندارد."""
+    fresh_owner_state()
+    page = FakePage()
+    main(page)
+    fire(find(page.controls[0].content, "skip_button"), "on_click")
+    home = page.controls[0].content
+    assert find(home, "nav_bots") is not None, "بعدِ ردکردنِ گامِ مدل باید خانه باز شود"
+    assert settings_module.load_settings().ai_declined is True
+
+    again = FakePage()
+    main(again)
+    assert find(again.controls[0].content, "skip_button") is None, "بارِ بعدی نباید دوباره همان گام بیاید"
+
+
+def test_a_declined_ai_step_still_works_once_a_model_exists(tmp_path):
+    """ردکردن یعنی «بعداً»؛ مدل که بعداً اضافه شود باز هم همان خانه است."""
+    state = fresh_owner_state(ai_declined=True)
+    page = FakePage()
+    main(page)
+    assert find(page.controls[0].content, "nav_bots") is not None
+    assert state.model_id is None
+    state.model_file_path = "models/qwen.gguf"
+    settings_module.save_settings(state)
+    ready = FakePage()
+    main(ready)
+    assert find(ready.controls[0].content, "nav_bots") is not None
+
+
 def test_nav_buttons_switch_to_bots_and_chats_screens(tmp_path):
     reset_bot_manager_singleton()
     onboarded_state()

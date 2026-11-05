@@ -1,0 +1,103 @@
+name: CI
+
+# دروازه‌ی اصلیِ کیفیت: ruff + کلِ مجموعه‌تست روی لینوکس (بسترِ توسعه) و یک نگاهِ اطلاعاتی روی
+# ویندوز/مک. شغلِ ساختِ نسخه در release.yml است و اینجا اجرا نمی‌شه.
+#
+# چرا نسخه‌ها پین می‌شن: این مجموعه (۱۹۰۲ تست) با همین اجزا راستی‌آزمایی شده؛ pip در CI تازه‌ترینِ
+# هر بسته را می‌گیرد و یک شکستِ بی‌ربطِ نسخه‌ای، سبز/قرمزِ مخزن را گروگان می‌کند. برای ارتقا،
+# الزاماً نسخه را عوض کن و `python -m pytest` کامل را محلی اجرا کن.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - run: python -m pip install --upgrade pip
+      - run: pip install "ruff==0.17.1"
+      - run: ruff check .
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-test.txt
+      - run: python -m pip install --upgrade pip
+      - run: pip install -r requirements-test.txt
+      # لاگ کامل در logs/pytest.log می‌مونه و ته‌اش به‌صورت Annotation چاپ می‌شه؛ بدونِ آن شکستِ CI
+      # فقط «exit code 2» بود و هیچ علّی در دسترس نبود.
+      - name: Run tests
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p logs
+          python -m pytest -ra --tb=short --color=no 2>&1 | tee logs/pytest.log \
+            || { bash scripts/ci_fail_report.sh "pytest" logs/pytest.log; exit 1; }
+      - name: Upload pytest log
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pytest-log
+          path: logs/pytest.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # ویندوز و مک «آزمایشی»‌اند: تست‌ها روی لینوکس نوشته و اجرا شدن و چند تستِ زمان‌سنج/فایل‌سیستمی
+  # (مثلِ جایگزینیِ اتمیک heartbeat که روی NTFS با PermissionError رقابت می‌کند) آن‌ها را بی‌ربط قرمز
+  # می‌کنند. شکستشان CI را قرمز نمی‌کند ولی در نتیجه دیده می‌شود.
+  test-platforms:
+    name: Tests (${{ matrix.os }}) · informational
+    needs: test
+    runs-on: ${{ matrix.os }}
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-test.txt
+      - run: python -m pip install --upgrade pip
+      - run: pip install -r requirements-test.txt
+      - name: Run tests
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p logs
+          python -m pytest -ra --tb=line --color=no 2>&1 | tee logs/pytest.log \
+            || { bash scripts/ci_fail_report.sh "pytest (${{ matrix.os }})" logs/pytest.log; exit 1; }
+      - name: Upload pytest log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pytest-log-${{ matrix.os }}
+          path: logs/pytest.log
+          if-no-files-found: ignore
+          retention-days: 7

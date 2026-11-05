@@ -1,0 +1,63 @@
+# .dockerignore — چیزی که هرگز نباید به context/تصویرِ headless بره.
+#
+# توجه: داده‌ی کاربر، کلید و مدل (۴ گیگ+) عمداً بیرون می‌مونن؛ فقط کدِ برنامه + run.py +
+# assets/fonts (که app/core/invoice_pdf.py برای PDFِ فارسی به آن نیاز دارد) کپی می‌شن.
+
+# git / ابزارها / کش
+.git
+.gitignore
+.gitattributes
+.github
+.editorconfig
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.ruff_cache
+.venv
+venv
+
+# تست، مستندات، ابزارهای ساختِ دسکتاپ (headless هیچ‌کدام را نمی‌خواد)
+tests
+docs
+installer
+scripts
+pyproject.toml
+pytest.ini
+
+# فایل‌های وابستگیِ حالتِ دسktop/بسته‌بندی (تصویر فقط requirements-headless.txt را می‌خونه)
+requirements.txt
+requirements-test.txt
+requirements-dev.txt
+
+# خروجیِ ساخت
+build
+dist
+release
+*.spec
+
+# دارایی‌های فقط-UI (فونت‌ها استثنا هستن: PDFِ فاکتور به assets/fonts نیاز دارد)
+assets/guide
+assets/icons
+
+# داده‌ی کاربر و رازها — هرگز داخلِ تصویر
+data
+models
+*.gguf
+*.part
+receipts
+product_photos
+backups
+diagnostics
+invoices
+exports
+logs
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+secret.key
+settings.json
+settings.corrupt-*.json
+*.log
+.env

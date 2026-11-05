@@ -1,0 +1,61 @@
+# پایتون
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# خروجی بسته‌بندی (با فاز CI ساخته می‌شن، نباید توی گیت‌هاب باشن)
+build/
+dist/
+release/
+*.spec
+
+# داده‌ی محلی کاربر — هیچ‌وقت نباید کامیت بشه (هر چیزی که app/core/paths.py در پوشه‌ی داده می‌نویسه)
+settings.json
+settings.corrupt-*.json
+secret.key
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+*.sqlite
+*.sqlite3
+*.db*
+bot.log
+*.log
+logs/
+heartbeat.json
+update_result.json
+
+# پوشه‌های داده‌ی کاربر (پشتیبان، رسیدِ پرداخت، عکسِ محصول، مدلِ AI، فاکتور، خروجیِ CSV)
+backups/
+diagnostics/
+receipts/
+product_photos/
+models/
+invoices/
+exports/
+
+# مدل‌های هوش مصنوعی (GGUF) هرگز در مخزن/بسته نمی‌شن — برنامه در زمانِ اجرا دانلود می‌کنه
+*.gguf
+*.part
+*.part.meta
+
+# ابزارهای ادیتور/سیستم‌عامل
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# کشِ ابزارها
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+.env
+
+logs/
+*.log
+SHA256SUMS.txt.sig

@@ -1,0 +1,326 @@
+name: Release builds
+
+# ساخت آرتیفکت‌های نسخه روی ماشین‌های واقعیِ گیت‌هاب (از روی ماشینِ توسعه‌دهنده نمی‌شود exe ویندوزی
+# ساخت؛ هر آرتیفکت روی رانرِ همان سیستم‌عامل ساخته می‌شود).
+#
+# فقط با تگِ نسخه (v1.0.0) یا اجرای دستی از تبِ Actions — نه با هر push. تگ باید با app/version.py
+# بخونه؛ اولین گام همین را چک می‌کنه و می‌شکنه.
+#
+# ⚠️ «نسخه‌ی قابل‌حمل/فلش» ساخته نمی‌شه. تحویلِ هر سیستم‌عامل (scripts/package_release.py):
+#   ویندوز: SmartBusinessLocal-<v>-windows-setup.exe (نصب‌کننده، اجباری) + SmartBusinessLocal-<v>-windows.exe (تک‌فایل)
+#   لینوکس: SmartBusinessLocal-<v>-linux.tar.gz      (tar چون بیتِ اجرایی و symlink را بومی حفظ می‌کنه)
+#   + SHA256SUMS.txt برای هر سیستم‌عامل، و در آخر یک SHA256SUMS.txtِ جامع روی Release.
+#
+# 🍎 چرا باینریِ macOS منتشر نمی‌شه: روی رانرِ آرمِ مک، `llama-cpp-python` wheelِ آماده ندارد و pip
+# باید از سورس کامپایلش کند؛ هر سه بیلد (با و بدونِ `cmake`/`ninja` که نصب شد) در گامِ
+# «Install Python dependencies» شکست. تا وقتی wheel معتبر برای آن پلتفرم پیدا نشه، باندلِ مک
+# ساخته نمی‌شه تا دروغِ «نسخه‌ی مک» در Release نباشه. کاربرِ مک می‌تونه از سورس اجراش کند
+# (`scripts/run-from-source.sh`) — همان مسیرِ «توسعه‌دهنده‌ها» در README. برای برگرداندنِ بیلدِ مک:
+# یک نسخه از `llama-cpp-python` با wheelِ macosx arm64 پیدا و پین کن، بعد ردیفِ macos را برگردان.
+#
+# هیچ jobی «experimental» نیست: هر دو آرتیفکت واقعی‌اند و شکستِ هرکدام ساخت را قرمز می‌کنه.
+# جاهایِ شکننده در نام/کامنتِ همان گام نوشته شده، نه با continue-on-errorِ بی‌صدا.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build (${{ matrix.os_name }}) · artifacts are mandatory
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os_name: windows
+            runner: windows-latest
+            add_data: "assets;assets"  # جداکننده‌ی ویندوز «;» است، نه «:»
+            icon: "assets/icons/app.ico"
+          - os_name: linux
+            runner: ubuntu-latest
+            add_data: "assets:assets"
+            icon: "assets/icons/app-icon-256.png"
+            # شکننده: فلتِ لینوکس به WebKitGTK/GTK نیاز دارد (گامِ system deps)؛ اگر روزی broken
+            # شد، همان گامِ apt را درست کن، job را experimental نکن.
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Check tag matches app/version.py
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          PYTHONUTF8: "1"  # تا پیامِ فارسیِ خطا روی ویندوز (cp1252) نشکنه
+        shell: python
+        run: |
+          import os, sys
+          sys.path.insert(0, ".")
+          from app.version import __version__
+          tag = os.environ["GITHUB_REF_NAME"].lstrip("v")
+          if tag != __version__:
+              sys.exit(f"تگ ({tag}) با app/version.py ({__version__}) نمی‌خونه")
+
+      # سیستم‌پکیج‌های لینوکس: flet-desktop روی لینوکس یک وب‌ویویِ GTK/WebKitGTK است و باینریِ
+      # ساخته‌شده روی ماشینِ کاربر همین کتابخانه‌ها را لازم دارد؛ libgomp1 هم لازم است چون
+      # wheelهای آماده‌ی llama-cpp-python با OpenMP لینک می‌شن (بدونِ آن import llama_cpp خطا می‌دهد).
+      # fontconfig فقط کتابخانه‌ی شناختِ قلم است؛ فونتِ فارسی لازم نیست — Vazirmatn با --add-data
+      # داخلِ باینری می‌آید. لیستِ همان کتابخانه‌ها برای کاربر در docs/RELEASING.md نوشته شده.
+      - name: Install Linux system packages (GTK/WebKitGTK + OpenMP)
+        if: matrix.os_name == 'linux'
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p logs
+          {
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends \
+              libgtk-3-0 libwebkit2gtk-4.1-0 libjavascriptcoregtk-4.1-0 libsoup-3.0-0 \
+              libayatana-appindicator3-1 librsvg2-2 libgomp1
+          } 2>&1 | tee logs/system-deps.log || { bash scripts/ci_fail_report.sh "Linux system packages" logs/system-deps.log; exit 1; }
+
+      # خروجیِ گام‌های حساس (نصب/ساخت/بسته‌بندی) در logs/*.log ذخیره می‌شه؛ اگر شکست خورد،
+      # ته‌ِ لاگ هم‌جا در «Annotations» و «Summary» دیده می‌شه (قبلاً یه نسخه با فقط «exit code 1»
+      # و هیچ علّی منتشر نشد) و لاگ‌ها آپلود می‌شن.
+      # llama-cpp-python روی PyPI فقط سورس (sdist) دارد؛ اگر رانری wheelِ آماده برای
+      # Python/architecture خودش نداشته باشد، همین گام با «ERROR: Exception:» (کامپایل از سورس)
+      # می‌شکنه — کاری که بیلدِ macos را قرمز کرد و به همین دلیل آن ردیف از matrix بیرون رفت.
+      # تلاشِ دوباره با پاک‌کردنِ کش، خطاهایِ شبکه‌ایِ pip را حذف می‌کنه.
+      - name: Install Python dependencies
+        shell: bash
+        env:
+          CMAKE_BUILD_TYPE: Release
+        run: |
+          set -o pipefail
+          mkdir -p logs
+          {
+            python -m pip install --upgrade pip
+            for attempt in 1 2 3; do
+              python -m pip cache purge
+              if python -m pip install --no-cache-dir --retries 10 --timeout 120 -r requirements-dev.txt; then
+                break
+              fi
+              if [ "$attempt" -eq 3 ]; then
+                exit 1
+              fi
+              echo "Dependency installation failed on attempt $attempt; retrying without cached wheels."
+            done
+          } 2>&1 | tee logs/install.log || { bash scripts/ci_fail_report.sh "Install Python dependencies" logs/install.log; exit 1; }
+          # گزارشِ صریحِ آنچه نصب شد تا شکستِ بعدی («چرا مدل کار نمی‌کند؟») از روی لاگ جواب داشته باشه
+          python - <<'PY'
+          import importlib.metadata as md
+          for name in ("flet", "flet-desktop", "flet-cli", "pyinstaller", "aiogram", "llama-cpp-python", "fpdf2"):
+              try:
+                  print(f"{name}: {md.version(name)}")
+              except Exception as exc:  # noqa: BLE001
+                  print(f"{name}: NOT INSTALLED ({exc!r})")
+          PY
+
+      # دروازه‌ی وابستگی — قبل از ساخت. incident واقعی: روی ویندوز به‌جای fpdf2 بسته‌ی قدیمیِ
+      # fpdf (pyfpdf 1.7.2) نصب شد و همه‌ی فاکتورهای فارسی با UnicodeDecodeError(cp1252) داخلِ
+      # add_font شکستند؛ فایلِ exe سالم به‌نظر می‌رسید و باگ تا تولید ماند.
+      - name: Dependency gate (fpdf2, not pyfpdf) · دروازه‌ی وابستگی‌ها
+        env:
+          PYTHONUTF8: "1"
+        shell: python
+        run: |
+          import importlib, importlib.metadata, sys
+
+          problems = []
+
+          try:
+              print("fpdf2 version:", importlib.metadata.version("fpdf2"))
+          except importlib.metadata.PackageNotFoundError:
+              problems.append("بسته‌ی fpdf2 نصب نیست. / fpdf2 is not installed.")
+
+          try:
+              import fpdf
+              version = str(getattr(fpdf, "__version__", "unknown"))
+              print("fpdf.__version__:", version)
+              if not version.startswith("2."):
+                  problems.append(
+                      f"ماژولِ fpdf با نسخه‌ی {version} بارگذاری شد — این بسته‌ی قدیمیِ pyfpdf است "
+                      f"نه fpdf2؛ با آن PDF فارسی داخلِ add_font با UnicodeDecodeError(cp1252) می‌شکنه. "
+                      f"/ loaded the legacy pyfpdf instead of fpdf2."
+                  )
+          except Exception as exc:  # noqa: BLE001 - دروازه باید هر شکستی را گزارش کنه
+              problems.append(f"import fpdf شکست خورد: {exc!r} / failed to import fpdf.")
+
+          for name in ("uharfbuzz", "fontTools", "segno"):
+              try:
+                  importlib.import_module(name)
+              except Exception as exc:  # noqa: BLE001
+                  problems.append(f"import {name} شکست خورد: {exc!r} / failed to import {name}.")
+
+          if problems:
+              print("::error title=Dependency gate failed::PDF/AI build will ship broken Persian invoices")
+              print("=" * 72)
+              print("دروازه‌ی وابستگی رد شد / dependency gate refused the build")
+              for item in problems:
+                  print("  -", item)
+              print("-" * 72)
+              print("راه‌حل / fix (روی همان ماشینِ ساخت):")
+              print("  python -m pip uninstall -y fpdf")
+              print('  python -m pip install --force-reinstall "fpdf2>=2.8.5" "uharfbuzz>=0.40.0" "fontTools>=4.53" "segno>=1.6.0"')
+              print("  سپس requirements.txt را ببین: هیچ‌جا نباید fpdf (بدون 2) نوشته شده باشه.")
+              print("  Solution: uninstall the legacy 'fpdf' package and install fpdf2 + the shaping libs.")
+              print("=" * 72)
+              sys.exit(1)
+
+          # اطلاع‌رسانی (نه شکست): --collect-all=llama_cpp در گامِ بعد این بسته را می‌خواد؛
+          # نبودنش بعداً با پیامِ گیج‌کننده‌ی PyInstaller خودش را نشان می‌ده.
+          try:
+              import llama_cpp
+              print("llama_cpp:", getattr(llama_cpp, "__version__", "installed"))
+          except Exception as exc:  # noqa: BLE001
+              print(f"::warning title=llama-cpp-python import failed::{exc!r} (فقط اگر build نمی‌شود مشکل است)")
+          print("Dependency gate OK")
+
+      # تست‌ها دروازه‌ی اصلی‌شان ci.yml است؛ اینجا فقط قبلِ ساخت یک نگاهِ اطلاعاتی می‌ده تا
+      # آرتیفکتِ بی‌کیفیت منتشر نشود. شکستِ تست روی این job ساخت را متوقف نمی‌کنه (عمداً، و مشخص).
+      - name: Run tests before building (informational only)
+        continue-on-error: true
+        run: python -m pytest
+
+      # نکته: آرگومانِ PyInstaller باید به شکلِ «--pyinstaller-build-args=--collect-all=llama_cpp»
+      # (با علامتِ =) بیاد؛ شکلِ جداشده رو argparse گزینه‌ی ناشناخته حساب می‌کنه و ساخت با
+      # «unrecognized arguments» می‌شکنه (با flet-cli 1.0.1 آزمایش شده).
+      # --collect-all=llama_cpp لازم است: llama_cpp باینریِ .pyd/.so + lib llama را import می‌کند و
+      # بدونِ آن فایلِ اجرایی فقط روی ماشینِ سازنده کار می‌کند. متادیتای فایل عمداً ASCII است.
+      - name: Build with flet pack
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p logs
+          flet pack run.py \
+            --name SmartBusinessLocal \
+            --add-data "${{ matrix.add_data }}" \
+            --icon "${{ matrix.icon }}" \
+            --product-name "Smart Business Local" \
+            --file-description "Smart Business Local - AI assistant for shops and consultants" \
+            --pyinstaller-build-args=--collect-all=llama_cpp \
+            -y 2>&1 | tee logs/build.log || { bash scripts/ci_fail_report.sh "Build with flet pack" logs/build.log; exit 1; }
+
+      # اجباری: دیگر zipِ قابل‌حمل به‌عنوانِ راه‌جای وجود ندارد، پس نصب‌کننده‌ی ویندوز
+      # باید ساخته شود، وگرنه نصبِ معمولیِ ویندوز وجود ندارد. ISCC خروجی را در release/
+      # (OutputDir در installer/SmartBusinessLocal.iss) با نامِ دقیقِ
+      # SmartBusinessLocal-<v>-windows-setup.exe می‌نویسه؛ گامِ بعد آن را در SHA256SUMS می‌ذاره.
+      - name: Build Windows installer (Inno Setup)
+        if: matrix.os_name == 'windows'
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p logs
+          {
+            choco install innosetup -y --no-progress \
+              || winget install --id JRSoftware.InnoSetup -e --silent --accept-package-agreements --accept-source-agreements \
+              || { echo "نصبِ Inno Setup شکست خورد (choco و winget هر دو) / could not install Inno Setup"; exit 1; }
+            version="$(python -c "from app.version import __version__; print(__version__)")"
+            # هر نسخه‌ی «Inno Setup N» و shimِ PATH بپذیر: تصویرِ runner ممکن است ۶ را به ۷ ارتقا داده
+            # باشد و حدسِ مسیرِ ثابت («Inno Setup 6») روزی ساخت را بی‌دلیل قرمز می‌کرد.
+            ISCC="$(command -v iscc || command -v iscc.exe || true)"
+            for d in "/c/Program Files (x86)/Inno Setup "*/ "/c/Program Files/Inno Setup "*/ "$LOCALAPPDATA/Programs/Inno Setup "*/; do
+              if [ -z "$ISCC" ] && [ -f "${d}ISCC.exe" ]; then ISCC="${d}ISCC.exe"; fi
+            done
+            [ -n "$ISCC" ] || { echo "ISCC.exe پیدا نشد / ISCC.exe not found after installing Inno Setup"; ls -d "/c/Program Files (x86)"/* "/c/Program Files"/* 2>/dev/null | grep -i inno || true; exit 1; }
+            echo "Using compiler: $ISCC"
+            MSYS_NO_PATHCONV=1 "$ISCC" "/DAppVersion=$version" "installer\\SmartBusinessLocal.iss"
+            ls -la release
+          } 2>&1 | tee logs/installer.log || { bash scripts/ci_fail_report.sh "Inno Setup installer" logs/installer.log; exit 1; }
+
+      - name: "Package release artifacts (windows: setup + exe / linux: tar.gz + SHA256SUMS)"
+        env:
+          PYTHONUTF8: "1"
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p logs
+          python scripts/package_release.py \
+            --os "${{ matrix.os_name }}" \
+            --dist dist \
+            --out release \
+            --sums-name "SHA256SUMS-${{ matrix.os_name }}.txt" 2>&1 | tee logs/package.log \
+            || { bash scripts/ci_fail_report.sh "Package release artifacts" logs/package.log; exit 1; }
+          cat "release/SHA256SUMS-${{ matrix.os_name }}.txt"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: SmartBusinessLocal-${{ matrix.os_name }}
+          path: release/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: build-logs-${{ matrix.os_name }}
+          path: logs/*
+          if-no-files-found: ignore
+          retention-days: 14
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # برای ساختنِ Release و پیوست‌کردنِ فایل‌ها
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: release
+          pattern: SmartBusinessLocal-*
+          merge-multiple: true
+
+      # SHA256SUMS.txtِ نهایی = هشِ همه‌ی آرتیفکت‌ها (فایل‌های per-OS و .sigهای دستی واردش نمی‌شن،
+      # وگرنه هشِ هش می‌خوانیم). قالبِ خروجی «هش  نام» با دو فاصله، همان چیزی که
+      # scripts/package_release.py می‌نویسه ⇒ روی لینوکس: `sha256sum -c SHA256SUMS.txt`
+      # روی مک: `shasum -a 256 -c SHA256SUMS.txt` · روی ویندوز: `Get-FileHash -Algorithm SHA256 <file>`
+      - name: Combined checksums
+        run: |
+          cd release
+          rm -f SHA256SUMS.txt SHA256SUMS-*.txt
+          # بازگشتی: اگر روزی merge-multiple کار نکند و هر آرتیفکت در پوشه‌ی خودش بیاید،
+          # فایل‌ها گم نشوند و هشِ درست گرفته شود.
+          files=()
+          while IFS= read -r f; do
+            case "$f" in ./SHA256SUMS*|*.sig) continue ;; esac
+            files+=("${f#./}")
+          done < <(find . -type f \( -name 'SmartBusinessLocal-*' -o -name 'SHA256SUMS-*' \) | sort)
+          # فقط فایل‌های منتشرشدنیِ واقعی واردِ فهرستِ نهایی می‌شن (per-OS sumsها حذف می‌شن)
+          keep=()
+          for f in "${files[@]}"; do
+            case "$f" in SHA256SUMS-*) continue ;; esac
+            keep+=("$f")
+          done
+          [ "${#keep[@]}" -ge 1 ] || { echo "هیچ آرتیفکتی دانلود نشد / no artifacts downloaded"; find . -type f | sed 's/^/  /'; exit 1; }
+          sha256sum -- "${keep[@]}" > SHA256SUMS.txt
+          ls -la
+          cat SHA256SUMS.txt
+          sha256sum -c SHA256SUMS.txt
+
+      - name: Create release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: release/*
+          generate_release_notes: true
+          # تگ‌هایی مثلِ v1.0.0-alpha.1 «پیش‌انتشار» حساب می‌شن و به کاربران خبرِ به‌روزرسانی نمی‌دن (updater آن‌ها را نادیده می‌گیرد)
+          prerelease: ${{ contains(github.ref_name, '-') }}

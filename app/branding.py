@@ -28,7 +28,7 @@ CREDIT_SEPARATOR = " · "
 
 # کلیدِ عمومیِ Ed25519 برای اعتبارِ فایلِ به‌روزرسانی؛ بعد از اجرای scripts/make_signing_key.py پر می‌شه.
 # خالی = نصبِ یک‌کلیکی غیرفعال و فقط دانلودِ دستی از GitHub.
-UPDATE_PUBLIC_KEY_B64 = "Xhj+261rydmUvqWBOPwJMixS05MMpywGAPNKRS/cWko="
+UPDATE_PUBLIC_KEY_B64 = "1p4Xn5sm5AOjWZBekn94LWF5H6RP2AKvc83oaqLJRY4="
 
 
 def github_repo_url() -> str:

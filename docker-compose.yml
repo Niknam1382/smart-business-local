@@ -1,0 +1,26 @@
+# اجرا:   docker compose up -d        توقف:  docker compose down
+# لاگ:    docker compose logs -f      وضعیت: docker compose ps  (ستونِ health)
+#
+# تنظیمِ اولیه: برنامه‌ی دسکتاپ رو یک‌بار اجرا کن، توکن‌ها رو وارد کن، بعد پوشه‌ی داده‌اش
+# (تنظیمات ← داده و ایمنی ← «محل داده») رو به‌جای ./data این‌جا بذار؛ یا فقط settings.json + secret.key + *.db رو کپی کن.
+#
+# ۱.۰.۰: هیچ callback/پورت/کلیدِ API لازم نیست — ربات‌ها با polling وصل می‌شن و پرداخت فقط از راهِ بله‌پی است.
+# تنها چیزی که جا می‌خواد دیسک است: پوشه‌ی /data/models برای مدل‌های GGUF (۲ تا ۶+ گیگ).
+# ./data روی دیسکِ کوچک نیست؟ مدل‌ها را به جای دیگری ببر:
+#   volumes:
+#     - ./data:/data
+#     - /mnt/bigdisk/sbl-models:/data/models      # یا در settings.json «model_storage_path» را عوض کن
+#
+# هشدارِ صادقانه: هوش مصنوعیِ این برنامه محلی است. روی سرور/Raspberry Piِ ۱–۲ گیگابایتی مدل بالا
+# نمی‌آید؛ run.py --headless در زمانِ شروع چاپ می‌کنه که AI آماده نیست و فقط منو/سبد/پرداخت کار می‌کنه.
+services:
+  smart-business:
+    build: .
+    image: smart-business:latest
+    restart: unless-stopped
+    volumes:
+      - ./data:/data
+    environment:
+      - TZ=Asia/Tehran
+      # - SMART_BUSINESS_DATA_DIR=/data   # پیش‌فرض در Dockerfile همین است؛ فقط برای پوشه‌ی سفارشی باز کن
+    # نیازی به باز کردنِ پورت نیست: ربات‌ها با polling به تلگرام/بله وصل می‌شن.

@@ -1,0 +1,33 @@
+# وابستگی‌های حالتِ headless (سرور/Docker/Raspberry Pi): ربات‌ها بدونِ UI — پس flet و flet-desktop لازم نیستن.
+#
+# ⚠️ صادقانه، از نسخه‌ی ۱.۰.۰: هوشِ مصنوعیِ این برنامه **محلی** است (GGUF با llama.cpp روی همان ماشین؛
+# هیچ API پولی/ریمتی باقی نمانده). بنابراین خودِ کدِ AI هم به ``llama-cpp-python`` نیاز دارد و
+# در این فایل هست — حذف‌کردنش باعث می‌شد headless هیچ‌وقت نتونه مدل اجرا کنه.
+# اما واقع‌بینانه: روی سرورِ ۱–۲ گیگابایتی / Raspberry Pi مدل جا نمی‌شه و app/headless.py در زمانِ
+# شروع چاپ می‌کنه که AI آماده نیست؛ آنجا فقط منو/سبد/پرداخت کار می‌کنه. ماشین را بر پایه‌ی
+# انتخابِ مدل در «هوش مصنوعی» انتخاب کن (کاتالوگ: app/core/model_catalog.py).
+#
+# llama-cpp-python روی PyPI فقط sdist دارد؛ ایندکسِ زیر wheelهای آماده‌ی CPU (ویندوز/لینوکس/مک) می‌دهد.
+--extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+--prefer-binary
+
+llama-cpp-python>=0.3.30
+
+cryptography>=43.0.0
+psutil>=6.0.0
+
+# ربات‌ها (تلگرام با aiogram؛ بله فقط دروازه‌ی پرداخت است — app/core/bale_pay.py)
+aiogram==3.31.0
+aiohttp>=3.9.0
+aiohttp-socks>=0.10
+
+# N11: QRِ لینکِ دعوتِ مدیر + QR روی فاکتور (app/core/qr.py، app/core/invoice_pdf.py)
+segno>=1.6.0
+
+# N19: PDFِ فارسیِ فاکتور — fpdf2، نه fpdfِ قدیمی (با آن PDF فارسی در add_font با cp1252 می‌شکنه)
+fpdf2>=2.8.5
+uharfbuzz>=0.40.0
+fontTools>=4.53.0
+
+# توجه: دانلودِ مدل به پوشه‌ی داده می‌نویسه (models/) — در Docker آن پوشه را volume کن؛
+# جزئیات: docs/RELEASING.md و Dockerfile.

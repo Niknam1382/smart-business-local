@@ -1,0 +1,44 @@
+"""
+اجزای مشترکِ پاسخ‌گوییِ AI در ربات بعد از حذفِ «سفارش با AI».
+
+**AI هیچ‌وقت سبد، سفارش یا پرداخت را تغییر نمی‌ده**: ثبتِ سفارش و مدیریتِ سبد (افزودن/کم‌کردن/حذف) فقط با دکمه‌هاست.
+AI فقط به پرسش‌ها جواب می‌ده (``qa_agent``) و در بهترین حالت «جزئیاتِ» محصول را نشان می‌ده.
+"""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass, field
+
+from app.core import shop_texts
+
+FALLBACK_REPLY = shop_texts.default("ai.fallback")  # متنِ واقعی: shop_texts.t("ai.fallback") (قابل‌تنظیم)
+
+# محدودیتِ «احتکارِ موجودی»: رزرو رایگانه، پس کسی می‌تونه پیاپی سفارش بسازه تا کالا رو از بقیه
+# بگیره. این سقف‌ها مشتریِ واقعی رو اذیت نمی‌کنن (ویرایشِ سبد = سفارشِ جدید نیست).
+MAX_ORDERS_PER_HOUR = 6
+MAX_EXPIRED_UNPAID_PER_DAY = 3
+
+
+@dataclass
+class OutMessage:
+    text: str
+    buttons: list = field(default_factory=list)  # [(برچسب, url)]
+
+
+@dataclass
+class AgentReply:
+    text: str
+    outbox: list = field(default_factory=list)  # list[OutMessage]
+
+
+def sanitize_display_name(name: str) -> str:
+    """نامِ پروفایلِ مشتری *غیرقابل‌اعتماده* و توی پرامپتِ سیستمی می‌ره (سطحِ اعتمادِ بالا):
+    فقط یه خطِ کوتاهِ بدونِ کاراکترِ کنترلی/خط‌جدید/بک‌تیک قبول می‌کنیم تا نتونه ساختارِ پرامپت
+    رو بشکنه یا دستورِ جعلی جا بزنه.
+
+    برچسب‌هایِ جهت (U+202A–202E، U+2066–2069) و نویسه‌هایِ پهنایِ صفر هم حذف می‌شن: همان‌ها
+    که ``checkout_fields`` و ``invoice_pdf`` هم پاک می‌کنند — با آنها می‌شد متنی را در چشمِ مالک
+    و مدل برعکس/پنهان نشان داد."""
+    cleaned = re.sub(r"[\x00-\x1f\x7f\u2028\u2029\u200b-\u200f\ufeff\u202a-\u202e\u2066-\u2069`#]+", " ", name or "")
+    return re.sub(r"\s+", " ", cleaned).strip()[:40]

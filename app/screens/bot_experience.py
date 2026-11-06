@@ -56,12 +56,10 @@ _S = {
     "f.advanced": ("گزینه‌های حرفه‌ای (اختیاری)", "Advanced options (optional)"),
     "ftype.text": ("متن", "Text"), "ftype.phone": ("شماره‌ی موبایل", "Mobile number"), "ftype.number": ("عدد", "Number"),
     "ftype.choice": ("انتخابی (چند گزینه)", "Choice (several options)"), "ftype.location": ("موقعیتِ مکانی", "Location"), "ftype.email": ("ایمیل", "Email"),
-    "applies.all": ("همه‌ی سفارش‌ها", "All orders"), "applies.physical": ("فقط کالای فیزیکی", "Physical goods only"), "applies.digital": ("فقط محصولِ دیجیتال", "Digital products only"),
     "f.label": ("برچسب", "Label"),
     "f.prompt": ("متنِ پرسش", "Question text"),
     "f.type": ("نوع", "Type"),
     "f.required": ("اجباری", "Required"),
-    "f.applies": ("اعمال برای", "Applies to"),
     "f.regex": ("الگوی دقیقِ ورودی (برای حرفه‌ای‌ها، اختیاری)", "Exact input pattern (for experts, optional)"),
     "f.choices": ("گزینه‌ها (هر خط یکی — فقط نوعِ انتخابی)", "Choices (one per line — choice type only)"),
     "f.min": ("حداقل طول", "Min length"),
@@ -70,7 +68,6 @@ _S = {
     "f.apply_template": ("اعمالِ قالب", "Apply template"),
     "f.defaults": ("بازگشت به پیش‌فرض", "Restore defaults"),
     "tpl.physical": ("کالای فیزیکی", "Physical goods"),
-    "tpl.digital": ("محصولِ دیجیتال", "Digital product"),
     "tpl.services": ("خدمات", "Services"),
     "b.action": ("عملِ دکمه", "Button action"),
     "b.emoji": ("ایموجی", "Emoji"),
@@ -103,7 +100,6 @@ _S = {
     "i.orders_waiting": ("⏳ {n} سفارشِ پرداخت‌شده منتظرِ تأییدِ توئه (صفحه‌ی سفارش‌ها)", "⏳ {n} paid order(s) waiting for your confirmation (Orders page)"),
     "i.done": ("انجام شد", "Done"), "i.all": ("همه انجام شد", "Mark all done"),
     "i.support_no_owner": ("مشتری پشتیبانی خواست ولی مالکی ثبت نشده", "Customer asked for support but no owner is linked"),
-    "i.delivery_failed": ("تحویلِ دیجیتال نرسید", "Digital delivery failed"),
     "i.inventory_short": ("موجودیِ ناکافی بعد از بازیابی", "Insufficient stock after recovery"),
     "i.bio_confirm": ("بیوگرافیِ فعلیِ ربات رو ببین و تأیید کن (صفحه‌ی «پروفایلِ ربات»)", "Review and confirm the bot's current bio (“Bot profile” page)"),
     "i.bio_too_long": ("متنِ بیوگرافی با خطِ اعتبار از ۱۲۰ کاراکتر بیشتره؛ کوتاهش کن (صفحه‌ی «پروفایلِ ربات»)", "The bio plus the credit line exceeds 120 characters; shorten it (“Bot profile” page)"),
@@ -120,6 +116,12 @@ def S(key: str, lang: str, **kw) -> str:
     fa, en = _S[key]
     text = en if lang == "en" else fa
     return text.format(**kw) if kw else text
+
+
+def inbox_label(type_: str, lang: str) -> str:
+    """ردیف‌هایِ قدیمیِ صندوقِ «نیاز به توجه» با نوعِ حذف‌شده (مثلاً تحویلِ دیجیتال) نباید صفحه را
+    بشکنند — بی‌خطره به «مواردِ دیگر» می‌روند."""
+    return S(f"i.{type_}" if f"i.{type_}" in _S else "i.other", lang)
 
 
 def build(page: ft.Page, lang: str, settings, save_callback, product_store, order_store, manager=None) -> ft.Control:
@@ -200,14 +202,13 @@ def build(page: ft.Page, lang: str, settings, save_callback, product_store, orde
     f_label = ft.TextField(key="fld_label", label=S("f.label", lang), border_radius=10, width=240)
     f_prompt = ft.TextField(key="fld_prompt", label=S("f.prompt", lang), border_radius=10)
     f_type = dd("fld_type", S("f.type", lang), [(k, S(f"ftype.{k}", lang)) for k in cf.FIELD_TYPES], "text", 200)
-    f_applies = dd("fld_applies", S("f.applies", lang), [(k, S(f"applies.{k}", lang)) for k in cf.APPLIES_TO], "all", 200)
     f_required = ft.Switch(key="fld_required", label=S("f.required", lang), value=True)
     f_regex = ft.TextField(key="fld_regex", label=S("f.regex", lang), border_radius=10)
     f_choices = ft.TextField(key="fld_choices", label=S("f.choices", lang), border_radius=10, multiline=True, min_lines=2, max_lines=5)
     f_min = ft.TextField(key="fld_min", label=S("f.min", lang), border_radius=10, width=130, value="0")
     f_max = ft.TextField(key="fld_max", label=S("f.max", lang), border_radius=10, width=130, value="200")
     f_form = ft.Container(key="exp_field_form", visible=False, content=ft.Column(spacing=8, controls=[
-        ft.Row(spacing=10, wrap=True, controls=[f_label, f_type, f_applies]), f_prompt, f_required, f_choices,
+        ft.Row(spacing=10, wrap=True, controls=[f_label, f_type]), f_prompt, f_required, f_choices,
         ft.ExpansionTile(key="fld_advanced", expanded=False, title=ft.Text(S("f.advanced", lang), size=13), controls=[
             ft.Container(padding=ft.Padding.only(left=6, right=6, bottom=8), content=ft.Column(spacing=8, controls=[f_id, f_regex, ft.Row(spacing=10, controls=[f_min, f_max])]))]),
         ft.Row(spacing=8, controls=[ft.Button(key="fld_save", content=S("save", lang), on_click=lambda e: save_field()),
@@ -228,7 +229,7 @@ def build(page: ft.Page, lang: str, settings, save_callback, product_store, orde
     def render_fields() -> None:
         rows = []
         for i, f in enumerate(ui_f["fields"]):
-            info = f"{f['label']}  ·  {S('ftype.' + str(f['type']), lang)}  ·  {'●' if f.get('required', True) else '○'}  ·  {S('applies.' + str(f.get('applies_to', 'all')), lang)}"
+            info = f"{f['label']}  ·  {S('ftype.' + str(f['type']), lang)}  ·  {'●' if f.get('required', True) else '○'}"
             rows.append(ft.Row(spacing=4, controls=[
                 ft.Text(info, size=13, expand=True),
                 ft.IconButton(key=f"fld_up_{i}", icon=ft.Icons.ARROW_UPWARD_ROUNDED, on_click=lambda e, i=i: move_field(i, -1)),
@@ -254,9 +255,9 @@ def build(page: ft.Page, lang: str, settings, save_callback, product_store, orde
 
     def open_field_form(i=None) -> None:
         ui_f["edit"] = i
-        f = ui_f["fields"][i] if i is not None else {"id": "", "label": "", "prompt": "", "type": "text", "required": True, "applies_to": "all", "regex": "", "choices": [], "min_len": 0, "max_len": 200}
+        f = ui_f["fields"][i] if i is not None else {"id": "", "label": "", "prompt": "", "type": "text", "required": True, "regex": "", "choices": [], "min_len": 0, "max_len": 200}
         f_id.value, f_label.value, f_prompt.value = f["id"], f["label"], f["prompt"]
-        f_type.value, f_applies.value, f_required.value = f.get("type", "text"), f.get("applies_to", "all"), bool(f.get("required", True))
+        f_type.value, f_required.value = f.get("type", "text"), bool(f.get("required", True))
         f_regex.value, f_choices.value = f.get("regex", ""), "\n".join(f.get("choices", []))
         f_min.value, f_max.value = str(f.get("min_len", 0)), str(f.get("max_len", 200))
         f_form.visible = True
@@ -275,7 +276,7 @@ def build(page: ft.Page, lang: str, settings, save_callback, product_store, orde
         taken = {f["id"] for f in ui_f["fields"]}
         auto = next(f"f{n}" for n in range(1, 100) if f"f{n}" not in taken)  # شناسه‌ی داخلی را کاربرِ عادی لازم نیست بنویسه
         item = {"id": (f_id.value or "").strip() or auto, "label": (f_label.value or "").strip(), "prompt": (f_prompt.value or "").strip(), "type": f_type.value or "text",
-                "required": bool(f_required.value), "applies_to": f_applies.value or "all", "regex": (f_regex.value or "").strip(),
+                "required": bool(f_required.value), "regex": (f_regex.value or "").strip(),
                 "choices": [c.strip() for c in (f_choices.value or "").splitlines() if c.strip()], "min_len": lo, "max_len": hi}
         items = list(ui_f["fields"])
         if ui_f["edit"] is None:
@@ -286,7 +287,7 @@ def build(page: ft.Page, lang: str, settings, save_callback, product_store, orde
             f_form.visible = False
             page.update()
 
-    tpl_dd = dd("fld_template", S("f.template", lang), [(k, S(f"tpl.{k}", lang)) for k in ("physical", "digital", "services")], "physical", 220)
+    tpl_dd = dd("fld_template", S("f.template", lang), [(k, S(f"tpl.{k}", lang)) for k in ("physical", "services")], "physical", 220)
 
     def apply_template(e=None) -> None:
         chosen = cf.templates("en" if lang == "en" else "fa").get(tpl_dd.value or "physical", [])
@@ -491,7 +492,7 @@ def build(page: ft.Page, lang: str, settings, save_callback, product_store, orde
             inbox_col.controls = head or [ft.Text(S("i.empty", lang), size=13, color=theme.text_secondary(page))]
             return
         inbox_col.controls = head + [ft.Row(spacing=6, controls=[
-            ft.Text(f"{S('i.' + it.type, lang)} — {it.ref} {it.detail}".strip(), size=13, expand=True),
+            ft.Text(f"{inbox_label(it.type, lang)} — {it.ref} {it.detail}".strip(), size=13, expand=True),
             ft.TextButton(key=f"inbox_done_{it.id}", content=S("i.done", lang), on_click=lambda e, i=it.id: (inbox.handle(i), render_inbox(), page.update()))]) for it in items]
 
     def inbox_all(e=None) -> None:

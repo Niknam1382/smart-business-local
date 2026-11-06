@@ -4,8 +4,10 @@
     python scripts/make_icons.py            # خروجی: assets/icons/
     python scripts/make_icons.py --out /tmp/icons
 
-طرح (۱.۰.۰): مربعِ گردِ گرادیانِ شبِ نیلی→اناری، کیسه‌ی خریدِ سفید با دسته‌ی حلقه‌ای، و یک جرقه‌ی
-چهارپرِ اناری داخلِ کیسه — «کسب‌وکارِ هوشمند». (طرحِ پیشین سه ستونِ رو‌به‌رشد با جرقه‌ی کهربایی بود.)
+طرح: مربعِ گردِ گرادیانِ شبِ نیلی→اناری، سه ستونِ سفیدِ رو‌به‌رشد با کفِ مشترک (نمایِ دفتر/رشد)
+و بالایِ بلندترینِ آن‌ها یک جرقه‌ی چهارپرِ طلایی (نشانِ «هوش») — «کسب‌وکارِ هوشمند».
+ستون‌ها پهن‌اند و درزِ میانشان در اندازه‌هایِ کوچک هم خوانا می‌مونه؛ جرقه با قدرتِ 2.3 ساخته می‌شه
+تا بازِarms در ۳۲ پیکسل از بین نره. (پیش از این طرح، کیسه‌ی خرید با جرقه‌ی اناری استفاده می‌شد.)
 فقط به Pillow نیاز داره (``pip install -r requirements-dev.txt``)؛ خودِ برنامه به Pillow وابسته نیست و خروجی‌ها در مخزن
 commit شده‌اند، پس کاربر/CI نیازی به اجرای این اسکریپت ندارن.
 """
@@ -13,6 +15,7 @@ commit شده‌اند، پس کاربر/CI نیازی به اجرای این ا
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,27 +23,28 @@ DEFAULT_OUT = ROOT / "assets" / "icons"
 
 SIZE = 1024
 SS = 2  # ابرنمونه‌برداری برای لبه‌های نرم
-# پالتِ ۱.۰.۰: شبِ نیلی ← اناریِ گرم (طرحِ پیشین آبی←سبز بود)
+# پالت: شبِ نیلی ← اناریِ گرم؛ جرقه هم‌رنگِ طلاییِ برند است (ACCENT در app/theme.py)
 BG_FROM = (30, 32, 72)  # #1E2048 — بالا-چپ
 BG_TO = (176, 66, 74)  # #B0424A — پایین-راست
 WHITE = (255, 255, 255)
-AMBER = (198, 60, 66)  # #C63C42 — جرقه‌ی «هوشمند» داخلِ کیسه
+GOLD = (198, 142, 61)  # #C68E3D — جرقه‌ی «هوش» (هم‌رنگِ ACCENT در app/theme.py)
 NAVY = (27, 43, 85)  # #1B2B55
 CORNER = 230  # شعاعِ گوشه‌ی مربعِ گرد
 
 # هندسه (روی بومِ ۱۰۲۴) — همین اعداد هم برای SVG و هم برای Pillow استفاده می‌شن
-# طرح: کیسه‌ی خرید (بدنه + دسته‌ی حلقه‌ای) با یک جرقه‌ی چهارپر داخلش = «کسب‌وکارِ هوشمند»
-RINGS = (  # دستهٔ کیسه؛ *پیش از* بدنه کشیده می‌شه تا نیمهٔ پایینش پشتِ بدنه پنهان بشه
-    dict(cx=512, cy=404, r=168, width=58),
+# طرح: سه ستونِ رو‌به‌رشد با پایه‌یِ مشترک (دفتر/رشدِ کسب‌وکار) و جرقه‌ی چهارپر بالایِ بلندترینِ آن‌ها (هوشمندی)
+# ستون‌ها: پهنای ۱۷۶ و فاصله‌ی ۷۸ ⇒ در ۱۶ پیکسل هم درزِ بینِ ستون‌ها (~۱٫۳پیکسل) باز می‌ماند
+RINGS = ()  # این طرح حلقه ندارد؛ واژگانِ ترسیم (SVG + Pillow) همچنان آن را پشتیبانی می‌کند
+RECTS = (  # سه ستون: ۱۷۰..۸۵۴ با کفِ مشترکِ ۷۹۲ و قله‌هایِ پله‌ای (۶۱۸/۴۸۸/۳۵۸)
+    dict(x0=170, y0=618, x1=346, y1=792, r=48),
+    dict(x0=424, y0=488, x1=600, y1=792, r=48),
+    dict(x0=678, y0=358, x1=854, y1=792, r=48),
 )
-RECTS = (  # بدنهٔ کیسه
-    dict(x0=236, y0=396, x1=788, y1=836, r=72),
+SPARKLES = (  # جرقه‌ی «هوشمند»: (مرکز x, مرکز y, شعاع) — رویِ محورِ ستونِ بلند، با فاصله‌ی ۴۰ از قله
+    (766, 196, 122),
 )
-SPARKLES = (  # جرقه‌ی «هوشمند»: (مرکز x, مرکز y, شعاع)
-    (512, 616, 136),
-)
-SPARKLE_POWER = 2.6  # ۲ = لوزی، ۳ = ستاره‌ی نازکِ astroid
-GLYPH_SCALE = 1.15  # گلیف کمی بزرگ‌تر از بومِ خام تا در ۳۲/۱۶ پیکسل هم خوانا بمونه
+SPARKLE_POWER = 2.3  # ۲ = لوزی، ۳ = ستاره‌ی نازکِ astroid — ۲.۳ بازوهای پهن‌تر دارد و در ۱۶ پیکسل نمی‌مُرد
+GLYPH_SCALE = 1.04  # کادرِ گلیف ۷۱۸×۷۱۸ ⇒ ~۷۴۷ روی بوم؛ حاشیه‌ی بصریِ ۱۳٫۵٪ (درزِ ستون‌ها در ۱۶پ ≈ ۱٫۳پیکسل)
 ICON_SIZES = (1024, 512, 256, 128, 64, 48, 32, 16)
 ICO_SIZES = [(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
 
@@ -91,7 +95,7 @@ def svg_text() -> str:
         f'<rect x="{b["x0"]}" y="{b["y0"]}" width="{b["x1"] - b["x0"]}" height="{b["y1"] - b["y0"]}" rx="{b["r"]}" fill="#FFFFFF"/>' for b in RECTS
     )
     stars = "".join(
-        f'<polygon points="{" ".join(f"{x:.1f},{y:.1f}" for x, y in sparkle_points(cx, cy, r))}" fill="{hex_color(AMBER)}"/>' for cx, cy, r in SPARKLES
+        f'<polygon points="{" ".join(f"{x:.1f},{y:.1f}" for x, y in sparkle_points(cx, cy, r))}" fill="{hex_color(GOLD)}"/>' for cx, cy, r in SPARKLES
     )
     return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {SIZE} {SIZE}" width="{SIZE}" height="{SIZE}">
   <title>Smart Business Local</title>
@@ -126,13 +130,13 @@ def _gradient(size: int):
     mix = ImageChops.add(vertical, horizontal, scale=2.0)
     return Image.composite(Image.new("RGB", (size, size), BG_TO), Image.new("RGB", (size, size), BG_FROM), mix)
 def _glyph_layer(scale: int, *, monochrome: bool = False):
-    """بوم شفافِ «کیسه + جرقه» با ابعادِ ``SIZE*scale``؛ ``monochrome``: همه سفید (آیکن تک‌رنگ اندروید ۱۳)."""
+    """بوم شفافِ «سه ستون + جرقه» با ابعادِ ``SIZE*scale``؛ ``monochrome``: همه سفید (آیکن تک‌رنگ اندروید ۱۳)."""
     Image, _, ImageDraw = _pillow()
     s = scale
     layer = Image.new("RGBA", (SIZE * s, SIZE * s), (0, 0, 0, 0))
     d = ImageDraw.Draw(layer)
-    white, accent = (WHITE, WHITE) if monochrome else (WHITE, AMBER)
-    for ring in RINGS:  # دسته اول کشیده می‌شود تا نیمهٔ پایینی‌اش پشتِ بدنه پنهان بماند
+    white, accent = (WHITE, WHITE) if monochrome else (WHITE, GOLD)
+    for ring in RINGS:  # حلقه‌ها (در این طرح خالی است) پیش از بدنه‌ها کشیده می‌شن
         r = ring["r"]
         d.ellipse([(ring["cx"] - r) * s, (ring["cy"] - r) * s, (ring["cx"] + r) * s, (ring["cy"] + r) * s],
                   outline=white, width=int(ring["width"] * s))
@@ -214,6 +218,10 @@ def build(out_dir: Path) -> list:
 
 
 def main(argv=None) -> int:
+    try:  # کنسولِ ویندوز (cp1252) حروفِ فارسیِ پیامِ پایانی را نمی‌پذیرد
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):  # pragma: no cover
+        pass
     parser = argparse.ArgumentParser(description="ساخت آیکن برنامه (N9)")
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
     args = parser.parse_args(argv)

@@ -106,7 +106,14 @@ def test_claims_in_guide_match_the_product():
     # راهنما باید پیش‌فرضِ واقعی را بگوید: فاکتور بعد از تأییدِ سفارش خودکار می‌رود
     assert s.invoice_auto_send == "after_confirm" and "خاموش" in guide.by_id("finance-invoice").body
     assert "۲۰۰ نویسه" in guide.by_id("finance-ledger").body and finance.MAX_NOTE == 200
-    assert "۵۰ مگابایت" in guide.by_id("products-delivery").body
+    # راهنما باید ستون‌هایِ قالبِ واردات را دقیقاً همان چیزی بگوید که کد می‌سازد
+    imported = guide.by_id("products-import").body
+    assert "products-template.xlsx" in imported and guide.by_id("products-delivery") is None
+    from app.core.product_import import COLUMNS
+
+    assert len(COLUMNS) == 6
+    for _key, fa, _en in COLUMNS:
+        assert fa in imported, fa
     assert "۳ " in guide.by_id("marketing-broadcast").body and "۲۴ ساعت" in guide.by_id("marketing-broadcast").body
     assert s.quickstart_dismissed is False
 

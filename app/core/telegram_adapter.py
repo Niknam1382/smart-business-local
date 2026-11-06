@@ -517,7 +517,7 @@ class TelegramAdapter:
         await _send_with_buttons(self._bot, int(chat_id), text, buttons)
 
     async def send_ui(self, chat_id: str, msg: UiMessage) -> Optional[str]:
-        """ارسالِ پیامِ غنی (دکمه/عکس/فایل/کارتِ تماس) به یه چتِ این پلتفرم — مثلاً تحویلِ دیجیتال."""
+        """ارسالِ پیامِ غنی (دکمه/عکس/کارتِ تماس) به یه چتِ این پلتفرم — مثلاً کاتالوگِ دکمه‌ای."""
         if self._bot is None:
             raise RuntimeError("ربات تلگرام وصل نیست.")
         return await TelegramTransport(self._bot).send_ui(chat_id, msg)
@@ -660,11 +660,6 @@ class TelegramTransport(Transport):
             except Exception:  # noqa: BLE001 — پیامِ متنیِ شماره قبلاً رفته؛ کارتِ تماس «بهترِ ممکن» است
                 logger.warning("ارسالِ کارتِ تماس ناموفق بود", exc_info=True)
                 return None
-        if msg.document:
-            from aiogram.types import FSInputFile
-
-            sent = await self._bot.send_document(chat_id=cid, document=FSInputFile(msg.document), caption=(msg.text or None) and msg.text[:1000])
-            return str(sent.message_id)
         markup = self._markup(msg)
         if msg.photo:
             photo = self._photo(msg.photo)
@@ -694,7 +689,7 @@ class TelegramTransport(Transport):
             if msg.keyboard_only:
                 await self._bot.edit_message_reply_markup(chat_id=cid, message_id=mid, reply_markup=self._inline(msg.rows))
                 return True
-            if msg.photo or msg.contact or msg.document or msg.menu or msg.request_contact or msg.remove_menu:
+            if msg.photo or msg.contact or msg.menu or msg.request_contact or msg.remove_menu:
                 return False  # متن→عکس/کیبوردِ پایدار قابل‌ویرایش نیست؛ deliver حذف+ارسالِ تازه می‌کنه
             await self._bot.edit_message_text(text=msg.text or "…", chat_id=cid, message_id=mid, reply_markup=self._inline(msg.rows))
             return True

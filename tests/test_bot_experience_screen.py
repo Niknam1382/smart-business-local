@@ -381,16 +381,16 @@ def test_catalog_section_saves_and_validates_in_its_own_note(tmp_path):
 
 def test_quick_setup_card_lists_presets_and_applies_without_touching_other_settings(tmp_path):
     e = Env(tmp_path)
-    assert [o.key for o in e.f("qs_type").options] == ["physical", "digital", "services", "consult", "support"]
+    assert [o.key for o in e.f("qs_type").options] == ["physical", "services", "consult", "support"]
     e.settings.card_to_card_number = "6037991234567890"
     e.settings.faq_items = [{"q": "الف", "a": "ب"}]
-    e.f("qs_type").value = "digital"
+    e.f("qs_type").value = "services"
     fire(e.f("qs_type"), "on_select")
-    assert "ایمیل" in e.f("qs_desc").value
+    assert "درخواست" in e.f("qs_desc").value
     e.click("qs_apply")
-    assert [f["id"] for f in e.settings.checkout_fields] == ["name", "email", "phone"] and e.saves == 1
+    assert [f["id"] for f in e.settings.checkout_fields] == ["name", "phone", "request"] and e.saves == 1
     assert "✅ انجام شد" in e.note("qs_note") and "فرمِ سفارش" in e.note("qs_note")
-    assert "ایمیل" in collect_text(e.f("exp_fields_list"))  # فهرستِ فیلدها هم با تنظیماتِ تازه هماهنگ شد
+    assert "درخواست" in collect_text(e.f("exp_fields_list"))  # فهرستِ فیلدها هم با تنظیماتِ تازه هماهنگ شد
     assert e.settings.card_to_card_number == "6037991234567890" and e.settings.faq_items == [{"q": "الف", "a": "ب"}]
     e.click("qs_apply")  # دوباره: بی‌اثر
     assert "همین الان هم همین‌طور" in e.note("qs_note")
@@ -420,7 +420,8 @@ def test_field_and_button_forms_hide_technical_inputs_and_generate_ids(tmp_path)
     e = Env(tmp_path)
     # انواع به زبانِ ساده؛ مقدارِ ذخیره‌شده همان شناسه‌ی قدیمی
     assert {o.key: o.text for o in e.f("fld_type").options}["phone"] == "شماره‌ی موبایل"
-    assert {o.key: o.text for o in e.f("fld_applies").options}["digital"] == "فقط محصولِ دیجیتال"
+    assert find(e.control, "fld_applies") is None  # «اعمال برای» با حذفِ نوعِ محصول از ویرایشگر رفت
+    assert [o.key for o in e.f("fld_template").options] == ["physical", "services"]
     assert "regex" not in e.f("fld_regex").label.lower() and "regex" not in e.f("fld_id").label.lower()
     assert find(e.f("fld_advanced"), "fld_id") is not None and find(e.f("fld_advanced"), "fld_regex") is not None  # زیرِ «حرفه‌ای»
     assert find(e.f("exp_field_form").content.controls[0], "fld_id") is None  # در ردیفِ اصلی نیست

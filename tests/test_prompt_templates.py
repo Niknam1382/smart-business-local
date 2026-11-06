@@ -15,7 +15,7 @@ def test_no_template_sends_customers_to_commands_or_invents_payment_steps():
 
 def test_store_and_consultant_templates_still_exist():
     assert [t["id"] for t in templates_for_category("store")] == [
-        "store_general", "store_clothing", "store_electronics", "store_cafe", "store_digital", "store_rules",
+        "store_general", "store_clothing", "store_electronics", "store_cafe", "store_rules",
     ]
     assert [t["id"] for t in templates_for_category("consultant")] == [
         "consultant_general", "consultant_real_estate", "consultant_education",

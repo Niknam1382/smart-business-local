@@ -58,8 +58,7 @@ def delete_photo_file(photo_path: str) -> None:
     except OSError:
         pass
 
-PRODUCT_TYPES = ("physical", "digital")
-DELIVERY_KINDS = ("none", "text", "link", "file", "keys")
+# محصول فقط فیزیکی است: هیچ «نوعِ محصول» و هیچ تحویلِ خودکاری در مدل نیست.
 
 
 def _m1_baseline(conn: sqlite3.Connection) -> None:
@@ -119,7 +118,31 @@ def _m3_cost(conn: sqlite3.Connection) -> None:
     migrations.add_column(conn, "products", "cost_irr", "INTEGER NOT NULL DEFAULT 0")
 
 
-MIGRATIONS = [_m1_baseline, _m2_shop_schema, _m3_cost]
+def _m4_physical_only(conn: sqlite3.Connection) -> None:
+    """«محصولِ دیجیتال» از مدل بیرون رفت: نوع و تحویلِ خودکار به پیش‌فرض (فیزیکی/بی‌تحویل)
+    برمی‌گردند و متن یا لینکِ تحویلِ پیشین به توضیحِ محصول اضافه می‌شود تا هیچ اطلاعاتی گم نشود.
+
+    ``unlimited_stock`` عمداً دست‌نخورده می‌ماند: محصولی که قبلاً موجودیِ نامحدود داشت با این
+    مهاجرت «اتمام موجودی» نمی‌شود و فروشش نمی‌شکند. جدولِ ``digital_items`` هم پاک نمی‌شود —
+    کلیدهایِ صادرشده داده‌ی کاربر است (پیشِ هر ارتقا پشتیبانِ خودکار گرفته می‌شود)؛ فقط دیگر هیچ
+    مسیری از برنامه به آن‌ها نمی‌رسد."""
+    rows = conn.execute(
+        "SELECT id, description, delivery_kind, delivery_payload_encrypted FROM products "
+        "WHERE product_type != 'physical' OR delivery_kind != 'none'"
+    ).fetchall()
+    for row in rows:
+        payload = crypto.decrypt(row["delivery_payload_encrypted"]) if row["delivery_payload_encrypted"] else ""
+        description = (row["description"] or "").strip()
+        if payload and row["delivery_kind"] in ("text", "link"):
+            description = f"{description}\nتحویلِ پیشین: {payload}".strip()
+        conn.execute(
+            "UPDATE products SET product_type='physical', delivery_kind='none', delivery_payload_encrypted='', "
+            "description=? WHERE id=?",
+            (description, row["id"]),
+        )
+
+
+MIGRATIONS = [_m1_baseline, _m2_shop_schema, _m3_cost, _m4_physical_only]
 
 
 class ProductError(Exception):
@@ -137,17 +160,10 @@ class Product:
     active: bool = True
     created_at: str = ""
     updated_at: str = ""
-    product_type: str = "physical"  # physical | digital
     category: str = ""
-    unlimited_stock: bool = False
-    delivery_kind: str = "none"  # none | text | link | file | keys
-    delivery_payload: str = ""  # متن/لینک/مسیرِ فایل (روی دیسک رمزنگاری‌شده؛ این‌جا رمزگشایی‌شده)
+    unlimited_stock: bool = False  # «نامحدود» = هرگز از موجودی کم نمی‌شود و به مشتری عدد نشان داده نمی‌شود
     sort_order: int = 0
     cost_irr: int = 0  # N19: بهای تمام‌شده‌ی هر واحد؛ ۰ = ثبت نشده
-
-    @property
-    def is_digital(self) -> bool:
-        return self.product_type == "digital"
 
     @property
     def in_stock(self) -> bool:
@@ -155,7 +171,6 @@ class Product:
 
 
 def _row_to_product(r: sqlite3.Row) -> Product:
-    payload_enc = r["delivery_payload_encrypted"]
     return Product(
         id=r["id"],
         name=r["name"],
@@ -166,11 +181,8 @@ def _row_to_product(r: sqlite3.Row) -> Product:
         active=bool(r["active"]),
         created_at=r["created_at"],
         updated_at=r["updated_at"],
-        product_type=r["product_type"],
         category=r["category"],
         unlimited_stock=bool(r["unlimited_stock"]),
-        delivery_kind=r["delivery_kind"],
-        delivery_payload=crypto.decrypt(payload_enc) if payload_enc else "",
         sort_order=r["sort_order"],
         cost_irr=int(r["cost_irr"]),
     )
@@ -201,17 +213,6 @@ class ProductStore:
         if stock_quantity < 0:
             raise ProductError("موجودی نمی‌تونه منفی باشه.")
 
-    @staticmethod
-    def _validate_shop_fields(product_type: str, delivery_kind: str, unlimited_stock: bool) -> None:
-        if product_type not in PRODUCT_TYPES:
-            raise ProductError("نوعِ محصول باید «فیزیکی» یا «دیجیتال» باشه.")
-        if delivery_kind not in DELIVERY_KINDS:
-            raise ProductError("نوعِ تحویل نامعتبره.")
-        if product_type == "physical" and delivery_kind != "none":
-            raise ProductError("تحویلِ خودکار فقط برای محصولِ دیجیتاله.")
-        if delivery_kind == "keys" and unlimited_stock:
-            raise ProductError("محصولِ «کلید/لایسنس» موجودیِ نامحدود نداره (موجودی = تعدادِ کلیدها).")
-
     def add(
         self,
         name: str,
@@ -220,33 +221,56 @@ class ProductStore:
         description: str = "",
         photo_path: str = "",
         *,
-        product_type: str = "physical",
         category: str = "",
-        unlimited_stock: Optional[bool] = None,
-        delivery_kind: str = "none",
-        delivery_payload: str = "",
+        unlimited_stock: bool = False,
         sort_order: int = 0,
     ) -> int:
         self._validate(name, price_irr, stock_quantity)
-        if unlimited_stock is None:  # دیجیتالِ غیرکلیدی پیش‌فرض نامحدوده
-            unlimited_stock = product_type == "digital" and delivery_kind != "keys"
-        self._validate_shop_fields(product_type, delivery_kind, bool(unlimited_stock))
         conn = self._connection()
         cur = conn.execute(
             """
             INSERT INTO products (name, price_irr, stock_quantity, description, photo_path,
-                                  product_type, category, unlimited_stock, delivery_kind,
-                                  delivery_payload_encrypted, sort_order)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                  category, unlimited_stock, sort_order)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (
-                name.strip(), price_irr, 0 if delivery_kind == "keys" else stock_quantity, description.strip(), photo_path,
-                product_type, category.strip()[:40], 1 if unlimited_stock else 0, delivery_kind,
-                crypto.encrypt(delivery_payload) if delivery_payload else "", int(sort_order),
-            ),
+            (name.strip(), price_irr, stock_quantity, description.strip(), photo_path,
+             category.strip()[:40], 1 if unlimited_stock else 0, int(sort_order)),
         )
         conn.commit()
         return cur.lastrowid
+
+    def add_many(self, rows: list) -> int:
+        """چند محصول در **یک** تراکنش (وارداتِ دسته‌ای): یا همه‌ی سطرها نوشته می‌شوند یا هیچ‌کدام.
+
+        ``rows`` = ``[{'name':…, 'price_irr':…, 'stock_quantity':…, 'description':…, 'category':…,
+        'unlimited_stock':…, 'cost_irr':…}, …]`` — همان چیزی که ``app.core.product_import`` می‌سازد."""
+        prepared = []
+        for item in rows:
+            name = str(item.get("name", "")).strip()
+            price = int(item.get("price_irr", 0))
+            stock = int(item.get("stock_quantity", 0))
+            self._validate(name, price, stock)
+            prepared.append((
+                name, price, stock, str(item.get("description", "")).strip(),
+                str(item.get("category", "")).strip()[:40], 1 if item.get("unlimited_stock") else 0,
+                int(item.get("cost_irr", 0)),
+            ))
+        conn = self._connection()
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            conn.executemany(
+                """
+                INSERT INTO products (name, price_irr, stock_quantity, description, photo_path,
+                                      category, unlimited_stock, sort_order, cost_irr)
+                VALUES (?, ?, ?, ?, '', ?, ?, 0, ?)
+                """,
+                prepared,
+            )
+            conn.commit()
+        except BaseException:
+            conn.rollback()
+            raise
+        return len(prepared)
 
     def update(
         self,
@@ -257,37 +281,23 @@ class ProductStore:
         description: str = "",
         photo_path: Optional[str] = None,
         *,
-        product_type: Optional[str] = None,
         category: Optional[str] = None,
         unlimited_stock: Optional[bool] = None,
-        delivery_kind: Optional[str] = None,
-        delivery_payload: Optional[str] = None,
         sort_order: Optional[int] = None,
     ) -> None:
         self._validate(name, price_irr, stock_quantity)
         current = self.get(product_id)
         if current is None:
             raise ProductError("این محصول دیگه وجود نداره.")
-        ptype = product_type if product_type is not None else current.product_type
-        kind = delivery_kind if delivery_kind is not None else current.delivery_kind
         unlimited = unlimited_stock if unlimited_stock is not None else current.unlimited_stock
-        if ptype == "physical":
-            kind = "none"
-        self._validate_shop_fields(ptype, kind, bool(unlimited))
-        sets = ["name=?", "price_irr=?", "description=?", "product_type=?", "delivery_kind=?", "unlimited_stock=?"]
-        args: list = [name.strip(), price_irr, description.strip(), ptype, kind, 1 if unlimited else 0]
-        if kind != "keys":  # برای محصولِ کلیدی موجودی = تعدادِ کلیدهای مصرف‌نشده (فقط از add_keys/saga تغییر می‌کنه)
-            sets.append("stock_quantity=?")
-            args.append(stock_quantity)
+        sets = ["name=?", "price_irr=?", "description=?", "stock_quantity=?", "unlimited_stock=?"]
+        args: list = [name.strip(), price_irr, description.strip(), stock_quantity, 1 if unlimited else 0]
         if photo_path is not None:
             sets.append("photo_path=?")
             args.append(photo_path)
         if category is not None:
             sets.append("category=?")
             args.append(category.strip()[:40])
-        if delivery_payload is not None:
-            sets.append("delivery_payload_encrypted=?")
-            args.append(crypto.encrypt(delivery_payload) if delivery_payload else "")
         if sort_order is not None:
             sets.append("sort_order=?")
             args.append(int(sort_order))
@@ -361,55 +371,12 @@ class ProductStore:
         ).fetchall()
         return [(r["category"], int(r["n"])) for r in rows]
 
-    # ---------------------------------------------------- کلیدهای دیجیتال (R4)
-
-    def add_keys(self, product_id: int, keys: list) -> int:
-        """کلید/لایسنس‌های جدید برای یه محصولِ ``delivery_kind='keys'`` اضافه می‌کنه (رمزنگاری‌شده)
-        و موجودی رو به‌اندازه‌ی تعدادشون بالا می‌بره. تعدادِ اضافه‌شده رو برمی‌گردونه."""
-        product = self.get(product_id)
-        if product is None:
-            raise ProductError("این محصول دیگه وجود نداره.")
-        if product.delivery_kind != "keys":
-            raise ProductError("این محصول از نوعِ «کلید/لایسنس» نیست.")
-        clean = [k.strip() for k in keys if k and k.strip()]
-        if not clean:
-            return 0
-        conn = self._connection()
-        conn.execute("BEGIN IMMEDIATE")
-        try:
-            conn.executemany(
-                "INSERT INTO digital_items (product_id, secret_encrypted) VALUES (?, ?)",
-                [(product_id, crypto.encrypt(k)) for k in clean],
-            )
-            conn.execute(
-                "UPDATE products SET stock_quantity = stock_quantity + ?, updated_at=datetime('now') WHERE id=?",
-                (len(clean), product_id),
-            )
-            conn.commit()
-        except BaseException:
-            conn.rollback()
-            raise
-        return len(clean)
-
-    def keys_remaining(self, product_id: int) -> int:
-        row = self._connection().execute(
-            "SELECT COUNT(*) AS n FROM digital_items WHERE product_id=? AND consumed_order_id IS NULL", (product_id,)
-        ).fetchone()
-        return int(row["n"])
-
-    def allocated_keys(self, order_id: int) -> list:
-        """کلیدهایی که saga برای این سفارش اختصاص داده: ``[(product_id, کلید), ...]`` (تحویلِ دوباره = همان کلیدها)."""
-        rows = self._connection().execute(
-            "SELECT product_id, secret_encrypted FROM digital_items WHERE consumed_order_id=? ORDER BY id", (order_id,)
-        ).fetchall()
-        return [(r["product_id"], crypto.decrypt(r["secret_encrypted"])) for r in rows]
-
     # ------------------------------------------- اعمالِ موجودیِ سفارش (saga، R10-۱)
 
     def apply_order_stock(self, order_id: int, lines: list) -> bool:
         """موجودیِ یه سفارشِ تاییدشده رو **دقیقاً یک‌بار** اعمال می‌کنه: در *یک* تراکنش، ردیفِ دفتر
-        (``stock_ledger``، یکتا به ازای سفارش) + کم‌کردنِ موجودی (محصولاتِ نامحدود رد می‌شن) +
-        اختصاصِ کلیدهای دیجیتال. ``lines`` = ``[(product_id, quantity), ...]``.
+        (``stock_ledger``، یکتا به ازای سفارش) + کم‌کردنِ موجودی (محصولاتِ نامحدود رد می‌شن).
+        ``lines`` = ``[(product_id, quantity), ...]``.
 
         ``True`` اگه همین الان اعمال شد؛ ``False`` اگه قبلاً اعمال شده بود (idempotent). موجودیِ
         ناکافی/محصولِ حذف‌شده = ``ProductError`` و *هیچ* تغییری ثبت نمی‌شه (rollback)."""
@@ -427,7 +394,7 @@ class ProductStore:
                 if product_id is None:
                     continue
                 row = conn.execute(
-                    "SELECT name, stock_quantity, unlimited_stock, delivery_kind FROM products WHERE id=?", (product_id,)
+                    "SELECT name, stock_quantity, unlimited_stock FROM products WHERE id=?", (product_id,)
                 ).fetchone()
                 if row is None:
                     raise ProductError("یکی از محصول‌های سفارش دیگه وجود نداره.")
@@ -439,14 +406,6 @@ class ProductStore:
                     "UPDATE products SET stock_quantity = stock_quantity - ?, updated_at=datetime('now') WHERE id=?",
                     (quantity, product_id),
                 )
-                if row["delivery_kind"] == "keys":
-                    cur = conn.execute(
-                        "UPDATE digital_items SET consumed_order_id=?, consumed_ts=? WHERE id IN "
-                        "(SELECT id FROM digital_items WHERE product_id=? AND consumed_order_id IS NULL ORDER BY id LIMIT ?)",
-                        (order_id, int(time.time()), product_id, quantity),
-                    )
-                    if cur.rowcount != quantity:
-                        raise ProductError(f"«{row['name']}»: کلیدهای دیجیتالِ باقی‌مانده کافی نیست.")
             conn.commit()
             return True
         except BaseException:

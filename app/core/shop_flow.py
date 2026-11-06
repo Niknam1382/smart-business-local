@@ -567,8 +567,7 @@ class ShopFlow:
         page = max(1, min(page, pages))
         rows = []
         for product, _avail in sellable[(page - 1) * size : page * size]:
-            icon = "💾" if product.is_digital else "📦"
-            rows.append([Btn(_clip(f"{icon} {product.name} — {ctx.price(product.price_irr)}"), f"c:p:{product.id}:{catid}:{page}")])
+            rows.append([Btn(_clip(f"📦 {product.name} — {ctx.price(product.price_irr)}"), f"c:p:{product.id}:{catid}:{page}")])
         if pages > 1:
             nav = []
             if page > 1:
@@ -600,7 +599,6 @@ class ShopFlow:
         if product.description:
             lines += ["", product.description]
         lines.append("")
-        lines.append(ctx.t("prod.type_digital") if product.is_digital else ctx.t("prod.type_physical"))
         if avail < UNLIMITED:
             lines.append(ctx.t("prod.stock", n=avail))
         text = "\n".join(lines)
@@ -693,15 +691,13 @@ class ShopFlow:
     # -------------------------------------------------------------- ارسال
 
     def _shipping_options(self, ctx: _Ctx, lines: list) -> list:
-        """روش‌هایِ فعال فقط وقتی معنی دارند که سبد حداقل یک کالایِ فیزیکی داشته باشد."""
-        if not any(not (self.products.get(pid).is_digital if self.products.get(pid) else False) for pid, _q in lines):
-            return []
+        """روش‌هایِ فعالِ ارسال — همه‌ی محصولات فیزیکی‌اند، پس همیشه معنی دارد."""
         return active_shipping_methods(ctx.settings)
 
     def _shipping_choice(self, ctx: _Ctx, session, lines: list, subtotal_after_discount: int):
         """``(نام، هزینه)`` یا None — همیشه از سبد/تنظیماتِ **زنده** حساب می‌شه، نه از مقدارِ
-        ذخیره‌شده‌ی قدیمی: اگر سبد عوض شده باشد (فقط دیجیتال شده) یا روش حذف/غیرفعال شده باشد،
-        بی‌صدا «بدونِ ارسال» می‌شود — دقیقاً مثلِ کدِ تخفیفِ بی‌اعتبار در سبد."""
+        ذخیره‌شده‌ی قدیمی: اگر روش حذف/غیرفعال شده باشد، بی‌صدا «بدونِ ارسال» می‌شود — دقیقاً مثلِ
+        کدِ تخفیفِ بی‌اعتبار در سبد."""
         if session is None or not self._shipping_options(ctx, lines):
             return None
         method = find_shipping_method(ctx.settings, session.data.get("shipping_id", ""))
@@ -734,9 +730,7 @@ class ShopFlow:
         return res
 
     def _applicable_fields(self, ctx: _Ctx, lines: list) -> list:
-        kinds = [(self.products.get(pid).is_digital if self.products.get(pid) else False) for pid, _q in lines]
-        fields = cf.load_fields(ctx.settings)
-        return cf.fields_for_cart(fields, has_physical=any(not k for k in kinds), has_digital=any(kinds))
+        return cf.load_fields(ctx.settings)
 
     async def _start_checkout(self, ctx: _Ctx) -> FlowResult:
         lines = self.carts.get(ctx.platform, ctx.chat)

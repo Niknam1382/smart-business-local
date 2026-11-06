@@ -42,7 +42,7 @@ runs on it too (llama.cpp, GGUF files).
 > card-to-card confirmation is always a human decision.
 
 *Screenshots of the model picker, the shop and the orders page will be added here; until then the in-app guide
-(Persian, offline, 183 articles) explains what every screen does.*
+(Persian, offline, 181 articles) explains what every screen does.*
 
 ### Highlights
 
@@ -51,15 +51,15 @@ runs on it too (llama.cpp, GGUF files).
 | 🛍 **Four-button shop** | Persistent customer menu — Products · Cart · My orders · Contact support — with a paginated catalog, categories, product cards with photo and ➖/➕ quantity, step-by-step checkout and order tracking. |
 | 🎛 **Two modes** | *Advisor* (the bot only talks, using your persona text) and *Shop* (the button shop). Nothing else to choose. |
 | 🧠 **Local AI, one click** | The app reads your RAM/CPU/GPU/disk, ranks six GGUF models for your machine, downloads the pick with progress, pause, resume and a SHA-256 check — or imports a file you already have. |
-| 📝 **Your checkout form** | Choose which fields to ask (name, phone, address, postal code, e-mail, choices, custom) — physical and digital goods ask different things. |
-| 💾 **Digital products** | Auto-delivery after confirmation: text, link, file or **licence keys** (one key per purchase, never reused). |
+| 📝 **Your checkout form** | Choose which fields to ask (name, phone, address, postal code, e-mail, choices, custom) — required or optional, per your shop. |
+| 📥 **Bulk Excel import** | The app builds a real `.xlsx` template (name, price, stock, category, description, cost); fill it in Excel and import it back. Bad rows are reported by row number, good ones are saved in one transaction. CSV works too. |
 | 🔘 **Guide & FAQ inside support** | Help and your FAQ live under the *Contact support* button, next to your custom buttons (link, text reply, contact card). |
 | 🙋 **Human support** | A customer taps *talk to a human* and their messages reach you from then on; you answer by *Reply* in Telegram. Working hours and auto-close included. |
-| 🌐 **Persian & English** | All 219 bot messages are editable and bilingual; the reply language can follow the customer; every date is Jalali. |
+| 🌐 **Persian & English** | All 213 bot messages are editable and bilingual; the reply language can follow the customer; every date is Jalali. |
 | ⏳ **Stock reservation** | An order awaiting payment holds its quantity (15 minutes by default); two customers can never reserve the last item. |
 | 📦 **Delivery status** | A confirmed order gets its own track — preparing → shipped → delivered — with an optional tracking code, completely separate from the money. The customer sees it under *My orders*, and if you switch it on, a short "it has been sent" message goes out with the code. |
 | 💳 **Two payment methods — both to *your* accounts** | Card-to-card (manual confirmation) and **Bale Pay** (a payment gateway). No money flows through the app and it takes no cut. |
-| 🚚 **Shipping methods** | Your own list of post/courier options with a cost and an optional "free above" threshold. The final amount is items − discount + shipping, and the invoice, the ledger and the finance dashboard all agree on it. Until you add a method nothing changes: no extra question, no extra cost — and digital-only baskets are never charged shipping. |
+| 🚚 **Shipping methods** | Your own list of post/courier options with a cost and an optional "free above" threshold. The final amount is items − discount + shipping, and the invoice, the ledger and the finance dashboard all agree on it. Until you add a method nothing changes: no extra question, no extra cost. |
 | 🔔 **Receipt alarms** | When the customer says *I paid* and sends a receipt, the app records it, compares the amount and alerts you and your managers immediately — it never approves anything for you. Next to each order there is also a read-only payment panel: method, amount due, receipt amount, trace code, any mismatch (in red) and who confirmed, with a Jalali date. |
 | 🧾 **Ledger and Persian PDF invoices** | A ledger that fills itself when you confirm orders, manual expenses, a profit dashboard, refunds you still owe, and A4/A5 Persian invoices with your logo and optional VAT. |
 | 🔎 **Search across everything** | One box for orders, products and customers — by order number, product name, customer name or phone number — and every result has a button that opens that very page. It only reads the local database and changes nothing. |
@@ -68,7 +68,7 @@ runs on it too (llama.cpp, GGUF files).
 | 📢 **Required channel** | Customers must join your Telegram channel(s) first (menu, AI chat, or both). You and your managers are exempt; if the check ever breaks, nobody is locked out and you are told. |
 | 🔌 **Proxy pool** | Several proxies (one per line) with automatic failover, your own **subscription link** and automatic return to the fastest one — Telegram is often unreachable without it in Iran. |
 | 🛡 **Guardrails you cannot delete** | The app appends fixed rules to every prompt (limits, menu map, tone, privacy, content boundaries) and shows you exactly what the model will read. |
-| 📚 **Built-in guide** | An offline, searchable Persian guide (183 articles: 26 troubleshooting, 58 FAQ), a **?** button on every page and an automatic troubleshooter. |
+| 📚 **Built-in guide** | An offline, searchable Persian guide (181 articles: 25 troubleshooting, 58 FAQ), a **?** button on every page and an automatic troubleshooter. |
 
 ### Download
 
@@ -238,7 +238,7 @@ died (let Docker restart it), `2` no bot configured, `3` data written by a newer
 **This is the first public release (1.0.0)**: local-only AI, Telegram-only messaging, Bale Pay as the only gateway
 besides card-to-card, a four-button customer menu and a central prompt studio. The version string lives in
 `app/version.py` and a release tag must match it; see [CHANGELOG](CHANGELOG.md) for what shipped and what was cut. The
-automated suite (2008 tests, 98 files) runs against fake Telegram and fake Bale-pay servers and covers the shop,
+automated suite (2061 tests, 99 files) runs against fake Telegram and fake Bale-pay servers and covers the shop,
 payments, receipts, delivery, support, migrations, backups, proxies, headless mode, injection and abuse cases.
 **Verification against real bots and a real gateway still has to be done per installation** — run one complete purchase
 with a small amount before you take real money. Bugs and ideas: Issues.
@@ -259,7 +259,7 @@ with a small amount before you take real money. Bugs and ideas: Issues.
 > حساب می‌کند و تأییدِ کارت‌به‌کارت همیشه کارِ یک آدم است.
 
 *اسکرین‌شاتِ صفحه‌ی انتخابِ مدل، فروشگاه و سفارش‌ها بعداً همین‌جا اضافه می‌شود؛ تا آن موقع راهنمای داخلِ برنامه (فارسی،
-آفلاین، ۱۸۳ مقاله) کارِ هر صفحه را نشان می‌دهد.*
+آفلاین، ۱۸۱ مقاله) کارِ هر صفحه را نشان می‌دهد.*
 
 ### امکانات
 
@@ -268,15 +268,15 @@ with a small amount before you take real money. Bugs and ideas: Issues.
 | 🛍 **فروشگاهِ چهار دکمه‌ای** | منوی ثابتِ مشتری: محصولات · سبد خرید · سفارش‌های من · ارتباط با پشتیبانی — با کاتالوگِ صفحه‌بندی‌شده، دسته‌ها، کارتِ محصول با عکس و ➖/➕، ثبتِ سفارشِ مرحله‌ای و پیگیری. |
 | 🎛 **دو حالت** | «مشاوره‌ای» (فقط گفتگو با متنِ شخصیتِ خودت) و «فروشگاهی» (همان فروشگاهِ دکمه‌ای). چیزِ سومی برای انتخاب نیست. |
 | 🧠 **هوش مصنوعیِ محلی با یک کلیک** | برنامه رم/پردازنده/گرافیک/دیسک را می‌خواند، شش مدل را برای همین سیستم مرتب می‌کند و با یک کلیک، با نوارِ پیشرفت، توقف، ادامه و سنجشِ اثرانگشت دانلود می‌کند — یا فایلِ آماده‌ی خودت را می‌پذیرد. |
-| 📝 **فرمِ سفارشِ خودت** | انتخاب کن چه چیزهایی پرسیده شود (نام، موبایل، آدرس، کدپستی، ایمیل، گزینه‌ای، دلخواه) — کالای فیزیکی و دیجیتال سؤال‌های متفاوت دارند. |
-| 💾 **محصولِ دیجیتال** | تحویلِ خودکار بعد از تأیید: متن، لینک، فایل یا **کلید/مجوز** (هر خرید یک کلید، بدونِ تکرار). |
+| 📝 **فرمِ سفارشِ خودت** | انتخاب کن چه چیزهایی پرسیده شود (نام، موبایل، آدرس، کدپستی، ایمیل، گزینه‌ای، دلخواه) و هرکدام اجباری باشد یا اختیاری. |
+| 📥 **وارداتِ دسته‌ایِ اکسل** | برنامه یک قالبِ `.xlsx` واقعی می‌سازد (نام، قیمت، موجودی، دسته، توضیحات، بهای تمام‌شده)؛ در اکسل پرش کن و همان فایل را وارد کن. سطرِ خراب با شماره‌ی سطر گزارش می‌شه و سطرهایِ سالم در یک تراکنش ذخیره می‌شن. CSV هم می‌شه. |
 | 🔘 **راهنما و سؤالات متداول زیرِ پشتیبانی** | راهنما و پرسش‌هایِ پرتکرار مشتری زیرِ دکمه‌ی «ارتباط با پشتیبانی» می‌مانند، کنارِ دکمه‌هایِ سفارشیِ خودت (لینک، پاسخ متنی، کارتِ تماس). |
 | 🙋 **پشتیبانیِ انسانی** | مشتری «حرف زدن با پشتیبان» را می‌زند و از آن لحظه پیام‌هایش به تو می‌رسد؛ با Reply در تلگرام جواب می‌دهی؛ ساعتِ کاری و بسته‌شدنِ خودکار هم دارد. |
-| 🌐 **فارسی و انگلیسی** | هر ۲۱۹ پیامِ ربات قابلِ ویرایش و دوزبانه است؛ زبانِ پاسخ می‌تواند از پیامِ مشتری انتخاب شود و همه‌ی تاریخ‌ها جلالی است. |
+| 🌐 **فارسی و انگلیسی** | هر ۲۱۳ پیامِ ربات قابلِ ویرایش و دوزبانه است؛ زبانِ پاسخ می‌تواند از پیامِ مشتری انتخاب شود و همه‌ی تاریخ‌ها جلالی است. |
 | ⏳ **رزروِ موجودی** | سفارشِ منتظرِ پرداخت تعدادش را (پیش‌فرض ۱۵ دقیقه) نگه می‌دارد؛ دو مشتری هیچ‌وقت آخرین کالا را هم‌زمان رزرو نمی‌کنند. |
 | 📦 **وضعیتِ ارسالِ کالا** | سفارشِ تأییدشده مسیرِ جدایی دارد: آماده‌سازی ← ارسال شد ← تحویل داده شد، با کد رهگیریِ اختیاری و هیچ ارتباطی با پول. مشتری همین را در «سفارش‌های من» می‌بیند و اگر روشنش کنی، پیامِ کوتاهِ «ارسال شد» همراه کد برایش می‌رود. |
 | 💳 **دو روشِ پرداخت — هر دو به حسابِ خودت** | کارت‌به‌کارت (تأییدِ دستی) و **بله‌پی** (درگاهِ پرداخت)؛ هیچ پولی از برنامه عبور نمی‌کند و سهمی هم نمی‌گیرد. |
-| 🚚 **روش‌هایِ ارسال** | فهرستِ خودت از پست/پیک با هزینه و آستانهٔ اختیاریِ «ارسالِ رایگان بالای …». مبلغِ نهایی = جمعِ اقلام − تخفیف + کرایه و فاکتور، دفترِ مالی و داشبورد همه همین را می‌گویند. تا روشی نسازی هیچ‌چیز عوض نمی‌شود: نه پرسشی، نه هزینه‌ای — و سبدِ فقط‌دیجیتال هرگز کرایه نمی‌گیرد. |
+| 🚚 **روش‌هایِ ارسال** | فهرستِ خودت از پست/پیک با هزینه و آستانهٔ اختیاریِ «ارسالِ رایگان بالای …». مبلغِ نهایی = جمعِ اقلام − تخفیف + کرایه و فاکتور، دفترِ مالی و داشبورد همه همین را می‌گویند. تا روشی نسازی هیچ‌چیز عوض نمی‌شود: نه پرسشی، نه هزینه‌ای. |
 | 🔔 **آلارمِ رسید** | وقتی مشتری «پرداخت کردم» را می‌زند و رسید می‌فرستد، برنامه آن را ثبت می‌کند، مبلغ را با سفارش می‌سنجد و **فوری** تو و مدیرها را باخبر می‌کند — ولی هرگز چیزی را به‌جای تو تأیید نمی‌کند. کنارِ هر سفارش، یک کارتِ فقط‌خواندنی هم هست: روش، مبلغ، مبلغِ رسید، کد پیگیری، مقدارِ اختلاف (با قرمز) و اینکه چه کسی و چه وقت تأیید کرده. |
 | 🧾 **دفتر و فاکتورِ PDFِ فارسی** | دفتری که با تأییدِ سفارش خودش پر می‌شود، هزینه‌های دستی، داشبوردِ سود، یادآوریِ پولِ پس‌دادنی و فاکتورِ فارسیِ A4/A5 با لوگوی خودت و مالیاتِ اختیاری. |
 | 🔎 **جست‌وجوی سراسری** | یک کادر برای سفارش‌ها، کالاها و مشتریان — با شمارهٔ سفارش، نامِ کالا، نام یا شمارهٔ مشتری — و کنارِ هر نتیجه دکمه‌ای که همان صفحه را باز می‌کند. فقط از دیتابیسِ همین کامپیوتر می‌خواند و هیچ‌چیز را عوض نمی‌کند. |
@@ -285,7 +285,7 @@ with a small amount before you take real money. Bugs and ideas: Issues.
 | 📢 **عضویتِ اجباریِ کانال** | مشتری اول باید در کانال(های) تلگرامی تو عضو باشد (منو، گفتگو، یا هر دو). خودت و مدیرها معافید؛ اگر بررسی خراب شود کسی قفل نمی‌شود و خبردار می‌شوی. |
 | 🔌 **استخرِ پروکسی** | چند پروکسی (هر خط یکی) با جابه‌جاییِ خودکار، **لینکِ اشتراکِ** خودت و بازگشتِ خودکار به سریع‌ترین‌شان — تلگرام در ایران بدونِ آن کار نمی‌کند. |
 | 🛡 **گاردریل‌های حذف‌نشدنی** | برنامه به هر پرامپت پنج قطعه‌ی ثابت اضافه می‌کند (حدودِ کار، منو، لحن، حریم، مرزها) و پیش‌نمایشِ همان چیزی را که مدل می‌خواند به تو نشان می‌دهد. |
-| 📚 **راهنمای داخلِ برنامه** | راهنمای آفلاین و قابلِ جستجو به فارسی (۱۸۳ مقاله؛ ۲۶ عیب‌یابی و ۵۸ پرسشِ متداول)، دکمه‌ی **؟** کنارِ هر صفحه و یک عیب‌یابِ خودکار. |
+| 📚 **راهنمای داخلِ برنامه** | راهنمای آفلاین و قابلِ جستجو به فارسی (۱۸۱ مقاله؛ ۲۵ عیب‌یابی و ۵۸ پرسشِ متداول)، دکمه‌ی **؟** کنارِ هر صفحه و یک عیب‌یابِ خودکار. |
 
 ### دانلود
 
@@ -309,7 +309,7 @@ with a small amount before you take real money. Bugs and ideas: Issues.
    روشن‌کردنِ ربات. اگر تلگرامِ کشورت پروکسی می‌خواهد، یکی یا چندتا (هر خط یکی) بنویس.
 ۲. در صفحه‌ی **هوش مصنوعی** همان مدلی را که برنامه برچسبِ «پیشنهادِ ما» زده با «دانلود و استفاده» بگیر. نخواهی هم اشکالی
    ندارد؛ بدونِ مدل هم دکمه‌ها و سفارش کار می‌کنند.
-۳. در صفحه‌ی **سیستم پرامپت** شخصیتِ ربات را بنویس (۱۲ قالبِ آماده دارد) و پیش‌نمایشِ متنِ نهایی را ببین.
+۳. در صفحه‌ی **سیستم پرامپت** شخصیتِ ربات را بنویس (۱۱ قالبِ آماده دارد) و پیش‌نمایشِ متنِ نهایی را ببین.
 ۴. محصول اضافه کن و بعد در «سفارش‌ها ← تنظیماتِ پرداخت» حداقلِ شماره کارتت را برای کارت‌به‌کارت وارد کن.
 ۵. «تجربه‌ی ربات ← پیش‌نمایشِ مشتری» را باز کن، یک خرید را تا آخر امتحان کن، بعد با حسابِ دومِ خودت با رباتِ واقعی
    حرف بزن و سفارشِ آزمایشی را تأیید کن.
@@ -452,7 +452,7 @@ docker compose up -d                                   # پوشه‌ی ./data ر
 این **نخستین انتشارِ عمومی است (۱.۰.۰)**: هوش مصنوعی فقط محلی، تلگرام تنها پیام‌رسان، بله‌پی تنها درگاهِ علاوه بر
 کارت‌به‌کارت، منویِ مشتری با دقیقاً چهار دکمه و یک استودیویِ مرکزیِ پرامپت. عددِ نسخه در فایلِ `app/version.py` زندگی
 می‌کند و تگِ انتشار باید همان باشد؛ چه چیزی آمد و چه چیزی حذف شد را در [CHANGELOG](CHANGELOG.md) بخوان.
-مجموعه‌تستِ خودکار (۲۰۰۸ تست در ۹۸ فایل) روی سرورهایِ جعلیِ تلگرام و درگاهِ بله اجرا می‌شود و فروشگاه، پرداخت، رسید،
+مجموعه‌تستِ خودکار (۲۰۶۱ تست در ۹۹ فایل) روی سرورهایِ جعلیِ تلگرام و درگاهِ بله اجرا می‌شود و فروشگاه، پرداخت، رسید،
 تحویل، پشتیبانی، مهاجرت، پشتیبان، پروکسی، حالتِ بی‌پنجره، تزریقِ پرامپت و حالت‌هایِ سوءاستفاده را پوشش می‌دهد.
 **راستی‌آزمایی با رباتِ واقعی و درگاهِ واقعی هنوز باید برای هر نصب انجام شود** — قبل از پولِ واقعی، یک خریدِ کامل را با
 مبلغِ کم از اول تا آخر انجام بده. باگ و ایده: بخشِ Issues.

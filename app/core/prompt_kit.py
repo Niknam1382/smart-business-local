@@ -195,10 +195,9 @@ def catalog_lines(product_store, order_store=None, limit: int = MAX_CATALOG_LINE
             stock = "نامحدود"
         else:
             stock = f"{available} عدد باقی مانده" if available > 0 else "تمام شده"
-        kind = "دیجیتال" if product.is_digital else "فیزیکی"
         category = f" [{_one_line(product.category)}]" if product.category else ""
         description = " ".join((product.description or "").split())[:160]
-        lines.append(f"- شناسه={product.id} | {_one_line(product.name)}{category} | {product.price_irr:,} ریال | {kind} | {stock} | {description}")
+        lines.append(f"- شناسه={product.id} | {_one_line(product.name)}{category} | {product.price_irr:,} ریال | {stock} | {description}")
     return "\n".join(lines) if lines else "(هنوز محصولی ثبت نشده)"
 
 

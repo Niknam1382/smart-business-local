@@ -5,13 +5,21 @@
 
 فرم افزودن/ویرایش به‌صورت درون‌خطی (نه دیالوگ/صفحه‌ی جدا) بالای لیست باز
 می‌شه — هم برای افزودن هم ویرایش از همون فرم استفاده می‌شه.
+
+محصول فقط فیزیکی است: هیچ انتخابِ «نوعِ محصول» و هیچ تحویلِ خودکاری در این فرم نیست. دو دکمه‌ی
+«وارداتِ دسته‌ای» هم بالای لیست هست: قالبِ اکسل را می‌سازد و فایلِ پرشده را وارد می‌کند
+(``app.core.product_import``).
 """
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import flet as ft
 
 from app import theme
+from app.core import product_import
+from app.core.paths import get_app_data_dir
 from app.core.products import Product, ProductError, ProductStore, copy_photo_into_store, delete_photo_file
 from app.i18n import t
 from app.screens import common
@@ -28,7 +36,10 @@ def _normalize_digits(s: str) -> str:
 
 
 def _parse_int(raw: str) -> int:
-    cleaned = _normalize_digits(raw).replace(",", "").replace("،", "").strip()
+    cleaned = _normalize_digits(raw)
+    for separator in (",", "،", "٬", "_"):  # جداکننده‌ی هزارگانِ فارسی/عربی که کاربر از اکسل می‌آید
+        cleaned = cleaned.replace(separator, "")
+    cleaned = cleaned.strip()
     if not cleaned:
         return 0
     return int(cleaned)
@@ -72,60 +83,19 @@ def build(page: ft.Page, lang: str, store: ProductStore, settings=None, save=Non
         max_lines=4,
         border_radius=10,
     )
-    form_error = ft.Text("", size=12, color=theme.DANGER, visible=False)
+    form_error = ft.Text("", key="product_form_error", size=12, color=theme.DANGER, visible=False)
     form_title = ft.Text("", size=16, weight=ft.FontWeight.W_600)
 
-    # ---- محصولِ دیجیتال / دسته / ترتیب (R4) ----
-    def _dd(key, label, options, value, width=None, on_select=None):
-        return ft.Dropdown(
-            key=key, label=label, border_radius=10, width=width, value=value, on_select=on_select,
-            options=[ft.DropdownOption(key=k, text=text) for k, text in options],
-        )
-
-    def on_shape_change(e=None) -> None:
-        if e is not None and getattr(e, "control", None) is type_dropdown and type_dropdown.value == "digital" and (delivery_dropdown.value or "none") != "keys":
-            unlimited_switch.value = True  # دیجیتالِ غیرکلیدی پیش‌فرض نامحدوده
-        sync_visibility()
-        page.update()
-
-    type_dropdown = _dd(
-        "product_type", t("products.form.type_label", lang),
-        [("physical", t("products.form.type_physical", lang)), ("digital", t("products.form.type_digital", lang))], "physical", 230, on_shape_change,
-    )
+    # ---- دسته / ترتیب / موجودی ----
     category_field = ft.TextField(key="product_category", label=t("products.form.category_label", lang), border_radius=10, width=200)
     sort_field = ft.TextField(key="product_sort", label=t("products.form.sort_label", lang), border_radius=10, width=200, keyboard_type=ft.KeyboardType.NUMBER)
-    unlimited_switch = ft.Switch(key="product_unlimited", label=t("products.form.unlimited", lang), value=False, on_change=on_shape_change)
-    delivery_dropdown = _dd(
-        "product_delivery_kind", t("products.form.delivery_label", lang),
-        [(k, t(f"products.form.delivery_{k}", lang)) for k in ("none", "text", "link", "file", "keys")], "none", 330, on_shape_change,
-    )
-    payload_field = ft.TextField(key="product_delivery_payload", label="", multiline=True, min_lines=1, max_lines=4, border_radius=10, visible=False)
-    keys_field = ft.TextField(key="product_keys", label=t("products.form.keys_label", lang), multiline=True, min_lines=3, max_lines=8, border_radius=10, visible=False)
-    keys_info = ft.Text("", key="product_keys_info", size=12, color=theme.text_secondary(page), visible=False)
-
-    async def handle_pick_delivery_file(e) -> None:
-        try:
-            result = await get_or_create_file_picker(page).pick_files(dialog_title=t("products.form.pick_file", lang), allow_multiple=False)
-        except ft.FletUnsupportedPlatformException:
-            result = None
-        if result:
-            payload_field.value = result[0].path
-            page.update()
-
-    pick_file_button = ft.OutlinedButton(key="product_pick_file", content=t("products.form.pick_file", lang), icon=ft.Icons.ATTACH_FILE_ROUNDED,
-                                         on_click=handle_pick_delivery_file, visible=False)
 
     def sync_visibility() -> None:
-        digital = type_dropdown.value == "digital"
-        kind = (delivery_dropdown.value or "none") if digital else "none"
-        delivery_dropdown.visible = digital
-        payload_field.visible = digital and kind in ("text", "link", "file")
-        payload_field.label = t(f"products.form.payload_{kind}", lang) if kind in ("text", "link", "file") else ""
-        pick_file_button.visible = digital and kind == "file"
-        keys_field.visible = digital and kind == "keys"
-        keys_info.visible = digital and kind == "keys"
-        unlimited_switch.visible = not (digital and kind == "keys")
-        stock_field.visible = not (unlimited_switch.visible and unlimited_switch.value) and not (digital and kind == "keys")
+        # «نامحدود» یعنی عددِ موجودی معنا ندارد؛ فیلد پنهان می‌شه تا کاربر عددِ الکی وارد نکنه
+        stock_field.visible = not bool(unlimited_switch.value)
+
+    unlimited_switch = ft.Switch(key="product_unlimited", label=t("products.form.unlimited", lang), value=False,
+                                 on_change=lambda e: (sync_visibility(), page.update()))
 
     photo_preview = ft.Container(
         key="photo_preview",
@@ -206,9 +176,8 @@ def build(page: ft.Page, lang: str, store: ProductStore, settings=None, save=Non
         cost_field.value = ""
         stock_field.value = ""
         description_field.value = ""
-        type_dropdown.value, category_field.value, sort_field.value = "physical", "", "0"
-        unlimited_switch.value, delivery_dropdown.value = False, "none"
-        payload_field.value, keys_field.value, keys_info.value = "", "", ""
+        category_field.value, sort_field.value = "", "0"
+        unlimited_switch.value = False
         sync_visibility()
         form_error.visible = False
         form_title.value = t("products.form.title_add", lang)
@@ -225,10 +194,8 @@ def build(page: ft.Page, lang: str, store: ProductStore, settings=None, save=Non
         cost_field.value = str(product.cost_irr) if product.cost_irr else ""
         stock_field.value = str(product.stock_quantity)
         description_field.value = product.description
-        type_dropdown.value, category_field.value, sort_field.value = product.product_type, product.category, str(product.sort_order)
-        unlimited_switch.value, delivery_dropdown.value = product.unlimited_stock, product.delivery_kind
-        payload_field.value, keys_field.value = product.delivery_payload, ""
-        keys_info.value = t("products.form.keys_info", lang, count=product.stock_quantity) if product.delivery_kind == "keys" else ""
+        category_field.value, sort_field.value = product.category, str(product.sort_order)
+        unlimited_switch.value = product.unlimited_stock
         sync_visibility()
         form_error.visible = False
         form_title.value = t("products.form.title_edit", lang)
@@ -255,8 +222,6 @@ def build(page: ft.Page, lang: str, store: ProductStore, settings=None, save=Non
             form_error.visible = True
             page.update()
             return
-        digital = type_dropdown.value == "digital"
-        kind = (delivery_dropdown.value or "none") if digital else "none"
         try:
             sort = _parse_int(sort_field.value or "0")
         except ValueError:
@@ -264,12 +229,7 @@ def build(page: ft.Page, lang: str, store: ProductStore, settings=None, save=Non
             form_error.visible = True
             page.update()
             return
-        shop = dict(
-            product_type=type_dropdown.value or "physical", category=category_field.value or "",
-            unlimited_stock=bool(unlimited_switch.value) and kind != "keys", delivery_kind=kind,
-            delivery_payload=(payload_field.value or "").strip() if kind in ("text", "link", "file") else "", sort_order=sort,
-        )
-        new_keys = [line for line in (keys_field.value or "").splitlines() if line.strip()] if kind == "keys" else []
+        shop = dict(category=category_field.value or "", unlimited_stock=bool(unlimited_switch.value), sort_order=sort)
         if shop["unlimited_stock"]:
             stock = 0
         try:
@@ -300,8 +260,6 @@ def build(page: ft.Page, lang: str, store: ProductStore, settings=None, save=Non
                 saved_id = product_id
             if saved_id is not None:
                 store.set_cost(saved_id, cost)  # N19: بهای تمام‌شده (فقط روی فروش‌های بعدی اثر دارد)
-            if new_keys and saved_id is not None:
-                store.add_keys(saved_id, new_keys)
         except ProductError as exc:
             form_error.value = str(exc)
             form_error.visible = True
@@ -322,12 +280,8 @@ def build(page: ft.Page, lang: str, store: ProductStore, settings=None, save=Non
                 ft.Row(controls=[price_field, stock_field]),
                 cost_field,
                 description_field,
-                ft.Row(spacing=10, wrap=True, controls=[type_dropdown, category_field, sort_field]),
+                ft.Row(spacing=10, wrap=True, controls=[category_field, sort_field]),
                 unlimited_switch,
-                delivery_dropdown,
-                ft.Row(spacing=10, controls=[ft.Container(expand=True, content=payload_field), pick_file_button]),
-                keys_field,
-                keys_info,
                 ft.Column(
                     spacing=6,
                     controls=[
@@ -352,6 +306,71 @@ def build(page: ft.Page, lang: str, store: ProductStore, settings=None, save=Non
         padding=20,
     )
 
+    # --------------------------------------------------------- وارداتِ دسته‌ای
+    import_note = ft.Text("", key="product_import_note", size=12, color=theme.text_secondary(page), visible=False)
+
+    def show_note(text: str, ok: bool) -> None:
+        import_note.value = text
+        import_note.color = theme.SUCCESS if ok else theme.DANGER
+        import_note.visible = bool(text)
+        page.update()
+
+    def do_template(e=None) -> None:
+        """قالب را در پوشه‌ی exportsِ خودِ برنامه می‌سازد (همان جایی که خروجیِ مشتری و دفتر می‌رود)."""
+        path = get_app_data_dir() / "exports" / "products-template.xlsx"
+
+        def work() -> None:
+            try:
+                product_import.write_template(path)
+            except OSError as exc:
+                show_note(f"قالب ساخته نشد: {exc}", False)
+                return
+            show_note(t("products.import.template_done", lang, path=str(path)), True)
+
+        page.run_thread(work)
+
+    def do_import(path: Path) -> None:
+        def work() -> None:
+            try:
+                added, problems = product_import.import_file(store, path)
+            except product_import.ProductImportError as exc:
+                show_note(str(exc), False)
+                return
+            except (OSError, ProductError) as exc:
+                show_note(f"واردات نشد: {exc}", False)
+                return
+            render_list()
+            show_note(product_import.import_summary(lang, added, problems), not problems)
+            page.update()
+
+        page.run_thread(work)
+
+    async def on_import_file(e=None) -> None:
+        picker = get_or_create_file_picker(page)
+        try:
+            picked = await picker.pick_files(
+                dialog_title=t("products.import.pick", lang),
+                file_type=ft.FilePickerFileType.CUSTOM,
+                allowed_extensions=["xlsx", "csv"],
+                allow_multiple=False,
+            )
+        except ft.FletUnsupportedPlatformException:
+            picked = None  # حالت وب/تست — انتخاب فایل فقط توی دسکتاپ واقعی هست
+        if picked:
+            do_import(Path(picked[0].path))
+
+    import_row = ft.Row(
+        spacing=10,
+        wrap=True,
+        controls=[
+            ft.Text(t("products.import.title", lang), size=13, weight=ft.FontWeight.W_600),
+            ft.OutlinedButton(key="product_template", content=t("products.import.template", lang),
+                              icon=ft.Icons.DOWNLOAD_ROUNDED, on_click=do_template),
+            ft.OutlinedButton(key="product_import", content=t("products.import.run", lang),
+                              icon=ft.Icons.UPLOAD_FILE_ROUNDED, on_click=on_import_file),
+        ],
+    )
+
     # ------------------------------------------------------------- لیست
     def product_card(product: Product) -> ft.Control:
         thumb = (
@@ -368,8 +387,6 @@ def build(page: ft.Page, lang: str, store: ProductStore, settings=None, save=Non
         )
         if product.unlimited_stock:
             stock_chip = ft.Text(t("products.badge_unlimited", lang), size=12, color=theme.SUCCESS)
-        elif product.delivery_kind == "keys" and product.in_stock:
-            stock_chip = ft.Text(t("products.keys_left", lang, count=product.stock_quantity), size=12, color=theme.SUCCESS)
         elif product.in_stock:
             stock_chip = ft.Text(
                 t("products.in_stock_count", lang, count=product.stock_quantity), size=12, color=theme.SUCCESS
@@ -378,8 +395,6 @@ def build(page: ft.Page, lang: str, store: ProductStore, settings=None, save=Non
             stock_chip = ft.Text(t("products.out_of_stock", lang), size=12, color=theme.DANGER)
 
         badges = [stock_chip]
-        if product.is_digital:
-            badges.append(ft.Text("💾 " + t("products.badge_digital", lang), size=12, color=theme.text_secondary(page)))
         if product.category:
             badges.append(ft.Text("🗂 " + product.category, size=12, color=theme.text_secondary(page)))
         if not product.active:
@@ -502,6 +517,8 @@ def build(page: ft.Page, lang: str, store: ProductStore, settings=None, save=Non
         ),
         [
             *low_stock_controls(),
+            import_row,
+            import_note,
             ft.Row(controls=[ft.Switch(key="show_inactive_switch", label=t("products.show_inactive", lang), value=ui["show_inactive"], on_change=handle_toggle_show_inactive)]),
             ft.Text(t("products.deactivate_note", lang), size=11, color=theme.text_secondary(page)),
             form_container,

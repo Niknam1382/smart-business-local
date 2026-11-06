@@ -25,7 +25,6 @@ GROUPS = (
     ("checkout", "ثبتِ سفارش", "Checkout", "هنگامِ ثبتِ سفارش (پرسیدنِ اطلاعات)", "While placing an order (asking for details)"),
     ("payment", "پرداخت", "Payment", "هنگامِ پرداختِ سفارش", "While paying for an order"),
     ("orders", "سفارش‌ها", "Orders", "هنگامِ دیدن و پیگیریِ سفارش‌ها", "While viewing or tracking orders"),
-    ("delivery", "تحویلِ دیجیتال", "Digital delivery", "هنگامِ تحویلِ محصولِ دیجیتال", "When a digital product is delivered"),
     ("support", "پشتیبانی و درخواست", "Support & requests", "هنگامِ پشتیبانی و ثبتِ درخواست", "During support and request handling"),
     ("system", "سایر پیام‌ها", "Other messages", "پیام‌های عمومی و خطاها", "General messages and errors"),
 )
@@ -118,10 +117,6 @@ co.stock_problem|checkout|advanced|هشدارِ تغییرِ موجودی هنگ
 co.summary_title|checkout|advanced|عنوانِ خلاصه‌ی سفارش|Order summary title||
 co.too_many|checkout|advanced|پیامِ سفارش‌های پشت‌سرهمِ زیاد|Too many recent orders||
 custom.share_contact|support|advanced|درخواستِ ارسالِ شماره‌ی تماس|Ask to share the phone number||
-deliver.failed_owner|delivery|advanced|اعلانِ نرسیدنِ محصولِ دیجیتال (برای تو)|Digital delivery failed (for you)|فقط برای مالک؛ وقتی ارسالِ محصولِ دیجیتال به مشتری نرسید|Owner only; when a digital delivery fails
-deliver.head|delivery|advanced|تیترِ پیامِ تحویلِ دیجیتال|Digital delivery heading||
-deliver.item|delivery|advanced|سطرِ هر محصولِ دیجیتال|Digital delivery item line||
-deliver.key|delivery|advanced|سطرِ کلید/لایسنس|License key line||
 faq.back|support|advanced|دکمه‌ی «برگشت به فهرستِ سؤال‌ها»|“Back to questions” button||
 faq.empty|support|advanced|پیامِ نبودنِ سؤالِ متداول|No FAQ yet||
 faq.title|support|advanced|عنوانِ سؤالاتِ متداول|FAQ title||
@@ -242,8 +237,6 @@ prod.continue|catalog|advanced|دکمه‌ی «ادامه‌ی خرید»|“Con
 prod.in_cart|catalog|advanced|نشانگرِ «در سبد»|“In cart” indicator||
 prod.max|catalog|advanced|سطرِ حداکثرِ تعداد|Maximum quantity line||
 prod.stock|catalog|advanced|سطرِ موجودی|Stock line||
-prod.type_digital|catalog|advanced|برچسبِ «دیجیتال»|“Digital” label||
-prod.type_physical|catalog|advanced|برچسبِ «فیزیکی»|“Physical” label||
 prod.update|catalog|advanced|دکمه‌ی «ثبتِ تعدادِ جدید»|“Update quantity” button||
 prod.view_cart|catalog|advanced|دکمه‌ی «دیدنِ سبد»|“View cart” button||
 ui.back|system|advanced|دکمه‌ی «بازگشت»|“Back” button||

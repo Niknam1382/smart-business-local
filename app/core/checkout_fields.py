@@ -8,11 +8,10 @@
 from __future__ import annotations
 
 import re
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from typing import Optional
 
 FIELD_TYPES = ("text", "phone", "number", "choice", "location", "email")
-APPLIES_TO = ("all", "physical", "digital")
 HARD_MAX_LEN = 500
 MAX_FIELDS = 12
 MAX_CHOICES = 12
@@ -31,7 +30,6 @@ class CheckoutField:
     prompt: str
     type: str = "text"
     required: bool = True
-    applies_to: str = "all"
     regex: str = ""
     choices: list = field(default_factory=list)
     min_len: int = 0
@@ -54,18 +52,18 @@ def normalize_phone(raw: str) -> Optional[str]:
 def default_fields(lang: str = "fa") -> list:
     if lang == "en":
         return [
-            CheckoutField("name", "Name", "Please send your full name:", "text", True, "all", min_len=2, max_len=60),
+            CheckoutField("name", "Name", "Please send your full name:", "text", True, min_len=2, max_len=60),
             CheckoutField("phone", "Mobile", "Please send your mobile number (e.g. 09123456789):", "phone", True),
-            CheckoutField("address", "Address", "Please send your full delivery address:", "text", True, "physical", min_len=8, max_len=300),
-            CheckoutField("postal", "Postal code", "Postal code (10 digits):", "number", False, "physical", min_len=10, max_len=10),
-            CheckoutField("notes", "Notes", "Any notes for the seller?", "text", False, "all", max_len=300),
+            CheckoutField("address", "Address", "Please send your full delivery address:", "text", True, min_len=8, max_len=300),
+            CheckoutField("postal", "Postal code", "Postal code (10 digits):", "number", False, min_len=10, max_len=10),
+            CheckoutField("notes", "Notes", "Any notes for the seller?", "text", False, max_len=300),
         ]
     return [
-        CheckoutField("name", "نام و نام‌خانوادگی", "نام و نام‌خانوادگیت رو بفرست:", "text", True, "all", min_len=2, max_len=60),
+        CheckoutField("name", "نام و نام‌خانوادگی", "نام و نام‌خانوادگیت رو بفرست:", "text", True, min_len=2, max_len=60),
         CheckoutField("phone", "شماره موبایل", "شماره موبایلت رو بفرست (مثلاً 09123456789):", "phone", True),
-        CheckoutField("address", "آدرس", "آدرس کاملِ تحویل رو بفرست:", "text", True, "physical", min_len=8, max_len=300),
-        CheckoutField("postal", "کدپستی", "کدپستیِ ۱۰ رقمی (اختیاری):", "number", False, "physical", min_len=10, max_len=10),
-        CheckoutField("notes", "توضیحات", "توضیحاتی برای فروشنده داری؟ (اختیاری)", "text", False, "all", max_len=300),
+        CheckoutField("address", "آدرس", "آدرس کاملِ تحویل رو بفرست:", "text", True, min_len=8, max_len=300),
+        CheckoutField("postal", "کدپستی", "کدپستیِ ۱۰ رقمی (اختیاری):", "number", False, min_len=10, max_len=10),
+        CheckoutField("notes", "توضیحات", "توضیحاتی برای فروشنده داری؟ (اختیاری)", "text", False, max_len=300),
     ]
 
 
@@ -74,15 +72,10 @@ def templates(lang: str = "fa") -> dict:
     fa = lang != "en"
     return {
         "physical": [base["name"], base["phone"], base["address"], base["postal"], base["notes"]],
-        "digital": [
-            CheckoutField("name", base["name"].label, base["name"].prompt, "text", True, "all", min_len=2, max_len=60),
-            CheckoutField("email", "ایمیل" if fa else "Email", "ایمیلت رو بفرست:" if fa else "Please send your email:", "email", False, "digital"),
-            base["phone"].__class__(**{**asdict(base["phone"]), "required": False}),
-        ],
         "services": [
             base["name"],
             base["phone"],
-            CheckoutField("request", "درخواست" if fa else "Request", "درخواستت رو بنویس:" if fa else "Describe your request:", "text", True, "all", min_len=3, max_len=500),
+            CheckoutField("request", "درخواست" if fa else "Request", "درخواستت رو بنویس:" if fa else "Describe your request:", "text", True, min_len=3, max_len=500),
         ],
     }
 
@@ -103,8 +96,6 @@ def validate_definition(raw: dict) -> Optional[str]:
         return "متنِ پرسش نمی‌تونه خالی باشه."
     if raw.get("type", "text") not in FIELD_TYPES:
         return "نوعِ فیلد نامعتبره."
-    if raw.get("applies_to", "all") not in APPLIES_TO:
-        return "«اعمال برای» نامعتبره."
     pattern = str(raw.get("regex", "") or "")
     if pattern:
         if len(pattern) > 200:
@@ -143,9 +134,11 @@ def validate_all(raw_fields: list) -> Optional[str]:
 
 
 def _from_dict(raw: dict) -> CheckoutField:
+    # «applies_to» دیگر در مدل نیست؛ دیکشنری‌هایِ قدیمیِ ذخیره‌شده همان کلید را دارند و بی‌صدا نادیده
+    # گرفته می‌شوند — هیچ فیلدِ شخصی‌سازی‌شده‌ای به‌خاطرِ این حذف از دست نمی‌رود.
     return CheckoutField(
         id=str(raw["id"]), label=str(raw["label"]).strip(), prompt=str(raw["prompt"]).strip(), type=raw.get("type", "text"),
-        required=bool(raw.get("required", True)), applies_to=raw.get("applies_to", "all"), regex=str(raw.get("regex", "") or ""),
+        required=bool(raw.get("required", True)), regex=str(raw.get("regex", "") or ""),
         choices=[str(c).strip() for c in (raw.get("choices") or [])], min_len=int(raw.get("min_len", 0) or 0),
         max_len=int(raw.get("max_len", 200) or 200),
     )
@@ -158,14 +151,6 @@ def load_fields(settings) -> list:
         return [_from_dict(item) for item in raw]
     lang = "en" if getattr(settings, "bot_language", "fa") == "en" else "fa"
     return default_fields(lang)
-
-
-def fields_for_cart(fields: list, has_physical: bool, has_digital: bool) -> list:
-    out = []
-    for f in fields:
-        if f.applies_to == "all" or (f.applies_to == "physical" and has_physical) or (f.applies_to == "digital" and has_digital):
-            out.append(f)
-    return out
 
 
 # --------------------------------------------------------------- اعتبارسنجی ----

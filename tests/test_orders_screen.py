@@ -190,32 +190,23 @@ def test_checkout_extra_fields_and_owner_text_show_all_answers(tmp_path):
         set_label_provider(None)
 
 
-def test_confirmed_digital_order_shows_delivery_status_and_redeliver(tmp_path):
+def test_confirmed_order_has_no_digital_delivery_bar(tmp_path):
+    """تحویلِ خودکار از مدل رفت: نه نوارِ وضعیتِ تحویل، نه دکمه‌ی «ارسالِ دوباره»."""
     products, store = make_stores(tmp_path)
-    pid = products.add("دوره", 500, product_type="digital", delivery_kind="link", delivery_payload="https://x.example")
+    pid = products.add("کالا", 500, 4)
     oid = store.create("telegram", "1", [(pid, 1)])
     store.mark_paid(oid, METHOD_CARD_TO_CARD, "r")
     store.confirm(oid)
-    calls = []
 
     class Mgr:
-        def deliver_digital_sync(self, order_id):
-            calls.append(order_id)
-            store.mark_delivered(order_id)
-            return "delivered"
-
         def send_message_sync(self, *a, **k):
             return None
 
     page = FakePage()
     control = orders_screen.build(page, "fa", store, Mgr())
-    assert "هنوز نرسیده" in collect_text(find(control, f"delivery_{oid}"))
-    fire(find(control, f"redeliver_{oid}"), "on_click")
-    assert calls == [oid] and "ارسال شد" in collect_text(find(control, f"delivery_{oid}")) and find(control, f"redeliver_{oid}") is None
-    physical = products.add("کالا", 100, 5)
-    po = store.create("telegram", "2", [(physical, 1)])
-    store.mark_paid(po, METHOD_CARD_TO_CARD, "r2"); store.confirm(po)  # شناسهٔ تراکنش یک‌بارمصرف است
-    assert find(orders_screen.build(page, "fa", store, Mgr()), f"delivery_{po}") is None  # سفارشِ فیزیکی: بدونِ نوارِ تحویل
+    assert find(control, f"delivery_{oid}") is None and find(control, f"redeliver_{oid}") is None
+    assert not hasattr(Mgr, "deliver_digital_sync")
+    assert "سفارش" in collect_text(control)
 
 
 # ------------------------------------------------------------------ رسیدها
@@ -369,9 +360,6 @@ class RecorderMgr:
 
     def send_message_sync(self, platform, chat_id, text, **kw):
         self.sent.append((platform, chat_id, text))
-
-    def deliver_digital_sync(self, order_id):
-        return "nothing"
 
     def is_running(self):
         return False

@@ -260,49 +260,66 @@ def _find_remove_photo_button(control):
     return found[0] if found else None
 
 
-def test_digital_keys_product_via_form(tmp_path):
+def test_form_has_no_product_type_and_no_delivery_controls(tmp_path):
+    """مدلِ فیزیکیِ خالص: هیچ انتخابِ «نوعِ محصول» و هیچ فیلدِ تحویل/کلیدی در فرم نیست."""
     page = FakePage()
     store = make_store(tmp_path)
     control = products_screen.build(page, "fa", store)
     fire(_find_add_button(control), "on_click")
-    find(control, "product_name").value = "لایسنس"
-    find(control, "product_price").value = "900"
-    type_dd = find(control, "product_type")
-    type_dd.value = "digital"
-    fire(type_dd, "on_select")
-    kind = find(control, "product_delivery_kind")
-    assert kind.visible is True and find(control, "product_unlimited").value is True  # دیجیتالِ غیرکلیدی: نامحدودِ پیش‌فرض
-    kind.value = "keys"
-    fire(kind, "on_select")
-    assert find(control, "product_keys").visible and not find(control, "product_unlimited").visible and not find(control, "product_stock").visible
-    find(control, "product_keys").value = "K1\n\nK2\n  K3  "
-    find(control, "product_category").value = "نرم‌افزار"
-    fire(_find_save_button(control), "on_click")
-    product = store.list()[0]
-    assert (product.product_type, product.delivery_kind, product.category) == ("digital", "keys", "نرم‌افزار")
-    assert product.stock_quantity == 3 and store.keys_remaining(product.id) == 3 and not product.unlimited_stock
+    for key in ("product_type", "product_delivery_kind", "product_delivery_payload", "product_keys",
+                "product_keys_info", "product_pick_file"):
+        assert find(control, key) is None, f"کلیدِ {key} هنوز در فرم است"
+    for key in ("product_name", "product_price", "product_stock", "product_cost", "product_category", "product_sort"):
+        assert find(control, key) is not None
 
 
-def test_digital_link_product_and_validation_error_shown(tmp_path):
+def test_add_and_edit_a_physical_product_with_category_and_sort(tmp_path):
     page = FakePage()
     store = make_store(tmp_path)
     control = products_screen.build(page, "fa", store)
     fire(_find_add_button(control), "on_click")
-    find(control, "product_name").value = "دوره"
-    find(control, "product_price").value = "500"
-    type_dd = find(control, "product_type")
-    type_dd.value = "digital"
-    fire(type_dd, "on_select")
-    kind = find(control, "product_delivery_kind")
-    kind.value = "link"
-    fire(kind, "on_select")
-    find(control, "product_delivery_payload").value = "https://x.example/course"
+    find(control, "product_name").value = "چای"
+    find(control, "product_price").value = "۲۸۰٬۰۰۰"
+    find(control, "product_stock").value = "12"
+    find(control, "product_category").value = "نوشیدنی"
+    find(control, "product_sort").value = "3"
+    find(control, "product_cost").value = "190000"
     fire(_find_save_button(control), "on_click")
     product = store.list()[0]
-    assert product.delivery_kind == "link" and product.delivery_payload == "https://x.example/course" and product.unlimited_stock
-    # ویرایش: فیلدها پر می‌شن
+    assert (product.name, product.price_irr, product.stock_quantity, product.category, product.sort_order, product.cost_irr) == (
+        "چای", 280000, 12, "نوشیدنی", 3, 190000)
+
     fire(find(control, f"edit_{product.id}"), "on_click")
-    assert find(control, "product_type").value == "digital" and find(control, "product_delivery_payload").value == "https://x.example/course"
+    assert (find(control, "product_name").value, find(control, "product_category").value,
+            find(control, "product_sort").value) == ("چای", "نوشیدنی", "3")
+
+
+def test_unlimited_switch_hides_the_stock_field_and_saves_unlimited(tmp_path):
+    page = FakePage()
+    store = make_store(tmp_path)
+    control = products_screen.build(page, "fa", store)
+    fire(_find_add_button(control), "on_click")
+    find(control, "product_name").value = "نان"
+    find(control, "product_price").value = "45000"
+    unlimited = find(control, "product_unlimited")
+    fire(unlimited, "on_change", True)
+    assert find(control, "product_stock").visible is False
+    fire(_find_save_button(control), "on_click")
+    [product] = [p for p in store.list() if p.name == "نان"]
+    assert product.unlimited_stock is True and product.stock_quantity == 0 and product.in_stock
+
+
+def test_bad_sort_number_is_shown_and_nothing_is_saved(tmp_path):
+    page = FakePage()
+    store = make_store(tmp_path)
+    control = products_screen.build(page, "fa", store)
+    fire(_find_add_button(control), "on_click")
+    find(control, "product_name").value = "چای"
+    find(control, "product_price").value = "280000"
+    find(control, "product_sort").value = "سه"
+    fire(_find_save_button(control), "on_click")
+    assert store.list() == []
+    assert "ترتیبِ نمایش" in find(control, "product_form_error").value
 
 
 # ---------------------------------------------------- N2: محصولِ نمونه فقط opt-in ----

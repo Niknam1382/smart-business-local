@@ -26,7 +26,7 @@ Flet UI (main thread)  ──►  BotManager  ──►  asyncio loop in a worke
                                                ├─ BalePayClient (payment updates only: pre-checkout / successful_payment / /pay)
                                                ├─ LocalEngine (llama.cpp) runs in a thread — inference never blocks the loop
                                                └─ maintenance loop (reservation expiry, pending gateway verifications,
-                                                                  delivery retry, handoff timeout, proxy refresh, retention)
+                                                                  handoff timeout, proxy refresh, retention)
 SQLite: settings.json (encrypted secrets) · conversations.db · products.db · orders.db
 Data folder: `SMART_BUSINESS_DATA_DIR` override → OS default folder (`paths.py`). Model files: `models/` inside it,
              or a folder the owner picks on the AI page. No portable mode.
@@ -47,7 +47,7 @@ Data folder: `SMART_BUSINESS_DATA_DIR` override → OS default folder (`paths.py
 | `products.py` | Catalog and real stock. |
 | `payments.py` | `PaymentService`: available methods (card-to-card needs only a card number; Bale Pay needs both tokens *and* a running bot), payment instructions, `createInvoiceLink` → deep-link fallback, pre-checkout / successful-payment guards, transaction-id idempotency, auto-confirm, diagnostics. |
 | `owner_console.py` | One-time-code owner registration, `/confirm` `/reject` `/orders` …, owner alerts, `build_payment_claim_alert()` (the receipt alarm text). |
-| `bot_manager.py` | Lifecycle, adapters, delivery, maintenance loop, log redaction, `_on_payment_claim` (attention item + instant message to the owner and order-deciding admins). |
+| `bot_manager.py` | Lifecycle, adapters, maintenance loop, log redaction, `_on_payment_claim` (attention item + instant message to the owner and order-deciding admins). |
 | `telegram_adapter.py`, `bale_pay.py`, `adapter_common.py` | Telegram I/O (URL-button messages, media-as-note, attachment download with allow-list/size cap/app-invented file name) and the **payment-only** Bale client (`getUpdates` filtered to payment events, `sendInvoice`, `createInvoiceLink`, `answerPreCheckoutQuery`, `inquireTransaction`). The Bale client never answers ordinary chat. |
 | `proxy_pool.py` | Telegram proxy list: parsing (`socks5/socks4/http`, `host:port`, `user:pass@host:port`), health probes, ranking, cool-down and **automatic failover** (the Telegram adapter swaps its `Bot` after consecutive network errors). |
 | `paths.py` | Data-folder resolution: `SMART_BUSINESS_DATA_DIR` → OS default. There is no portable mode. |
@@ -162,7 +162,7 @@ Customer ──► Telegram adapter ──► ConversationPipeline
                                               │    ai_qa   → QaAgent (read-only; tool: suggest_products)
                                                                                             ├─ HandoffService (open session ⇒ messages go to the owner, AI silent)
                                               └─ Debouncer ─► AI
-BotManager maintenance loop: reservation expiry · inventory saga recovery · digital-delivery retry · handoff timeout ·
+BotManager maintenance loop: reservation expiry · inventory saga recovery · handoff timeout ·
                               proxy-subscription refresh · retention purge
 ```
 
@@ -172,7 +172,7 @@ BotManager maintenance loop: reservation expiry · inventory saga recovery · di
 | `shop_flow.py` / `ui.py` | Platform-neutral button shop. `callback_data` is `c:<verb>:<args…>` (≤ 64 bytes). Quantities are *targets* (`set_qty`) so double taps are idempotent. Per-chat `asyncio.Lock`. Adapters only implement `Transport` (`send_ui`, `edit_ui`, `delete_message`, `answer_callback`). |
 | `checkout_fields.py`, `cart.py` | Configurable checkout fields + validation; `carts` / `checkout_sessions` tables in `orders.db` (survive restarts). |
 | `shop_texts.py` | Registry of every customer-facing message (fa/en), owner overrides validated against allowed placeholders; rendering never raises. |
-| `delivery.py` | Digital delivery after confirmation; idempotent via `orders.delivered_ts` (`-1` = nothing to deliver). |
+| `product_import.py` | Bulk product import: writes the `.xlsx` template and reads `.xlsx`/`.csv` with the standard library only; per-row problems are reported, valid rows land in one transaction. |
 | `handoff.py`, `working_hours.py` | Human support sessions, Reply routing (`relay_map`), inactivity timeout, Tehran working hours. |
 | `usage_limits.py`, `attention.py` | Daily AI caps + kill switch; "needs attention" inbox. |
 | `qa_agent.py`, `modes.py` | Read-only Q&A agent; mode registry (`resolve_mode` never raises). |
@@ -182,7 +182,7 @@ BotManager maintenance loop: reservation expiry · inventory saga recovery · di
 ### New invariants
 
 1. **Order confirmation is a saga** (`OrderStore.confirm`): (a) atomic claim `paid → confirmed`, (b) one `products.db`
-   transaction: unique `stock_ledger` row + stock decrement + digital-key allocation, (c) `inventory_applied = 1`.
+   transaction: unique `stock_ledger` row + stock decrement, (c) `inventory_applied = 1`.
    A crash between steps is repaired by `recover_inventory()` (idempotent through the ledger). Reservations count
    `confirmed AND inventory_applied = 0`, so availability is never reported higher than reality.
 2. **Schema changes only through `MIGRATIONS`.** Never `ALTER TABLE` elsewhere. Data newer than the app is refused;
@@ -229,7 +229,7 @@ BotManager maintenance loop: reservation expiry · inventory saga recovery · di
      *settings*, normalised on every read (`settings.normalize_shipping_methods`: nameless rows dropped, negative costs
      clamped to 0, duplicate ids merged; the owner card caps the list at 12 methods) and resolved by `shop_flow` to a `(name, cost)` pair that is
      **frozen onto the order row** — so renaming or deleting a method never rewrites an old invoice. `free_over_irr` is
-     compared against the *discounted* subtotal, digital-only carts are never offered shipping, and an order whose
+     compared against the *discounted* subtotal, shipping is offered whenever at least one method is active, and an order whose
      chosen method disappeared mid-checkout is not created: the customer is returned to the choice. The ledger's `sale`
      row always equals `total_irr`, the invoice derives its `ارسال/سایر` line from the same total, and the finance
      report keeps `gross_sales − discounts + shipping_income == sales_net` (tests in `tests/test_shipping.py`).
@@ -272,7 +272,7 @@ BotManager maintenance loop: reservation expiry · inventory saga recovery · di
 
 ## Release notes for maintainers (phase 8)
 
-- **Data:** orders.db v8 (ledger, categories, invoices, counters, payment claims, delivery status, shipping; triggers), products.db v3 (`cost_irr`), conversations.db v6
+- **Data:** orders.db v8 (ledger, categories, invoices, counters, payment claims, delivery status, shipping; triggers), products.db v4 (physical-only model, `cost_irr`), conversations.db v6
   (unchanged this release). All schema changes go through `MIGRATIONS`; `tests/test_migrations.py` pins the versions.
 - **Dependencies added for the invoice/QR path:** `fpdf2`, `uharfbuzz` (invoice PDF), `segno` (QR). `pypdf` is test-only. PyInstaller finds the lazy
   imports through `invoice_pdf._pyinstaller_hint`; **PDF rendering inside a frozen Linux build was smoke-tested (Persian text renders, guide loads); inside the packaged Windows exe it is unverified** — the guide's

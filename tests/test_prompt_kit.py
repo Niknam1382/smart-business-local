@@ -108,11 +108,11 @@ def test_the_store_catalog_prices_and_stock_come_from_the_stores(tmp_path):
     h = Harness(tmp_path)
     book = h.products.add("کتاب", 55_000, 4, category="فرهنگی", description="جلدِ سخت")
     phone = h.products.add("گوشی", 1_250_000, 1)
-    free = h.products.add("دانلودِ رایگان", 0, 0, product_type="digital", unlimited_stock=True, delivery_kind="link", delivery_payload="https://x.example")
+    free = h.products.add("دانلودِ رایگان", 0, 0, unlimited_stock=True)
     out = prompt_kit.catalog_lines(h.products, h.orders)
     assert "55,000 ریال" in _line(out, book) and "[فرهنگی]" in _line(out, book) and "4 عدد باقی مانده" in _line(out, book)
-    assert "فیزیکی" in _line(out, phone) and "1 عدد باقی مانده" in _line(out, phone)
-    assert "دیجیتال" in _line(out, free) and "نامحدود" in _line(out, free)
+    assert "دیجیتال" not in _line(out, phone) and "فیزیکی" not in _line(out, phone) and "1 عدد باقی مانده" in _line(out, phone)
+    assert "نامحدود" in _line(out, free)
     # رزروِ سفارشِ «در انتظار پرداخت» موجودیِ قابل‌فروش را کم می‌کند، نه عددِ انبار را
     h.orders.create("telegram", "1", [(phone, 1)])
     assert h.products.get(phone).stock_quantity == 1

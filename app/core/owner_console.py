@@ -206,18 +206,15 @@ class OwnerConsole:
         product_store,
         deliver: Callable[[str, str, str, bool], Awaitable[bool]],
         save_settings: Callable[[], None],
-        after_confirm: Optional[Callable] = None,
         handoff=None,
         admins=None,  # Optional[AdminStore] — N11: مدیرانِ غیرمالک با نقش
     ):
-        """``deliver(platform, chat_id, text, log_history) -> bool`` — ارسال از طریق آداپتورِ زنده.
-        ``after_confirm(order)`` (اختیاری، async): بعد از تأییدِ موفق صدا زده می‌شه — تحویلِ محصولِ دیجیتال."""
+        """``deliver(platform, chat_id, text, log_history) -> bool`` — ارسال از طریق آداپتورِ زنده."""
         self._get_settings = get_settings
         self._orders = order_store
         self._products = product_store
         self._deliver = deliver
         self._save = save_settings
-        self._after_confirm = after_confirm
         self._handoff = handoff
         self._admins = admins
         self._code = ""
@@ -407,11 +404,6 @@ class OwnerConsole:
         fresh = self._orders.get(order.id)
         delivered = await self._deliver(fresh.platform, fresh.chat_id, build_order_confirmed_text(fresh), True)
         tail = "فاکتور برای مشتری ارسال شد." if delivered else "⚠️ پیام برای مشتری نرفت؛ خودت خبرش کن."
-        if self._after_confirm is not None:
-            try:
-                await self._after_confirm(fresh)
-            except Exception:  # noqa: BLE001 — خطای تحویل نباید تاییدِ انجام‌شده رو خراب کنه
-                logger.exception("تحویلِ دیجیتالِ سفارش %s", fresh.id)
         return f"✅ سفارش #{fresh.id} تایید شد و موجودی کم شد. {tail}\n\n{order_details(fresh)}"
 
     async def _reject(self, order: Order, actor: str = "") -> str:

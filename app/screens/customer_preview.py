@@ -89,8 +89,6 @@ def build(page: ft.Page, lang: str, settings, product_store, order_store) -> ft.
             parts: list = []
             if msg.photo:
                 parts.append(ft.Text("🖼", size=22))
-            if msg.document:
-                parts.append(ft.Text("📎 " + msg.document.rsplit("/", 1)[-1], size=12))
             if msg.contact:
                 parts.append(ft.Text(f"📇 {msg.contact[1]} — {msg.contact[0]}", size=12))
             if msg.text:

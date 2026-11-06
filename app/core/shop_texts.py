@@ -296,8 +296,6 @@ _t("cat.prev", "◀ قبلی", "◀ Prev")
 _t("cat.next", "بعدی ▶", "Next ▶")
 _t("cat.page", "{page}/{pages}", "{page}/{pages}")
 _t("cat.gone", "این محصول دیگه موجود نیست؛ برگشتم به لیست.", "That product is no longer available; back to the list.")
-_t("prod.type_digital", "💾 دیجیتال", "💾 Digital")
-_t("prod.type_physical", "📦 فیزیکی", "📦 Physical")
 _t("prod.stock", "موجودی: {n} عدد", "In stock: {n}")
 _t("prod.add", "🧺 افزودن به سبد", "🧺 Add to cart")
 _t("prod.update", "🧺 ثبتِ تعدادِ جدید", "🧺 Update quantity")
@@ -414,12 +412,6 @@ _t("guide.title", "ℹ️ راهنما", "ℹ️ Help")
 _t("guide.body", "برای خرید از «🛍 محصولات» شروع کن. سؤالی داشتی همین‌جا بنویس یا یکی از گزینه‌های زیر رو بزن.",
    "To shop, start with “🛍 Products”. If you have a question, just type it here or pick an option below.")
 _t("guide.more", "بیشتر ◀", "More ▶")
-# --- تحویلِ دیجیتال (R4) ---
-_t("deliver.head", "📬 تحویلِ سفارش #{order_id}", "📬 Delivery for order #{order_id}")
-_t("deliver.item", "• {name}:", "• {name}:")
-_t("deliver.key", "کلید/لایسنس: {secret}", "Key/licence: {secret}")
-_t("deliver.failed_owner", "⚠️ تحویلِ دیجیتالِ سفارش #{order_id} به مشتری نرسید ({reason}). دوباره تلاش می‌شه؛ اگه نشد دستی بفرست.",
-   "⚠️ Digital delivery for order #{order_id} did not reach the customer ({reason}). It will be retried; otherwise send it manually.")
 _t("pay.claim", "✅ پرداخت کردم", "✅ I paid")
 _t("pay.claim_done", "ممنون! پرداختت ثبت شد و منتظر تأییدِ فروشنده‌ست. اگه خواستی شماره‌ی پیگیری یا ۴ رقم آخرِ کارتت رو همین‌جا بنویس.",
    "Thanks! Your payment was recorded and is awaiting the seller's confirmation. If you like, send the reference number or last 4 card digits here.")

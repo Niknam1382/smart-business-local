@@ -50,7 +50,6 @@ from app.core import broadcast as broadcast_module
 from app.core import channel_gate as channel_gate_module
 from app.core import owner_console as owner_console_module
 from app.core.attention import AttentionInbox
-from app.core.delivery import DeliveryService
 from app.core.handoff import HandoffService, make_ref
 from app.core.qa_agent import QaAgent
 from app.core.ui import UiMessage
@@ -147,7 +146,6 @@ def shutdown_logging() -> None:
 MAINTENANCE_INTERVAL_SECONDS = 10.0
 STALE_EXPIRY_NOTICE_SECONDS = 30 * 60  # بعد از این مدت، انقضا فقط بی‌صدا ثبت می‌شه
 RECOVER_INTERVAL_SECONDS = 60.0  # هر چند ثانیه سفارش‌های نیمه‌کاره‌ی saga بررسی بشن
-DELIVERY_RETRY_MIN_AGE_SECONDS = 20  # تلاشِ مجدد برای تحویل‌های ناموفق
 RETENTION_INTERVAL_SECONDS = 3600.0
 RECOVER_MIN_AGE_SECONDS = 30  # فقط سفارش‌هایی که این‌قدر وقته نیمه‌کاره‌ان (تاییدِ در جریان رو لمس نکن)
 BALE_PAY_POLL_INTERVAL_SECONDS = 30.0
@@ -220,7 +218,7 @@ class BotManager:
         self._owner = (
             OwnerConsole(
                 lambda: self._settings, order_store, product_store, self._deliver, self._persist_settings,
-                after_confirm=self._deliver_digital, handoff=self._handoff, admins=self._admins,
+                handoff=self._handoff, admins=self._admins,
             )
             if (order_store and product_store)
             else None
@@ -228,8 +226,6 @@ class BotManager:
         self._admin_panel = (
             AdminPanel(self._admins, self._owner, order_store, product_store, handoff=self._handoff, discounts=self._discounts, get_settings=lambda: self._settings) if self._owner is not None else None
         )
-        self._delivery = DeliveryService(product_store, order_store, lambda: self._settings) if (order_store and product_store) else None
-        self._delivery_alerted: set = set()
         self._maintenance_interval = maintenance_interval
         shop_texts.configure(lambda: self._settings)  # متن‌های قابل‌تنظیمِ ربات (R13)
         owner_console_module.set_label_provider(lambda: {f.id: f.label for f in checkout_fields.load_fields(self._settings)})
@@ -362,32 +358,10 @@ class BotManager:
             logger.warning("پاسخِ فرمانِ پرداختِ بله فرستاده نشد: %s", exc)
 
     async def _notify_payment_confirmed(self, order) -> None:
-        """پرداخت تأیید شد: به مشتریِ اصلی (تلگرام) خبر می‌ده، کالای دیجیتال را تحویل می‌دهد
-        و مالک را در جریان می‌گذارد."""
+        """پرداخت تأیید شد: به مشتریِ اصلی (تلگرام) خبر می‌ده و مالک را در جریان می‌گذارد."""
         await self._deliver(order.platform, order.chat_id, payments_module.build_payment_notification_text(order), True)
-        await self._deliver_digital(order)
         if self._owner is not None:
             await self._owner.alert_order(order)
-
-    async def _deliver_digital(self, order) -> None:
-        """تحویلِ محصولِ دیجیتالِ یه سفارشِ تاییدشده (idempotent)؛ شکست = اعلان به مالک (یک‌بار) + تلاشِ مجدد در حلقه‌ی نگهداری."""
-        if self._delivery is None:
-            return
-
-        async def send_ui(msg) -> None:
-            adapter = self._adapters.get(order.platform)
-            if adapter is None:
-                raise RuntimeError(f"ربات {order.platform} وصل نیست")
-            await adapter.send_ui(order.chat_id, msg)
-
-        result = await self._delivery.deliver(order, send_ui)
-        if result == "delivered":
-            self._delivery_alerted.discard(order.id)
-            self._attention.handle_ref("delivery_failed", str(order.id))
-        elif result.startswith("failed:") and order.id not in self._delivery_alerted and self._owner is not None:
-            self._delivery_alerted.add(order.id)
-            self._attention.add("delivery_failed", str(order.id), result[7:][:200])
-            await self._owner.notify(shop_texts.t("deliver.failed_owner", order_id=order.id, reason=result[7:][:120]))
 
     async def _send_owner_ids(self, text: str) -> list:
         """به همه‌ی چت‌های مالک می‌فرسته و ``[(platform, chat_id, message_id)]`` برمی‌گردونه (برای مسیریابیِ Reply)."""
@@ -523,31 +497,6 @@ class BotManager:
         hours = max(1, int(getattr(self._settings, "handoff_timeout_hours", 24) or 24))
         for session in await asyncio.to_thread(self._handoff.expire_stale, hours * 3600):
             await self._deliver(session.platform, session.chat_id, shop_texts.t("handoff.timeout"), True)
-
-    async def _retry_deliveries(self) -> None:
-        if self._delivery is None:
-            return
-        for order_id in await asyncio.to_thread(self._order_store.pending_deliveries, DELIVERY_RETRY_MIN_AGE_SECONDS):
-            order = await asyncio.to_thread(self._order_store.get, order_id)
-            if order is not None:
-                await self._deliver_digital(order)
-
-    def deliver_digital_sync(self, order_id: int, timeout: float = 30.0) -> str:
-        """نسخه‌ی blocking برای UI (بعد از تاییدِ دستی)؛ ``delivered``/``nothing``/``failed:...``."""
-        with self._lock:
-            loop = self._loop
-            alive = self.is_running()
-        order = self._order_store.get(order_id) if self._order_store else None
-        if not alive or loop is None or order is None or self._delivery is None:
-            return "failed:ربات خاموشه"
-        future = asyncio.run_coroutine_threadsafe(self._deliver_digital(order), loop)
-        try:
-            future.result(timeout=timeout)
-        except Exception as exc:  # noqa: BLE001
-            future.cancel()
-            return f"failed:{exc}"
-        fresh = self._order_store.get(order_id)
-        return "delivered" if fresh is not None and fresh.delivered_ts > 0 else ("nothing" if fresh is not None and fresh.delivered_ts == -1 else "failed:تحویل انجام نشد")
 
     async def _deliver(self, platform: str, chat_id: str, text: str, log_history: bool = True) -> bool:
         """ارسال از طریق آداپتورِ زنده؛ True یعنی رسید. (چت‌های مشتری توی تاریخچه ثبت می‌شن؛ اعلان‌های
@@ -1180,7 +1129,6 @@ class BotManager:
                 if loop.time() - last_recover >= self._recover_interval:
                     last_recover = loop.time()
                     await self._recover_inventory()
-                await self._retry_deliveries()
                 await self._refresh_proxy_subscription()
                 await self._expire_handoffs()
                 if loop.time() - last_retention >= RETENTION_INTERVAL_SECONDS:

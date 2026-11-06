@@ -53,7 +53,7 @@ def build(page: ft.Page, lang: str, state, manager, order_store, product_store, 
                 low_stock = sum(
                     1
                     for p in product_store.list()
-                    if not p.unlimited_stock and p.active and p.product_type != "digital" and p.stock_quantity <= threshold
+                    if not p.unlimited_stock and p.active and p.stock_quantity <= threshold
                 )
         except Exception:  # noqa: BLE001
             low_stock = 0

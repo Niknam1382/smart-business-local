@@ -193,14 +193,6 @@ def to_summary_end(h, pid, qty=1, code=None):
     return h.tap("c:ck:ok")
 
 
-def digital_to_pay(h, pid):
-    h.settings.checkout_fields = [dict(f) for f in NAME_ONLY]
-    h.tap(f"c:a:{pid}:1:-:1")
-    h.tap("c:co")
-    h.say("علی رضایی")
-    return h.tap("c:ck:ok")
-
-
 def test_with_no_method_the_checkout_is_byte_for_byte_the_old_one(h):
     pid = h.products.add("کفش", 1_000_000, 5)
     res = to_summary_end(h, pid)
@@ -257,23 +249,25 @@ def test_cancel_inside_the_shipping_step_makes_no_order(h):
     assert texts(res)
 
 
-def test_digital_only_cart_never_sees_or_pays_shipping(h):
+def test_an_unlimited_stock_cart_still_pays_shipping(h):
+    """«نامحدود» فقط معنیِ موجودی است؛ ارسال مثلِ هر کالای فیزیکی محاسبه می‌شود."""
     enable(h, method())
-    pid = h.products.add("دوره", 200_000, product_type="digital", delivery_kind="text", delivery_payload="x")
-    res = digital_to_pay(h, pid)
-    assert target(res, "c:sp:") is None, "سبدِ فقط‌دیجیتال ارسال نمی‌خواهد"
+    pid = h.products.add("نان", 200_000, 0, unlimited_stock=True)
+    res = to_summary_end(h, pid)
+    assert target(res, "c:sp:") == "c:sp:post"
+    h.tap("c:sp:post")
     h.tap("c:pm:card_to_card")
     order = h.orders.get(h.orders.list()[0].id)
-    assert (order.shipping_irr, order.total_irr) == (0, 200_000)
+    assert (order.shipping_irr, order.total_irr) == (120_000, 320_000)
 
 
-def test_a_mixed_cart_still_asks_for_shipping(h):
+def test_a_two_item_cart_asks_for_shipping_once(h):
     enable(h, method())
-    phys = h.products.add("کفش", 1_000_000, 5)
-    dig = h.products.add("دوره", 200_000, product_type="digital", delivery_kind="text", delivery_payload="x")
+    first = h.products.add("کفش", 1_000_000, 5)
+    second = h.products.add("جوراب", 200_000, 30)
     h.settings.checkout_fields = [dict(f) for f in NAME_ONLY]
-    h.tap(f"c:a:{phys}:1:-:1")
-    h.tap(f"c:a:{dig}:1:-:1")
+    h.tap(f"c:a:{first}:1:-:1")
+    h.tap(f"c:a:{second}:1:-:1")
     h.tap("c:co")
     h.say("علی رضایی")
     res = h.tap("c:ck:ok")

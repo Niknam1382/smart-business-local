@@ -42,7 +42,6 @@ class UiMessage:
     menu: Optional[list] = None  # کیبوردِ پایدارِ پایینِ چت: list[list[str]]
     request_contact: str = ""  # برچسبِ دکمه‌ی «اشتراکِ شماره‌ام» (فقط تلگرام)
     remove_menu: bool = False
-    document: str = ""  # مسیرِ فایلِ محلی (تحویلِ دیجیتال)
     contact: Optional[tuple] = None  # (شماره, نام) → sendContact (کارتِ تماس)
     log: bool = False  # در تاریخچه‌ی گفتگو برای مالک ثبت بشه؟ (فقط پیام‌های مهم: سفارش/پرداخت/تحویل)
 

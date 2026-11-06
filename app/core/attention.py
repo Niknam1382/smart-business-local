@@ -1,5 +1,5 @@
 """صندوقِ «نیاز به توجه» (R10-۷): رویدادهایی که صاحب فروشگاه ممکنه وقتی برنامه بسته بوده از دست داده باشه
-(پشتیبانیِ بدونِ مالکِ آنلاین، تحویلِ دیجیتالِ ناموفق، موجودیِ ناکافیِ بازیابی، رسیدنِ سقفِ AI، …). جدولِ ``attention_inbox``
+(پشتیبانیِ بدونِ مالکِ آنلاین، موجودیِ ناکافیِ بازیابی، رسیدنِ سقفِ AI، …). جدولِ ``attention_inbox``
 در ``conversations.db``؛ نشانگرِ نوارِ کناری = ``count_open()`` (+ سفارش‌های منتظرِ تایید که جداگانه شمرده می‌شن).
 """
 
@@ -9,7 +9,7 @@ import time
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-TYPES = ("support_no_owner", "delivery_failed", "inventory_short", "ai_cap", "payment_failed", "payment_claim",
+TYPES = ("support_no_owner", "inventory_short", "ai_cap", "payment_failed", "payment_claim",
          "bio_confirm", "bio_too_long", "channel_check", "broadcast", "invoice_send", "low_stock", "other")
 MAX_DETAIL = 300
 MAX_OPEN = 200  # سقفِ ردیف‌های باز (جلوگیری از رشدِ بی‌پایان)

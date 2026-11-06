@@ -13,7 +13,7 @@ from app.core.orders import MIGRATIONS as ORDERS_MIGRATIONS, OrderStore
 from app.core.products import ProductStore
 
 # نسخه‌هایِ میخ‌کوب‌شده: هر افزایشِ عمدی باید این‌جا ثبت بشه، وگرنه مهاجرت‌هایِ بی‌سروصدا رد می‌شن
-LATEST = {"products.db": 3, "orders.db": 8, "conversations.db": 6}
+LATEST = {"products.db": 4, "orders.db": 8, "conversations.db": 6}
 
 # ---- اسکیمای دقیقِ ۰.۵.۰ (inline، مستقل از کدِ فعلی) ----
 V05_PRODUCTS = """
@@ -74,7 +74,8 @@ def test_upgrade_from_v05_keeps_all_data(tmp_path):
     conv = ConversationStore(tmp_path / "conversations.db")
 
     p = products.list()[0]
-    assert (p.name, p.stock_quantity, p.product_type, p.unlimited_stock, p.delivery_kind) == ("هدفون", 7, "physical", False, "none")
+    assert (p.name, p.stock_quantity, p.unlimited_stock, p.in_stock) == ("هدفون", 7, False, True)
+    assert not hasattr(p, "product_type") and not hasattr(p, "delivery_kind")  # مدلِ فیزیکیِ خالص
     o1, o2 = orders.get(1), orders.get(2)
     assert o1.customer_name == "علی" and o1.items[0].product_name == "هدفون"
     assert o1.inventory_applied is True  # تاییدشده‌ی قدیمی = اعمال‌شده
@@ -86,9 +87,9 @@ def test_upgrade_from_v05_keeps_all_data(tmp_path):
 
 
 def test_schema_versions_are_pinned():
-    """هر مهاجرتِ تازه باید همین‌جا اعلام بشه؛ نسخه‌ی ۱.۱.x برای سفارش‌ها ۸ است
-    (رسیدِ کارت‌به‌کارت + یکتاییِ شناسهٔ تراکنشِ درگاه + وضعیتِ ارسال + روش/هزینه‌ی ارسال)."""
-    assert migrations.latest_version("products.db") == LATEST["products.db"]
+    """هر مهاجرتِ تازه باید همین‌جا اعلام بشه. محصولات ۴ است (مهاجرتِ ۴: خروجِ کاملِ محصولِ دیجیتال
+    از مدل) و سفارش‌ها ۸ (رسیدِ کارت‌به‌کارت + یکتاییِ شناسهٔ تراکنشِ درگاه + وضعیتِ ارسال + روش/هزینه‌ی ارسال)."""
+    assert migrations.latest_version("products.db") == LATEST["products.db"] == 4
     assert migrations.latest_version("conversations.db") == LATEST["conversations.db"]
     assert len(ORDERS_MIGRATIONS) == migrations.latest_version("orders.db") == LATEST["orders.db"] == 8
 
@@ -313,7 +314,7 @@ def test_rerun_is_noop_and_fresh_db_reaches_same_schema(tmp_path):
 
     assert shape(tmp_path / "old" / "products.db") == shape(tmp_path / "fresh" / "products.db")
     conn = sqlite3.connect(tmp_path / "old" / "products.db")
-    assert migrations.apply_migrations(conn, __import__("app.core.products", fromlist=["MIGRATIONS"]).MIGRATIONS) == 3
+    assert migrations.apply_migrations(conn, __import__("app.core.products", fromlist=["MIGRATIONS"]).MIGRATIONS) == 4
     conn.close()
 
 
@@ -369,12 +370,12 @@ def test_restore_older_backup_runs_migrations_on_open_stores(tmp_path):
     live.mkdir()
     products = ProductStore(live / "products.db")
     products.add("جدید", 5, 1)  # اتصالِ بازِ فروشگاه با اسکیمای جدید
-    assert migrations.file_version(live / "products.db") == 3
+    assert migrations.file_version(live / "products.db") == 4
 
     backup.restore_backup(zip_path, data_dir=live)
-    assert migrations.file_version(live / "products.db") == 3
+    assert migrations.file_version(live / "products.db") == 4
     restored = products.list()  # همون اتصالِ باز، بدونِ خطا، با ستون‌های جدید
-    assert [p.name for p in restored] == ["هدفون"] and restored[0].product_type == "physical"
+    assert [p.name for p in restored] == ["هدفون"] and restored[0].unlimited_stock is False
 
 
 def test_restore_newer_backup_is_refused_and_live_data_untouched(tmp_path):

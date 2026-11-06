@@ -91,7 +91,7 @@ _V05_COLUMNS = {
     "paid_late": "INTEGER NOT NULL DEFAULT 0",
 }
 
-# موجودیِ «نامحدود» (محصولِ دیجیتال) — هرگز به مشتری نشون داده نمی‌شه
+# موجودیِ «نامحدود» — هرگز به مشتری نشون داده نمی‌شه
 UNLIMITED = 10**9
 
 
@@ -295,7 +295,6 @@ class Order:
     paid_late: bool = False
     customer_info: dict = field(default_factory=dict)  # پاسخ‌های چک‌اوتِ قابل‌تنظیم {id: مقدار}
     inventory_applied: bool = False
-    delivered_ts: int = 0
     subtotal_irr: int = 0  # جمعِ اقلام قبل از تخفیف (``total_irr`` = آنچه مشتری می‌پردازه)
     discount_irr: int = 0
     discount_code: str = ""
@@ -343,7 +342,6 @@ def _row_to_order(r: sqlite3.Row, items: list, receipts: Optional[list] = None) 
         paid_late=bool(r["paid_late"]),
         customer_info=_load_info(r["customer_info"]),
         inventory_applied=bool(r["inventory_applied"]),
-        delivered_ts=int(r["delivered_ts"]),
         subtotal_irr=int(r["subtotal_irr"]) or int(r["total_irr"]),
         discount_irr=int(r["discount_irr"]),
         discount_code=r["discount_code"],
@@ -1119,29 +1117,6 @@ class OrderStore:
         conn = self._connection()
         conn.execute("UPDATE orders SET inventory_applied=1, updated_at=datetime('now') WHERE id=?", (order_id,))
         conn.commit()
-        self._settle_delivery_flag(order_id)
-
-    def _settle_delivery_flag(self, order_id: int) -> None:
-        """سفارشی که چیزِ دیجیتالی برای تحویل نداره ``delivered_ts=-1`` می‌گیره تا حلقه‌ی تلاشِ مجدد اسکنش نکنه."""
-        order = self.get(order_id)
-        if order is None:
-            return
-        for item in order.items:
-            product = self._products.get(item.product_id) if item.product_id is not None else None
-            if product is not None and product.delivery_kind != "none":
-                return
-        conn = self._connection()
-        conn.execute("UPDATE orders SET delivered_ts=-1 WHERE id=? AND delivered_ts=0", (order_id,))
-        conn.commit()
-
-    def pending_deliveries(self, min_age_seconds: int = 0) -> list:
-        """شناسه‌ی سفارش‌های تاییدشده‌ای که تحویلِ دیجیتالشون هنوز انجام نشده (برای تلاشِ مجدد)."""
-        rows = self._connection().execute(
-            "SELECT id FROM orders WHERE status=? AND inventory_applied=1 AND delivered_ts=0 "
-            "AND CAST(strftime('%s', updated_at) AS INTEGER) <= CAST(strftime('%s','now') AS INTEGER) - ? ORDER BY id LIMIT 50",
-            (STATUS_CONFIRMED, int(min_age_seconds)),
-        ).fetchall()
-        return [r["id"] for r in rows]
 
     def _revert_to_paid(self, order_id: int) -> bool:
         conn = self._connection()
@@ -1183,16 +1158,6 @@ class OrderStore:
         """تعدادِ سفارش‌های یه وضعیت (مثلاً ``paid`` = منتظرِ تاییدِ مالک) — برای نشانگرِ «نیاز به توجه»."""
         row = self._connection().execute("SELECT COUNT(*) AS n FROM orders WHERE status=?", (status,)).fetchone()
         return int(row["n"])
-
-    def mark_delivered(self, order_id: int) -> bool:
-        """علامتِ «تحویلِ دیجیتال انجام شد» — ``True`` فقط برای بارِ اول (idempotent)."""
-        conn = self._connection()
-        cur = conn.execute(
-            "UPDATE orders SET delivered_ts=?, updated_at=datetime('now') WHERE id=? AND delivered_ts=0",
-            (int(time.time()), order_id),
-        )
-        conn.commit()
-        return cur.rowcount == 1
 
     def update_customer_info(self, order_id: int, info: dict) -> None:
         """پاسخ‌های چک‌اوت رو با اطلاعاتِ قبلی ادغام می‌کنه (روی سفارش‌های بسته مجاز نیست)."""

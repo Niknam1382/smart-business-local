@@ -167,22 +167,37 @@ def test_double_tap_on_pay_method_creates_one_order(h):
     assert "جریان نیست" in texts(again)
 
 
-def test_digital_only_cart_skips_address_and_mixed_cart_asks_union(tmp_path):
-    digital = Harness(tmp_path / "d")
-    d = digital.products.add("دوره", 500, product_type="digital", delivery_kind="link", delivery_payload="https://x.example")
-    digital.tap(f"c:a:{d}:1:-:1")
-    digital.tap("c:co")
-    assert digital.flow.sessions.get("telegram", "1").data["fields"] == ["name", "phone", "notes"]  # بدونِ آدرس/کدپستی
-    digital.say("مریم")
-    assert "(3/3)" in texts(digital.say("09121234567"))
+def test_every_cart_asks_the_same_checkout_fields(tmp_path):
+    """«اعمال برای» از مدل رفت: ترکیبِ سبد دیگر هیچ فیلدی را کم یا زیاد نمی‌کند."""
+    plain = Harness(tmp_path / "p")
+    p = plain.products.add("کالا", 700, 5)
+    plain.tap(f"c:a:{p}:1:-:1")
+    plain.tap("c:co")
+    assert plain.flow.sessions.get("telegram", "1").data["fields"] == ["name", "phone", "address", "postal", "notes"]
+    plain.say("مریم")
+    assert "(3/5)" in texts(plain.say("09121234567"))
 
-    mixed = Harness(tmp_path / "m")
-    d2 = mixed.products.add("دوره", 500, product_type="digital", delivery_kind="link", delivery_payload="https://x.example")
-    p2 = mixed.products.add("کالا", 700, 5)
-    mixed.tap(f"c:a:{d2}:1:-:1")
-    mixed.tap(f"c:a:{p2}:1:-:1")
-    mixed.tap("c:co")
-    assert mixed.flow.sessions.get("telegram", "1").data["fields"] == ["name", "phone", "address", "postal", "notes"]
+    unlimited = Harness(tmp_path / "u")
+    u = unlimited.products.add("نان", 500, 0, unlimited_stock=True)
+    unlimited.tap(f"c:a:{u}:1:-:1")
+    unlimited.tap("c:co")
+    assert unlimited.flow.sessions.get("telegram", "1").data["fields"] == ["name", "phone", "address", "postal", "notes"]
+
+
+def test_legacy_applies_to_values_in_saved_fields_are_ignored(tmp_path):
+    """تنظیماتِ قدیمی ممکن است `applies_to: digital` داشته باشند؛ بارگذاری نباید بشکند یا
+    فیلدِ شخصی‌سازی‌شده را دور بیندازد."""
+    harness = Harness(tmp_path / "legacy")
+    harness.settings.checkout_fields = [
+        {"id": "name", "label": "نام", "prompt": "اسمت؟", "type": "text", "required": True, "applies_to": "digital",
+         "regex": "", "choices": [], "min_len": 2, "max_len": 50},
+        {"id": "color", "label": "رنگ", "prompt": "چه رنگی؟", "type": "text", "required": False, "applies_to": "physical",
+         "regex": "", "choices": [], "min_len": 1, "max_len": 20},
+    ]
+    p = harness.products.add("کالا", 700, 5)
+    harness.tap(f"c:a:{p}:1:-:1")
+    harness.tap("c:co")
+    assert harness.flow.sessions.get("telegram", "1").data["fields"] == ["name", "color"]
 
 
 def test_back_skip_cancel_and_resume_after_restart(h):

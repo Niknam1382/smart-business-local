@@ -46,20 +46,20 @@ def test_png_sizes_and_rounded_transparent_corners(built, size):
     assert image.getpixel((size // 2, size // 8))[3] == 255  # بدنه کاملاً مات
 
 
-def test_icon_is_an_indigo_to_pomegranate_gradient_with_a_white_bag_and_a_red_sparkle(built, maker):
-    """طرحِ ۱.۰.۰: کیسه‌ی خریدِ سفید با جرقه‌ی اناری روی گرادیانِ شبِ نیلی→اناری."""
+def test_icon_is_an_indigo_to_pomegranate_gradient_with_white_rising_bars_and_a_gold_sparkle(built, maker):
+    """طرحِ ۱.۱.۰: سه ستونِ سفیدِ رو‌به‌رشد با جرقه‌ی چهارپرِ طلایی روی گرادیانِ شبِ نیلی→اناری."""
     out, _ = built
     image = Image.open(out / "app-icon-512.png").convert("RGB")
     top_left, bottom_right = image.getpixel((70, 70)), image.getpixel((440, 440))
     assert top_left[2] > top_left[0] and top_left[2] > top_left[1], top_left  # بالا-چپ نیلی
     assert bottom_right[0] > bottom_right[2] > bottom_right[1], bottom_right  # پایین-راست اناری
     colors = {image.getpixel((x, y)) for x in range(0, 512, 4) for y in range(0, 512, 4)}
-    assert any(r > 240 and g > 240 and b > 240 for r, g, b in colors)  # بدنه‌ی سفیدِ کیسه
-    assert any(180 <= r <= 215 and g <= 80 and 50 <= b <= 85 for r, g, b in colors)  # جرقه‌ی اناری («هوشمند»)
-    # هندسه‌ی گلیف: دسته (حلقه) + بدنه (مستطیل) + جرقه؛ هیچ‌کدام بیرونِ بوم نمی‌روند
+    assert any(r > 240 and g > 240 and b > 240 for r, g, b in colors)  # ستون‌های سفید
+    assert any(180 <= r <= 215 and 120 <= g <= 165 and b <= 90 for r, g, b in colors)  # جرقه‌ی طلایی («هوشمند»)
+    # هندسه‌ی گلیف: سه ستون (مستطیل) + جرقه؛ هیچ‌کدام بیرونِ بوم نمی‌روند
     left, top, right, bottom = maker.glyph_bounds()
     assert 0 < left < right < maker.SIZE and 0 < top < bottom < maker.SIZE
-    assert "circle" in maker.svg_text() and "rect" in maker.svg_text()
+    assert len(maker.RECTS) == 3 and "polygon" in maker.svg_text() and "rect" in maker.svg_text()
 
 
 def test_ico_has_all_windows_sizes_and_icns_opens(built, maker):

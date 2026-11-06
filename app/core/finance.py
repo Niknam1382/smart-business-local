@@ -489,7 +489,7 @@ class FinanceStore:
         if self._products is not None:
             rep.inventory_value = sum(
                 p.stock_quantity * p.cost_irr for p in self._products.list(include_inactive=True)
-                if p.cost_irr > 0 and not p.unlimited_stock and p.stock_quantity > 0 and p.delivery_kind != "keys"
+                if p.cost_irr > 0 and not p.unlimited_stock and p.stock_quantity > 0
             )
         return rep
 

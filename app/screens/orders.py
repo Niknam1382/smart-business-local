@@ -118,16 +118,6 @@ def _format_price(amount: int, lang: str) -> str:
     return f"{amount:,} {t('products.price_suffix', lang)}"
 
 
-def _delivery_label(delivered: bool, lang: str) -> str:
-    if lang == "en":
-        return "📬 Digital delivery: sent" if delivered else "📬 Digital delivery: pending (will retry automatically)"
-    return "📬 تحویلِ دیجیتال: ارسال شد" if delivered else "📬 تحویلِ دیجیتال: هنوز نرسیده (خودکار دوباره تلاش می‌شه)"
-
-
-def _redeliver_label(lang: str) -> str:
-    return "Send delivery again" if lang == "en" else "ارسالِ دوباره‌ی تحویل"
-
-
 def _receipt_verdict(page: ft.Page, order: Order, receipt: dict, lang: str) -> tuple[str, str, ft.FontWeight]:
     """نظرِ برنامه دربارهٔ مبلغِ رسید + رنگش. این فقط راهنمایِ چشمیِ مالک است، نه داورِ
     نهایی: ``amount_mismatch`` هرگز سفارش را رد نمی‌کند و ``amount_ok`` هم تأیید نمی‌کند."""
@@ -176,8 +166,6 @@ def build(
         try:
             manager.send_message_sync(order.platform, order.chat_id, text)
             ui["notice"] = t("orders.notify_sent" if kind == "confirm" else "orders.notify_reject_sent", lang, id=order.id)
-            if kind == "confirm":
-                manager.deliver_digital_sync(order.id)  # محصولِ دیجیتال (اگه داشت)؛ شکست = اعلان به مالک + تلاشِ مجدد
         except BotManagerError as exc:
             key = "orders.notify_failed" if kind == "confirm" else "orders.notify_reject_failed"
             ui["error"] = t(key, lang, id=order.id, reason=str(exc))
@@ -197,20 +185,6 @@ def build(
         page.update()
         # ارسال شبکه‌ای روی ترد جدا، تا UI فریز نشه (و یه ارسال کند/قطع، دکمه‌ها رو قفل نکنه)
         page.run_thread(lambda: (notify_customer(order), render_list(), page.update()))
-
-    def handle_redeliver(order_id: int) -> None:
-        """تلاشِ دستیِ دوباره برای تحویلِ دیجیتال (idempotent: کلیدِ تازه‌ای مصرف نمی‌شه)."""
-        ui["notice"] = ""
-        render_list()
-        page.update()
-
-        def work() -> None:
-            result = manager.deliver_digital_sync(order_id) if manager is not None else "failed:ربات خاموشه"
-            ui["notice"] = _delivery_label(True, lang) if result in ("delivered", "nothing") else f"⚠️ {result.removeprefix('failed:')}"
-            render_list()
-            page.update()
-
-        page.run_thread(work)
 
     def handle_reject(order_id: int) -> None:
         ui["notice"] = ""
@@ -535,12 +509,6 @@ def build(
             controls.append(ft.Text(" · ".join(extra), key=f"extra_{order.id}", size=11.5, color=theme.text_secondary(page)))
         if order.payment_method or receipts_of(order) or order.status in (STATUS_PAID, STATUS_CONFIRMED, STATUS_REJECTED):
             controls.append(payment_status_block(order))
-        if order.status == STATUS_CONFIRMED and order.delivered_ts != -1:
-            delivered = order.delivered_ts > 0
-            controls.append(ft.Text(_delivery_label(delivered, lang), key=f"delivery_{order.id}", size=11.5, color=theme.SUCCESS if delivered else theme.DANGER))
-            if not delivered and manager is not None:
-                controls.append(ft.OutlinedButton(key=f"redeliver_{order.id}", content=_redeliver_label(lang), icon=ft.Icons.SEND_ROUNDED,
-                                                  on_click=lambda e, oid=order.id: handle_redeliver(oid)))
         if order.status == STATUS_CONFIRMED:
             controls.append(fulfillment_block(order))
         if order.payment_reference:

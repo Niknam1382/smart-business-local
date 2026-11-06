@@ -64,15 +64,21 @@ def data_dir_mode() -> str:
     return resolve_data_dir()[1]
 
 
-def install_drive_models_dir() -> Optional[Path]:
-    """اگر برنامه **بسته‌بندی‌شده** روی درایوِ دیگری نصب شده باشد، همان درایو را برایِ مدل‌ها
-    پیشنهاد می‌دهد (``D:\\SmartBusinessLocal\\models``). بیرون از این حالت ``None``."""
+def install_drive_models_dir(exe=None, data=None) -> Optional[Path]:
+    """اگر برنامه‌یِ **بسته‌بندی‌شده** روی درایوِ دیگری نصب شده باشد، همان درایو را برایِ مدل‌ها
+    پیشنهاد می‌دهد (``D:\\SmartBusinessLocal\\models``). در غیر این صورت ``None``.
+
+    «درایوِ حرفی» فقط ویندوز معنی دارد: روی لینوکس و مک ``.drive`` خالی است، پس آنجا جای مدل
+    مثلِ قبل پوشه‌ی داده می‌ماند. ``exe`` و ``data`` فقط برایِ تست‌اند."""
     if not getattr(sys, "frozen", False):
         return None  # اجرایِ از سورس: همان پوشه‌ی داده
-    exe, data = Path(sys.executable), _system_default_dir()
-    if not exe.drive or exe.drive.lower() == data.drive.lower():
-        return None  # یک درایو (حالتِ معمولِ C:) — چیزی عوض نمی‌شه
-    candidate = Path(exe.drive + os.sep) / APP_DIR_NAME / "models"
+    exe_path = Path(exe) if exe is not None else Path(sys.executable)
+    data_path = Path(data) if data is not None else _system_default_dir()
+    if not exe_path.drive or exe_path.drive.upper() == data_path.drive.upper():
+        return None  # درایوِ واحد، یا نبودِ مفهوم درایو (لینوکس/مک)
+    candidate = Path(exe_path.drive + os.sep) / APP_DIR_NAME / "models"
+    if candidate == data_path / "models":
+        return None
     return candidate
 
 

@@ -238,7 +238,7 @@ died (let Docker restart it), `2` no bot configured, `3` data written by a newer
 **This is the first public release (1.0.0)**: local-only AI, Telegram-only messaging, Bale Pay as the only gateway
 besides card-to-card, a four-button customer menu and a central prompt studio. The version string lives in
 `app/version.py` and a release tag must match it; see [CHANGELOG](CHANGELOG.md) for what shipped and what was cut. The
-automated suite (2006 tests, 98 files) runs against fake Telegram and fake Bale-pay servers and covers the shop,
+automated suite (2007 tests, 98 files) runs against fake Telegram and fake Bale-pay servers and covers the shop,
 payments, receipts, delivery, support, migrations, backups, proxies, headless mode, injection and abuse cases.
 **Verification against real bots and a real gateway still has to be done per installation** — run one complete purchase
 with a small amount before you take real money. Bugs and ideas: Issues.
@@ -452,7 +452,7 @@ docker compose up -d                                   # پوشه‌ی ./data ر
 این **نخستین انتشارِ عمومی است (۱.۰.۰)**: هوش مصنوعی فقط محلی، تلگرام تنها پیام‌رسان، بله‌پی تنها درگاهِ علاوه بر
 کارت‌به‌کارت، منویِ مشتری با دقیقاً چهار دکمه و یک استودیویِ مرکزیِ پرامپت. عددِ نسخه در فایلِ `app/version.py` زندگی
 می‌کند و تگِ انتشار باید همان باشد؛ چه چیزی آمد و چه چیزی حذف شد را در [CHANGELOG](CHANGELOG.md) بخوان.
-مجموعه‌تستِ خودکار (۲۰۰۶ تست در ۹۸ فایل) روی سرورهایِ جعلیِ تلگرام و درگاهِ بله اجرا می‌شود و فروشگاه، پرداخت، رسید،
+مجموعه‌تستِ خودکار (۲۰۰۷ تست در ۹۸ فایل) روی سرورهایِ جعلیِ تلگرام و درگاهِ بله اجرا می‌شود و فروشگاه، پرداخت، رسید،
 تحویل، پشتیبانی، مهاجرت، پشتیبان، پروکسی، حالتِ بی‌پنجره، تزریقِ پرامپت و حالت‌هایِ سوءاستفاده را پوشش می‌دهد.
 **راستی‌آزمایی با رباتِ واقعی و درگاهِ واقعی هنوز باید برای هر نصب انجام شود** — قبل از پولِ واقعی، یک خریدِ کامل را با
 مبلغِ کم از اول تا آخر انجام بده. باگ و ایده: بخشِ Issues.

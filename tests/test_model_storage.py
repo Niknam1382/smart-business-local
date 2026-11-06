@@ -4,8 +4,8 @@
 (بدونِ نوشتن روی دیسک) و برایِ قاعده‌ی «بساز و برو آنجا» از پوشه‌ی موقتِ خودِ تست استفاده می‌شود.
 """
 
+import os
 import sys
-from pathlib import Path
 
 import pytest
 from fake_page import FakePage, collect_text, find
@@ -33,21 +33,36 @@ def test_running_from_source_keeps_models_in_the_data_dir(data_dir, monkeypatch)
     assert paths.default_model_dir() == data_dir / "models"
 
 
-def test_packaged_install_on_another_drive_targets_that_drive(monkeypatch):
-    """برنامه‌ای که روی D: نصب شده، مدلِ چندگیگابایتی را روی C: ننویسد."""
+@pytest.mark.skipif(os.name != "nt", reason="حرفِ درایو فقط روی ویندوز وجود دارد")
+def test_packaged_windows_install_targets_the_install_drive(monkeypatch):
+    """ویندوز روی C:، برنامه روی D: ⇒ مدل روی D: و بیرون از پوشه‌ی نصب (حذفِ برنامه آن را پاک نمی‌کند)."""
     monkeypatch.setattr(sys, "frozen", True, raising=False)
-    monkeypatch.setattr(sys, "executable", r"D:\Apps\SmartBusinessLocal\SmartBusinessLocal.exe")
-    monkeypatch.setattr(paths, "_system_default_dir", lambda: Path(r"C:\Users\me\AppData\Roaming\SmartBusinessLocal"))
-    got = paths.install_drive_models_dir()
-    assert got is not None and got.as_posix().startswith("D:/") and got.name == "models"
-    assert got.parent.name == paths.APP_DIR_NAME  # بیرون از پوشه‌ی نصب ⇒ حذفِ برنامه مدل را پاک نمی‌کند
+    got = paths.install_drive_models_dir(
+        r"D:\Apps\SmartBusinessLocal\SmartBusinessLocal.exe",
+        r"C:\Users\me\AppData\Roaming\SmartBusinessLocal",
+    )
+    assert got is not None
+    assert got.name == "models" and got.parent.name == paths.APP_DIR_NAME
+    assert str(got).upper().startswith("D:")
 
 
-def test_same_drive_install_changes_nothing(monkeypatch):
+@pytest.mark.skipif(os.name != "nt", reason="مقایسه‌ی دو درایوِ هم‌حرف فقط روی ویندوز معنا دارد")
+def test_windows_install_on_the_windows_drive_changes_nothing(monkeypatch):
     monkeypatch.setattr(sys, "frozen", True, raising=False)
-    monkeypatch.setattr(sys, "executable", r"C:\Apps\SmartBusinessLocal\SmartBusinessLocal.exe")
-    monkeypatch.setattr(paths, "_system_default_dir", lambda: Path(r"C:\Users\me\AppData\Roaming\SmartBusinessLocal"))
-    assert paths.install_drive_models_dir() is None
+    assert paths.install_drive_models_dir(
+        r"C:\Apps\SmartBusinessLocal\SmartBusinessLocal.exe",
+        r"C:\Users\me\AppData\Roaming\SmartBusinessLocal",
+    ) is None
+
+
+def test_paths_without_a_drive_letter_never_relocate(monkeypatch):
+    """این شاخه روی هر سه سیستم‌عامل اجرا می‌شه: لینوکس و مک حرفِ درایو ندارند، پس جای مدل
+    هرگز خودبه‌خود عوض نمی‌شه (و روی ویندوز هم همین مسیرها بی‌درایو خوانده می‌شن)."""
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    assert paths.install_drive_models_dir(
+        "/opt/SmartBusinessLocal/SmartBusinessLocal",
+        "/home/me/.local/share/SmartBusinessLocal",
+    ) is None
 
 
 def test_a_model_that_is_already_downloaded_is_never_relocated(data_dir, monkeypatch, tmp_path):

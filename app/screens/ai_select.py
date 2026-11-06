@@ -103,14 +103,18 @@ def build_hardware_block(page: ft.Page, lang: str, hw=None) -> ft.Control:
     )
 
 
-def build_hardware_card(page: ft.Page, lang: str, hw=None, free_gb: float | None = None) -> ft.Control:
-    """کارتِ مشخصاتِ سیستم + «چرا مهمه» + یادداشتِ صادقانه‌ی CPU/GPU."""
+def build_hardware_card(page: ft.Page, lang: str, hw=None, free_gb: float | None = None, storage_dir=None) -> ft.Control:
+    """کارتِ مشخصاتِ سیستم + «چرا مهمه» + یادداشتِ صادقانه‌ی CPU/GPU + جایِ ذخیره‌ی مدل."""
     hw = hw if hw is not None else hardware.detect()
     block = build_hardware_block(page, lang, hw)
     if free_gb is not None and hw.free_disk_gb != free_gb:
         # فضایِ پوشه‌ی مدل با فضایِ درایوِ خانه فرق می‌کنه؛ همان عددِ جدول را عوض می‌کنیم.
         last_row = block.controls[4]
         last_row.controls[1].value = f"{free_gb:.1f} GB"
+    extra = []
+    if storage_dir is not None:
+        extra.append(ft.Text(t("ai.local.storage_here", lang, path=str(storage_dir)), size=12, selectable=True,
+                             color=theme.text_secondary(page), key="ai_storage_line"))
     card = common.card(
         page,
         ft.Column(
@@ -120,6 +124,7 @@ def build_hardware_card(page: ft.Page, lang: str, hw=None, free_gb: float | None
                 block,
                 ft.Text(t("ai.local.hw_why", lang), size=12, color=theme.text_secondary(page)),
                 ft.Text(t(model_catalog.gpu_acceleration_note(hw, ai_engine.gpu_offload_available()), lang), size=12, color=theme.ACCENT_DARK, italic=True),
+                *extra,
             ],
         ),
         padding=18,
@@ -599,7 +604,7 @@ def build(
 
     hub = ModelHub(page, lang, settings, save_callback, on_change=refresh_next)
     hw = hub.hw()
-    hw_card = build_hardware_card(page, lang, hw, free_gb=hub.path_free_gb())
+    hw_card = build_hardware_card(page, lang, hw, free_gb=hub.path_free_gb(), storage_dir=hub.settings.get_model_storage_dir())
 
     def go_next(_e=None) -> None:
         on_next()

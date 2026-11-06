@@ -25,7 +25,7 @@ and troubleshooter · Jalali dates everywhere · the AI lost every write tool (o
 frozen per order so old invoices never change, with a “shipping charged” line in the ledger and on the finance
 dashboard) · a delivery track for confirmed orders (preparing → shipped → delivered, tracking code included, never
 touching the money) · a read-only payment-status panel on every paid order · global search across orders, products and
-customers from one box · the 12th prompt template (“store rules”) · 1993 tests.
+customers from one box · the 12th prompt template (“store rules”) · 2006 tests.
 
 **Next release candidates**
 
@@ -78,7 +78,7 @@ customers from one box · the 12th prompt template (“store rules”) · 1993 t
 هر سفارش تا فاکتورهایِ قدیمی عوض نشوند، با خطِ «کرایه‌ی ارسال» در دفتر و داشبوردِ مالی) · مسیرِ «در دستِ ارسال» برای
 سفارش‌های تأییدشده (آماده‌سازی ← ارسال ← تحویل، با کد رهگیری و بدونِ دست‌زدن به پول) · کارتِ فقط‌خواندنیِ «وضعیتِ
 پرداخت» روی هر سفارشِ پرداخت‌شده · جست‌وجوی سراسری در سفارش/مشتری/محصول در یک کادر · دوازدهمین قالبِ پرامپت
-(«قوانینِ فروشگاه») · ۱۹۹۳ تست.
+(«قوانینِ فروشگاه») · ۲۰۰۶ تست.
 
 **بعدی (کاندیدهای انتشارِ بعد)**
 

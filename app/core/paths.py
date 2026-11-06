@@ -18,6 +18,7 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
+from typing import Optional
 
 APP_DIR_NAME = "SmartBusinessLocal"
 ENV_DATA_DIR = "SMART_BUSINESS_DATA_DIR"
@@ -61,3 +62,44 @@ def get_app_data_dir() -> Path:
 
 def data_dir_mode() -> str:
     return resolve_data_dir()[1]
+
+
+def install_drive_models_dir() -> Optional[Path]:
+    """اگر برنامه **بسته‌بندی‌شده** روی درایوِ دیگری نصب شده باشد، همان درایو را برایِ مدل‌ها
+    پیشنهاد می‌دهد (``D:\\SmartBusinessLocal\\models``). بیرون از این حالت ``None``."""
+    if not getattr(sys, "frozen", False):
+        return None  # اجرایِ از سورس: همان پوشه‌ی داده
+    exe, data = Path(sys.executable), _system_default_dir()
+    if not exe.drive or exe.drive.lower() == data.drive.lower():
+        return None  # یک درایو (حالتِ معمولِ C:) — چیزی عوض نمی‌شه
+    candidate = Path(exe.drive + os.sep) / APP_DIR_NAME / "models"
+    return candidate
+
+
+def default_model_dir() -> Path:
+    """پوشه‌ی پیش‌فرضِ مدل‌ها.
+
+    قاعده، به همین ترتیب:
+    ۱) اگر ``<داده>/models`` همین حالا مدل یا فایلِ نیمه‌کاره دارد، همان‌جا می‌ماند — هیچ
+       کاربری که مدلی دانلود کرده با این تغییر، مدلش را «گم» نمی‌کند.
+    ۲) اگر نصب‌کننده روی درایوِ دیگری اجرا شده (مثلاً ویندوز روی C: و برنامه روی D:)، مدل
+       چندگیگابایتی روی همان درایوِ نصب می‌نشیند و بیرون از پوشه‌ی نصب می‌ماند، پس حذفِ
+       برنامه آن‌ها را پاک نمی‌کند.
+    ۳) در غیر این صورت همان ``<داده>/models``.
+    کاربر می‌تواند این را در «هوش مصنوعی ← پیشرفته ← محل ذخیره‌ی مدل» عوض کند؛ آن عدد بر همه
+    اولویت دارد (``settings.model_storage_path``).
+    """
+    data_models = get_app_data_dir() / "models"
+    try:
+        if any(data_models.glob("*.gguf")) or any(data_models.glob("*.part")):
+            return data_models
+    except OSError:
+        return data_models
+    candidate = install_drive_models_dir()
+    if candidate is None:
+        return data_models
+    try:
+        candidate.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return data_models  # درایوِ مقصد آماده نیست (فلش کشیده شده، مسیر خواندنی و…)
+    return candidate

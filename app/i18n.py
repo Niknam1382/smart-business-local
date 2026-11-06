@@ -81,6 +81,10 @@ STRINGS: dict[str, dict[str, str]] = {
         "fa": "چرا مهمه؟ مدل باید داخلِ رمِ سیستم جا بشه: مدلِ بزرگ‌تر = پاسخِ باکیفیت‌تر، ولی کندتر و رمِ بیشتر. برنامه خودش مدلِ مناسبِ همین سیستم را پیشنهاد می‌دهد.",
         "en": "Why it matters: the model must fit in system RAM — a bigger model answers better but is slower and needs more RAM. The app suggests what fits this machine.",
     },
+    "ai.local.storage_here": {
+        "fa": "مدل اینجا ذخیره می‌شه: {path} — اگر جای دیگری را ترجیح می‌دهی از «پیشرفته ← محل ذخیره‌ی مدل» عوضش کن.",
+        "en": "The model is saved here: {path} — to put it elsewhere, change it under “Advanced ← Model storage location”.",
+    },
     "ai.local.skip": {"fa": "بعداً انتخاب می‌کنم", "en": "Choose later"},
     "ai.local.state_recommended": {"fa": "پیشنهادِ ما", "en": "Our pick"},
     "ai.local.state_ok": {"fa": "مناسب", "en": "Good fit"},

@@ -14,7 +14,7 @@ from dataclasses import dataclass, asdict, field, fields
 from pathlib import Path
 from typing import Optional
 
-from app.core.paths import get_app_data_dir
+from app.core.paths import default_model_dir, get_app_data_dir
 from app.core import crypto
 from app.data.prompt_templates import default_prompt
 
@@ -256,9 +256,11 @@ class AppSettings:
             self.system_prompt = default_prompt(self.business_mode, self.language)
 
     def get_model_storage_dir(self) -> Path:
+        """جایِ ذخیره‌ی مدل‌ها: دستورِ صریحِ کاربر اول، وگرنه قاعده‌ی ``paths.default_model_dir``
+        (پوشه‌ی داده، یا درایوِ نصب اگر بسته‌بندی‌شده روی درایوِ دیگری باشد)."""
         if self.model_storage_path:
             return Path(self.model_storage_path)
-        return get_app_data_dir() / "models"
+        return default_model_dir()
 
 
 def _nonneg_int(value) -> int:

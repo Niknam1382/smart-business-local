@@ -27,7 +27,9 @@ def steps(settings, product_count: Optional[int] = None, bots_running: bool = Fa
         has_ai = ai_engine.engine_readiness(settings)[0]
     out = [
         Step("bot", "ساختِ ربات و وارد کردنِ توکن", "Create a bot and enter its token", has_bot, "bot-token", "bots"),
-        Step("ai", "انتخابِ مدلِ هوش مصنوعیِ محلی (اختیاری ولی پیشنهادی)", "Choose a local AI model (optional but recommended)", has_ai, "ai-local", "ai"),
+        Step("ai", "مدلِ محلی — برای پاسخِ سؤالِ نوشتاری لازم است، برای دکمه‌ها لازم نیست",
+             "A local model — needed to answer written questions, not needed for the buttons",
+             has_ai, "ai-local", "ai"),
     ]
     if product_count is not None:
         pay = bool(settings.card_to_card_number or settings.bale_pay_configured())

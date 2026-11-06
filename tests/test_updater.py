@@ -345,6 +345,25 @@ def test_sign_release_script_end_to_end_and_key_mismatch_guard(tmp_path, keygen,
     assert signer.main(argv) == 1
 
 
+def test_signing_finishes_on_a_windows_console(tmp_path, keygen, signer, monkeypatch):
+    """کنسولِ ویندوز پیش‌فرض cp1252 است و ✅/فارسی را چاپ نمی‌کند؛ پیش از این، امضا **بعد از**
+    نوشتنِ فایلِ امضا با UnicodeEncodeError می‌ترکید و کاربر با خروجِ غیرصفر فکر می‌کرد کار خراب شده."""
+    import io
+    import sys
+
+    pub = keygen.generate_key(tmp_path / "k.pem")
+    sums = tmp_path / "SHA256SUMS.txt"
+    sums.write_text(f"{'b' * 64}  setup.exe\n", encoding="utf-8")
+    out = tmp_path / "out"
+    monkeypatch.setattr(branding, "UPDATE_PUBLIC_KEY_B64", pub)
+    monkeypatch.setattr(sys, "stdout", io.TextIOWrapper(io.BytesIO(), encoding="cp1252"))
+    monkeypatch.setattr(sys, "stderr", io.TextIOWrapper(io.BytesIO(), encoding="cp1252"))
+    argv = ["v1.0.0", "--key", str(tmp_path / "k.pem"), "--sums-file", str(sums), "--out-dir", str(out)]
+    assert signer.main(argv) == 0
+    sig_path = out / "SHA256SUMS.txt.sig"
+    assert sig_path.is_file() and uv.verify_signature(sums.read_bytes(), sig_path.read_text(encoding="ascii").strip(), pub)
+
+
 def test_release_workflow_publishes_checksums_and_marks_prereleases():
     workflow = (Path(__file__).resolve().parents[1] / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
     assert "SHA256SUMS.txt" in workflow and "prerelease:" in workflow

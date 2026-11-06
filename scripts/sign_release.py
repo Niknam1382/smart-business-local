@@ -86,6 +86,11 @@ def check_key_matches_branding(key) -> Optional[str]:
 
 
 def main(argv=None) -> int:
+    # کنسولِ ویندوز پیش‌فرض cp1252 است و ✅/فارسی را چاپ نمی‌کند؛ بی‌این خط، امضایِ موفق
+    # بعد از نوشتنِ فایل با UnicodeEncodeError می‌ترکید و کاربر فکر می‌کرد امضا شکست خورده.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     parser = argparse.ArgumentParser(description="امضای SHA256SUMS.txt یک Release")
     parser.add_argument("tag", help="مثلاً v1.0.0")
     parser.add_argument("--key", type=Path, default=DEFAULT_KEY_PATH, help="کلیدِ خصوصیِ آفلاین (PEM)")

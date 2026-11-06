@@ -348,3 +348,12 @@ def test_sign_release_script_end_to_end_and_key_mismatch_guard(tmp_path, keygen,
 def test_release_workflow_publishes_checksums_and_marks_prereleases():
     workflow = (Path(__file__).resolve().parents[1] / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
     assert "SHA256SUMS.txt" in workflow and "prerelease:" in workflow
+
+
+def test_release_workflow_cannot_be_locked_by_a_lost_runner():
+    # incidentِ v1.0.0: رانرِ ویندوز گم شد، job تا بی‌نهایت in_progress ماند و cancel از API
+    # هم 502 داد؛ چون cancel-in-progress خاموش بود، هیچ ساختِ تازه‌ای هم منتشر نشد.
+    workflow = (Path(__file__).resolve().parents[1] / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    assert "cancel-in-progress: true" in workflow
+    assert "timeout-minutes: 45" in workflow  # jobِ build
+    assert "timeout-minutes: 15" in workflow  # jobِ publish

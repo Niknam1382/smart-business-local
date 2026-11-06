@@ -27,7 +27,11 @@ on:
 
 concurrency:
   group: release-${{ github.ref }}
-  cancel-in-progress: false
+  # incident واقعیِ v1.0.0: رانرِ ویندوز گم شد؛ job در حال «in_progress» ماند (استپِ Build با
+  # cancelled و job هرگز بسته نشد)، API هم برای cancel کردنِ آن فقط HTTP 502 می‌دهد. با
+  # cancel-in-progress: true ساختِ بعدی همیشیه در همان گروه صف می‌ماند و Release منتشر نمی‌شود.
+  # با true، هر تگِ تازه روی همین ref همان ساختِ گیرکرده را می‌زند و مسیرِ انتشار باز می‌ماند.
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -36,6 +40,9 @@ jobs:
   build:
     name: Build (${{ matrix.os_name }}) · artifacts are mandatory
     runs-on: ${{ matrix.runner }}
+    # سقفِ زمان: پیش‌فرضِ گیت‌هاب ۶ ساعت است، پس یک رانرِ گم‌شده می‌تواند ساعت‌ها job را
+    # باز بگذارد و Release منتشر نشود. ۴۵ دقیقه از واقعی‌ترین بیلد (≈۱۰ دقیقه) دور است.
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -280,6 +287,7 @@ jobs:
     needs: build
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: write  # برای ساختنِ Release و پیوست‌کردنِ فایل‌ها
     steps:

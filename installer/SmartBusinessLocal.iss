@@ -64,7 +64,7 @@ Source: "..\dist\SmartBusinessLocal\*"; DestDir: "{app}"; Flags: ignoreversion r
 
 [Icons]
 Name: "{autoprograms}\Smart Business Local"; Filename: "{app}\SmartBusinessLocal.exe"
-Name: "{autoprograms}\حذفِ برنامه / Uninstall Smart Business Local"; Filename: "{uninstallexe}"
+Name: "{autoprograms}\حذفِ برنامه - Uninstall Smart Business Local"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\Smart Business Local"; Filename: "{app}\SmartBusinessLocal.exe"; Tasks: desktopicon
 
 [Run]

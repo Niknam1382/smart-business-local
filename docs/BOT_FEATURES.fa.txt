@@ -384,7 +384,7 @@ GitHub: https://github.com/niknam1382/smart-business-local
 
 ۲۶) عددهای قابلِ استناد (همه از خودِ کدِ نسخه ۱.۰.۰)
 
-- ۱۹۸۷ تستِ خودکار در ۹۶ فایلِ تست (بدونِ اینترنت، بدونِ رباتِ واقعی).
+- ۱۹۹۳ تستِ خودکار در ۹۷ فایلِ تست (بدونِ اینترنت، بدونِ رباتِ واقعی).
 - ۱۱۸ فایل پایتون در پوشه‌ی برنامه، حدودِ ۳۳٬۴۰۰ خط کد.
 - ۶ مدلِ آماده در کاتالوگ، از ۱٫۲ تا ۵٫۷ گیگابایت.
 - ۱۸۳ مقاله‌ی راهنما (۵۸ پرسشِ متداول، ۲۶ عیب‌یابی) در ۱۵ دسته.
@@ -462,7 +462,7 @@ GitHub: https://github.com/niknam1382/smart-business-local
 ۷. «قفلِ موجودی»: دو مشتری آخرین کالا را هم‌زمان رزرو نمی‌کنند.
 ۸. «۱۸۳ مقاله راهنما داخلِ خودِ برنامه»، دکمه‌ی «؟» در هر صفحه و عیب‌یابِ خودکار.
 ۹. «متن‌باز است، فورکش کن»: MIT، بدونِ قفل، بدونِ الزامِ لینکِ حمایتی.
-۱۰. «۱۹۸۷ تستِ خودکار» به‌عنوانِ مدرکِ مهندسی برای مخاطبِ فنی.
+۱۰. «۱۹۹۳ تستِ خودکار» به‌عنوانِ مدرکِ مهندسی برای مخاطبِ فنی.
 
 پیشنهادِ فرمت‌ها: یک GIF/ویدیوی ۳۰ ثانیه‌ای از همین مسیرِ واقعی — مشتری → دکمه‌ها →
 پرداخت → آلارمِ رسید → تأییدِ مالک → فاکتور و تحویل. این همان چیزی است که کلِ
@@ -531,7 +531,7 @@ Honest limits, worth repeating: binaries are built in CI and not yet code-signed
 (SmartScreen/Gatekeeper warn on first run); real Telegram and real gateway
 behaviour must be checked per installation against the manual checklist; the
 finance section is a helper, not official accounting or tax filing; one shop per
-installation; Telegram only. 1987 automated tests, no internet or real bots
+installation; Telegram only. 1993 automated tests, no internet or real bots
 needed. Download from the repository's Releases page.
 
 

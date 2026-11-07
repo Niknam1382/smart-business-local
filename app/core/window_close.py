@@ -27,9 +27,13 @@ CLOSE_EVENT = "close"
 
 
 def _event_name(event) -> str:
-    raw = getattr(event, "event", None) or getattr(event, "name", "") or ""
-    text = str(raw).lower()
-    return text.rsplit(".", 1)[-1].replace("-", "_")
+    """Flet 1.0 رویدادِ پنجره را با ``type`` (enum) و ``name`` (رشته) می‌فرستد؛ هر دو پذیرفته می‌شن."""
+    for attribute in ("type", "event", "name"):
+        raw = getattr(event, attribute, None)
+        if raw:
+            text = str(raw).lower()
+            return text.rsplit(".", 1)[-1].replace("-", "_").rstrip("'\"")
+    return ""
 
 
 def apply_close(state, action: str) -> None:

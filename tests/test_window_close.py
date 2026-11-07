@@ -93,3 +93,14 @@ def test_apply_close_refuses_unknown_values():
     assert state.close_action == "ask"  # هر چیزِ ناشناخته = بپرس (بی‌خطرترین حالت)
     window_close.apply_close(state, "quit")
     assert state.close_action == "quit"
+
+
+def test_a_real_flet_window_event_shape_triggers_the_question():
+    """Flet 1.0 نوعِ رویداد را در ``type`` می‌گذارد و ``name`` چیزِ دیگری است — ✕ نباید بی‌کار بماند."""
+    import flet as ft
+
+    state = AppSettings()
+    page, _saves = bound(state)
+    page.window.on_event(SimpleNamespace(name="window_event", type=ft.WindowEventType.CLOSE, data=None))
+    assert page.overlay, "پنجره باید سؤال بپرسد، نه اینکه بی‌صدا بماند"
+    fire(find(page.overlay[0], "close_cancel"), "on_click")

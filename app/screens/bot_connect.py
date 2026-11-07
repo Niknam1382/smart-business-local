@@ -50,8 +50,13 @@ from app.i18n import STRINGS, t
 from app.screens.common import StatusChip, card, page_header, section_header
 from app.screens.live import LiveRefresher
 
-PLATFORMS = ("telegram",)  # بله فقط درگاهِ پرداخت است، نه پیام‌رسانِ ربات (۱.۰.۰)
-_ICONS = {"telegram": ft.Icons.SEND_ROUNDED}
+PLATFORMS = ("telegram", "bale")  # قلم ۲۴: بله هم پیام‌رسانِ ربات است، هم (جدا از این) درگاهِ پرداخت
+_ICONS = {"telegram": ft.Icons.SEND_ROUNDED, "bale": ft.Icons.CHAT_BUBBLE_ROUNDED}
+# هر پیام‌رسان توکن/سوییچِ خودش را دارد؛ هیچ‌کدام از دیگری نتیجه نمی‌گیرد (بله‌پی در این جدول نیست)
+_FIELDS = {
+    "telegram": {"get": "get_telegram_token", "set": "set_telegram_token", "enabled": "telegram_enabled", "ai": "telegram_ai"},
+    "bale": {"get": "get_bale_chat_token", "set": "set_bale_chat_token", "enabled": "bale_chat_enabled", "ai": "bale_chat_ai"},
+}
 
 
 def error_text(platform: str, status: AdapterStatus, lang: str) -> str:
@@ -74,8 +79,8 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple[f
     last = {"snap": None}
 
     # ------------------------------------------------------------ توکن/پروکسی
-    def get_token() -> str:
-        return settings.get_telegram_token()
+    def get_token(platform: str = "telegram") -> str:
+        return getattr(settings, _FIELDS[platform]["get"])()
 
     def mark_dirty() -> None:
         if manager.is_running():
@@ -86,7 +91,7 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple[f
             key=f"{p}_token",
             label=t("bots.token_label", lang),
             hint_text=t("bots.token_hint", lang),
-            value=get_token(),
+            value=get_token(p),
             password=True,
             can_reveal_password=True,
             prefix_icon=ft.Icons.VPN_KEY_ROUNDED,
@@ -212,9 +217,9 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple[f
 
     def save_token(platform: str) -> None:
         new = (token_fields[platform].value or "").strip()
-        if new == get_token():
+        if new == get_token(platform):
             return
-        settings.set_telegram_token(new)
+        getattr(settings, _FIELDS[platform]["set"])(new)
         save_callback()
         mark_dirty()
         ui["test"][platform] = None
@@ -299,18 +304,34 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple[f
 
     # ---------------------------------------------------------- فعال/غیرفعال
     def on_enabled(platform: str, value: bool) -> None:
-        setattr(settings, f"{platform}_enabled", bool(value))
+        setattr(settings, _FIELDS[platform]["enabled"], bool(value))
         save_callback()
         mark_dirty()
+        render()
+
+    def on_ai(platform: str, value: bool) -> None:
+        """قلم ۲۴: هوش مصنوعیِ هر پیام‌رسان مستقل از پیام‌رسانِ دیگر (و مستقل از درگاه) خاموش می‌شه."""
+        setattr(settings, _FIELDS[platform]["ai"], bool(value))
+        save_callback()
         render()
 
     enabled_switches = {
         p: ft.Switch(
             key=f"{p}_enabled",
             label=t("bots.enabled", lang),
-            value=bool(getattr(settings, f"{p}_enabled")),
+            value=bool(getattr(settings, _FIELDS[p]["enabled"])),
             active_color=theme.SUCCESS,
             on_change=lambda e, p=p: on_enabled(p, e.control.value),
+        )
+        for p in PLATFORMS
+    }
+    ai_switches = {
+        p: ft.Switch(
+            key=f"{p}_ai",
+            label=t("bots.ai", lang),
+            value=bool(getattr(settings, _FIELDS[p]["ai"], True)),
+            active_color=theme.PRIMARY,
+            on_change=lambda e, p=p: on_ai(p, e.control.value),
         )
         for p in PLATFORMS
     }
@@ -322,7 +343,7 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple[f
             ui["test"][platform] = (t("bots.token_empty", lang), theme.DANGER)
             render()
             return
-        proxy = (proxy_field.value or "").strip()
+        proxy = (proxy_field.value or "").strip() if platform == "telegram" else ""
         ui["testing"][platform] = True
         ui["test"][platform] = (t("bots.testing", lang), theme.text_secondary(page))
         render()
@@ -330,18 +351,21 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple[f
         def worker() -> None:
             from app.core import telegram_adapter  # دیر-import: aiogram را فقط وقتی کاربر «تست» می‌زند بار می‌کنیم
 
+            api_base = telegram_adapter.BALE_API_BASE if platform == "bale" else ""
             try:
                 single, pool = proxy_config_from_text(proxy)
+                extra = {"api_base": api_base} if api_base else {}  # تلگرام همان فراخوانِ قبلی می‌ماند
                 if pool is not None:
-                    result = asyncio.run(telegram_adapter.check_token_via_proxies(token, pool.urls))
+                    result = asyncio.run(telegram_adapter.check_token_via_proxies(token, pool.urls, **extra))
                 else:
-                    result = asyncio.run(telegram_adapter.check_token(token, single))
+                    result = asyncio.run(telegram_adapter.check_token(token, single, **extra))
             except Exception as exc:  # noqa: BLE001
                 result = AdapterStatus(state=STATE_ERROR, error=str(exc)[:200], error_code=ERR_UNEXPECTED)
             ui["testing"][platform] = False
             if result.connected:
                 # تست موفق یعنی توکن (و پروکسی) درسته → همون‌جا ذخیره می‌شه
-                save_proxy()
+                if platform == "telegram":
+                    save_proxy()
                 save_token(platform)
                 ui["test"][platform] = (
                     "✓ " + t("bots.test_ok", lang, username=result.username or "?"),
@@ -505,13 +529,9 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple[f
 
     # ------------------------------------------------------------ چیدمان صفحه
     def platform_card(platform: str) -> ft.Control:
-        controls: list[ft.Control] = [
-            ft.Row(
-                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                controls=[section_header(_ICONS[platform], t(f"bots.{platform}", lang)), chips[platform].control],
-            ),
-            ft.Row(controls=[token_fields[platform]]),
-            ft.Text(t(f"bots.{platform}.howto", lang), size=12, color=theme.text_secondary(page)),
+        # بله پروکسی نمی‌خواهد (داخلِ ایران در دسترس است)؛ جای آن یک خطِ توضیح می‌آید که
+        # چتِ بله هیچ ربطی به درگاهِ بله‌پی ندارد (قلم ۲۴).
+        middle: list = [
             ft.ExpansionTile(
                 title=ft.Text(t("bots.proxy.title", lang), size=13, weight=ft.FontWeight.W_500),
                 expanded=bool(settings.get_telegram_proxy() or settings.get_telegram_proxy_sub_url()),
@@ -534,10 +554,23 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple[f
                     )
                 ],
             ),
+        ] if platform == "telegram" else [
+            ft.Text(t("bots.bale.chat_note", lang), size=12, color=theme.text_secondary(page)),
+        ]
+        controls: list[ft.Control] = [
+            ft.Row(
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                controls=[section_header(_ICONS[platform], t(f"bots.{platform}", lang)), chips[platform].control],
+            ),
+            ft.Row(controls=[token_fields[platform]]),
+            ft.Text(t(f"bots.{platform}.howto", lang), size=12, color=theme.text_secondary(page)),
+            *middle,
             ft.Row(
                 spacing=12,
                 controls=[enabled_switches[platform], test_buttons[platform], test_results[platform]],
             ),
+            ft.Row(spacing=12, controls=[ai_switches[platform]]),
+            ft.Text(t("bots.ai.note", lang), size=11.5, color=theme.text_secondary(page)),
             platform_errors[platform],
         ]
         return card(page, ft.Column(spacing=12, controls=controls))
@@ -644,7 +677,7 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple[f
             controls=[
                 page_header(page, ft.Icons.LINK_ROUNDED, t("bots.title", lang), t("bots.subtitle", lang)),
                 run_card,
-                platform_card("telegram"),
+                *[platform_card(p) for p in PLATFORMS],
                 bale_pay_note,
                 memory_card,
             ],

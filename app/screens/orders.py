@@ -17,6 +17,7 @@ import flet as ft
 
 from app import theme
 from app.core import jalali
+from app.core import report_pdf, report_xlsx
 from app.core.bot_manager import BotManagerError
 from app.core.owner_console import extra_info_lines
 from app.core.orders import (
@@ -36,11 +37,11 @@ from app.core.orders import (
     OrderStore,
     build_order_confirmed_text,
     build_order_rejected_text,
-    build_order_shipped_text,
+    build_order_fulfillment_text,
 )
 from app.i18n import t
 from app.screens import owner_settings, payment_settings
-from app.screens.common import card, page_header
+from app.screens.common import card, open_folder, page_header
 
 _ALL_STATUSES = [STATUS_PENDING_PAYMENT, STATUS_PAID, STATUS_CONFIRMED, STATUS_REJECTED, STATUS_CANCELLED, STATUS_EXPIRED]
 _PLATFORM_ICON = {"telegram": ft.Icons.SEND_ROUNDED, "bale": ft.Icons.CHAT_BUBBLE_OUTLINE_ROUNDED}
@@ -65,7 +66,7 @@ _S = {
         "⚠️ پیامِ «ارسال شد» برای سفارش #{id} نرفت ({reason})؛ وضعیت ثبت شده و خودت خبرش کن.",
         "⚠️ The “shipped” notice for order #{id} was not sent ({reason}); the state is saved — tell the customer yourself.",
     ),
-    "fulfill.notify_switch": ("📬 با «ارسال شد»، پیامِ کوتاهِ ارسال (+کد رهگیری) برای مشتری برود", "📬 Notify the customer when an order is marked shipped (+tracking code)"),
+    "fulfill.notify_switch": ("📬 با هر تغییرِ وضعیتِ ارسال (آماده‌سازی / ارسال شد / تحویل شد) به مشتری خبر بده", "📬 Message the customer on every fulfilment change (preparing / shipped / delivered)"),
     # کارتِ «وضعیتِ پرداخت» — فقط خواندنی: هیچ مبلغی اینجا حساب یا نوشته نمی‌شه، فقط آنچه
     # از قبل در دیتابیس هست (سفارش، رسید، تأییدکننده) یک‌جا و جمع‌وجور نمایش داده می‌شه.
     "paystat.head": ("💳 وضعیتِ پرداخت", "💳 Payment status"),
@@ -85,6 +86,12 @@ _S = {
     "paystat.gateway_link": ("لینکِ پرداخت ساخته شد؛ در انتظارِ نتیجه‌ی درگاه", "A payment link was created; waiting for the gateway's result"),
     "paystat.gateway_verified": ("✅ تراکنشِ درگاه راستی‌آزمایی و ثبت شد", "✅ The gateway transaction was verified and recorded"),
     "paystat.gateway_late": ("⚠️ پرداختِ درگاه بعد از مهلتِ رزرو رسید؛ دستی تصمیم بگیر", "⚠️ The gateway payment arrived after the hold expired; decide manually"),
+    # گزارشِ رسمیِ اکسل/PDF (بخش ۸ از master prompt) — همان فیلترِ وضعیتِ فعالِ همین صفحه
+    "export.hint": ("گزارشِ رسمیِ همین فهرست:", "Formal report for this list:"),
+    "export.xlsx": ("خروجِ اکسل", "Excel export"),
+    "export.pdf": ("خروجِ PDF", "PDF export"),
+    "export.done": ("✅ گزارشِ {n} سطری ساخته شد: {path}", "✅ Report with {n} rows created: {path}"),
+    "export.failed": ("ساختنِ فایل ناموفق بود: {error}", "Could not create the file: {error}"),
 }
 
 
@@ -207,7 +214,7 @@ def build(
         if manager is None:
             return
         try:
-            manager.send_message_sync(order.platform, order.chat_id, build_order_shipped_text(order))
+            manager.send_message_sync(order.platform, order.chat_id, build_order_fulfillment_text(order))
             ui["notice"] = _s("fulfill.notify_sent", lang)
         except BotManagerError as exc:
             ui["error"] = _s("fulfill.notify_failed", lang, id=order.id, reason=str(exc))
@@ -216,7 +223,7 @@ def build(
         """فقط وضعیتِ فیزیکیِ سفارش عوض می‌شه — هیچ منطقِ پولی اینجا نیست. پیامِ «ارسال شد»
         فقط برایِ گذارِ *اول* به «shipped» می‌ره (اصلاحِ کد رهگیری، مشتری را دوباره بمباران نمی‌کند)."""
         previous = order_store.get(order_id)
-        already_shipped = previous is not None and previous.fulfillment == FULFILL_SHIPPED
+        previous_state = previous.fulfillment if previous is not None else ""
         ui["notice"] = ""
         try:
             order = order_store.set_fulfillment(order_id, state, tracking_code=tracking, by="app")
@@ -229,7 +236,9 @@ def build(
             return
         render_list()
         page.update()
-        if state == FULFILL_SHIPPED and not already_shipped and settings is not None and getattr(settings, "notify_on_shipment", False):
+        should_notify = (bool(state) and state != previous_state and settings is not None
+                         and bool(getattr(settings, "notify_on_fulfillment", True)))
+        if should_notify:
             page.run_thread(lambda: (notify_shipment(order), render_list(), page.update()))
 
     def fulfillment_block(order: Order) -> ft.Control:
@@ -651,6 +660,44 @@ def build(
         else:
             list_column.controls = [order_card(o) for o in orders]
 
+    def do_report(fmt: str, _e=None) -> None:
+        """گزارشِ رسمیِ **همان فهرستِ فیلترشده** (وضعیتِ انتخابی) در فایلِ اکسل یا PDFِ راست‌به‌چپ.
+
+        فایل در ``<داده>/reports`` ساخته می‌شود و پوشه‌اش باز می‌شود — همان تجربه‌ی فاکتور. هیچ
+        سفارشی اینجا تغییر نمی‌کند: فقط خواندنِ سطور و نوشتنِ فایل."""
+
+        def work() -> None:
+            try:
+                data = report_xlsx.orders_report(order_store.list(status=ui["filter"] or None),
+                                                 shop_name=report_xlsx.shop_name_of(settings or manager))
+                path = report_pdf.write_pdf(data) if fmt == "pdf" else report_xlsx.write_xlsx(data)
+            except report_xlsx.ReportError as exc:  # «چیزی برای خروجی گرفتن نیست» / شکستِ PDF
+                ui["error"], ui["notice"] = str(exc), ""
+            except OSError as exc:
+                ui["error"], ui["notice"] = _s("export.failed", lang, error=str(exc)), ""
+            except Exception as exc:  # noqa: BLE001 — دیتابیسِ سفارش‌ها در حالتِ مشاوره ممکن است نباشد
+                ui["error"], ui["notice"] = _s("export.failed", lang, error=type(exc).__name__), ""
+            else:
+                ui["error"], ui["notice"] = "", _s("export.done", lang, n=data.count, path=str(path))
+                open_folder(path.parent)
+            render_list()
+            page.update()
+
+        page.run_thread(work)
+
+    report_row = ft.Row(
+        spacing=10,
+        wrap=True,
+        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        controls=[
+            ft.Text(_s("export.hint", lang), size=12.5, color=theme.text_secondary(page)),
+            ft.OutlinedButton(key="orders_export_xlsx", content=_s("export.xlsx", lang),
+                              icon=ft.Icons.TABLE_VIEW, on_click=lambda e: do_report("xlsx")),
+            ft.OutlinedButton(key="orders_export_pdf", content=_s("export.pdf", lang),
+                              icon=ft.Icons.PICTURE_AS_PDF_ROUNDED, on_click=lambda e: do_report("pdf")),
+        ],
+    )
+
     def handle_filter_change(e) -> None:
         ui["filter"] = e.control.value
         render_list()
@@ -671,14 +718,14 @@ def build(
     notify_switch = None
     if settings is not None:
         def handle_notify_toggle(e) -> None:
-            settings.notify_on_shipment = bool(e.control.value)
+            settings.notify_on_fulfillment = bool(e.control.value)
             if save_callback is not None:
                 save_callback()
 
         notify_switch = ft.Switch(
-            key="notify_on_shipment",
+            key="notify_on_fulfillment",
             label=_s("fulfill.notify_switch", lang),
-            value=bool(getattr(settings, "notify_on_shipment", False)),
+            value=bool(getattr(settings, "notify_on_fulfillment", True)),
             active_color=theme.SUCCESS,
             on_change=handle_notify_toggle,
         )
@@ -704,6 +751,7 @@ def build(
                 ),
                 attention_box,
                 filter_dropdown,
+                report_row,
                 *( [notify_switch] if notify_switch is not None else [] ),
                 error_text,
                 notice_text,

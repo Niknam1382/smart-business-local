@@ -388,3 +388,23 @@ def test_payment_instruction_failure_is_friendly_and_lands_in_attention_inbox(h,
     assert "ثبت شده" in texts(res) and "مخصوصِ مدل" not in texts(res)  # متنِ خطای مخصوصِ مدل هرگز به مشتری نمی‌رسه
     [item] = h.flow.attention.list_open()
     assert item.type == "payment_failed" and item.ref == str(h.orders.list()[0].id)
+
+
+# ------------------------------------------- ۱۵) تماسِ مستقیمِ پشتیبانی ============
+
+
+def test_support_view_shows_the_direct_phone_only_after_the_owner_saves_one(h):
+    """۱۵: شماره‌ی پشتیبانی که فروشنده وارد می‌کند به مشتری هم فرستاده می‌شه."""
+    body = texts(h.say("/support"))
+    assert "تماسِ مستقیم" not in body  # هنوز شماره‌ای ثبت نشده
+
+    h.settings.support_phone = "02188776655"
+    h.settings.support_direct_note = "هر روز ۹ تا ۱۸"
+    body = texts(h.say("/support"))
+    assert "02188776655" in body and "هر روز ۹ تا ۱۸" in body
+
+
+def test_support_direct_text_is_registered_in_the_text_catalog(h):
+    from app.core import shop_texts
+
+    assert "support.direct" in set(shop_texts.keys())

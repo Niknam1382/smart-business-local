@@ -120,3 +120,54 @@ def test_advisor_mode_sends_disclosure_on_start_then_ai_answers(tmp_path, tg, mo
         assert wait_until(lambda: any("پاسخ: /start" in m for m in tg.sent_to(10)))  # AIِ خالص (بدونِ ابزار) طبقِ معمول جواب داد
     finally:
         manager.stop()
+
+
+# ═══════════════ رسیدِ کارت‌به‌کارت هم با «فراموشم کن» پاک می‌شود (بازبینیِ امنیت) ═══════════════
+
+
+def _stores(tmp_path):
+    products = ProductStore(tmp_path / "p.db")
+    orders = OrderStore(tmp_path / "o.db", product_store=products)
+    return products, orders
+
+
+def _closed_order_with_receipts(tmp_path, orders, products):
+    pid = products.add("کالا", 1000, 5)
+    oid = orders.create("telegram", "42", [(pid, 1)], customer_name="علی", customer_phone="0912")
+    image = tmp_path / "receipt-42.jpg"
+    image.write_bytes(b"\xff\xd8\xff fake jpeg")
+    orders.add_receipt(oid, kind="image", file_path=str(image), card_last4="1234")
+    orders.add_receipt(oid, kind="text", body="واریز کردم، کارت ۶۰۳۷۹۹۱۲")
+    orders.mark_paid(oid, METHOD_CARD_TO_CARD, "r")
+    orders.confirm(oid)
+    return oid, image
+
+
+def test_forget_erases_receipts_and_their_files(tmp_path):
+    products, orders = _stores(tmp_path)
+    oid, image = _closed_order_with_receipts(tmp_path, orders, products)
+    assert len(orders.receipts_for(oid)) == 2 and image.is_file()
+
+    assert orders.anonymize_chat("telegram", "42") == 1
+    assert orders.receipts_for(oid) == []
+    assert not image.exists(), "فایلِ رسیدِ تصویر باید با /forget حذف بشه"
+    assert orders.get(oid).customer_name == ""
+
+
+def test_retention_pruning_also_erases_receipts(tmp_path):
+    """نگه‌داریِ محدودِ N روزه نباید رسیدهایِ سفارش‌های بسته‌شده را جا بگذارد."""
+    products, orders = _stores(tmp_path)
+    oid, image = _closed_order_with_receipts(tmp_path, orders, products)
+    age(orders._connection(), "orders", "updated_at", 40, f"id={oid}")  # noqa: SLF001 — همان دیتابیسِ تست
+    assert orders.anonymize_closed(30) == 1
+    assert orders.receipts_for(oid) == [] and not image.exists()
+
+
+def test_open_order_receipts_survive_forget(tmp_path):
+    """سفارشِ در جریان دست‌نخورده می‌ماند؛ رسیدِ او هم برایِ پیگیری لازم است."""
+    products, orders = _stores(tmp_path)
+    pid = products.add("کالا", 1000, 5)
+    oid = orders.create("telegram", "43", [(pid, 1)], customer_name="مریم", customer_phone="0912")
+    orders.add_receipt(oid, kind="text", body="رسیدِ سفارشِ باز")
+    orders.anonymize_chat("telegram", "43")
+    assert len(orders.receipts_for(oid)) == 1

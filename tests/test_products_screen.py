@@ -9,6 +9,8 @@
 
 from fake_page import FakePage, find, fire
 
+from app import theme
+from app.core import report_xlsx
 from app.core.products import ProductStore
 from app.screens import products as products_screen
 
@@ -351,3 +353,52 @@ def test_sample_product_is_localized(tmp_path):
     control = products_screen.build(FakePage(), "en", store)
     fire(find(control, "product_add_sample"), "on_click")
     assert store.list()[0].name == "Sample product"
+
+
+# ------------------------------------------------- گزارشِ اکسل/PDF (بخش ۸ِ master prompt) ----
+
+def test_excel_and_pdf_report_buttons_write_files(tmp_path, monkeypatch):
+    """«خروجِ اکسل»/«خروجِ PDF» کارنامه‌ی انبار را در ``<داده>/reports`` می‌سازند، پوشه را باز
+    می‌کنند و یادداشتِ پایینی را نشان می‌دهند (همان جایی که قالبِ اکسل پیام می‌دهد)."""
+    store = make_store(tmp_path)
+    store.add("شام‌خورِ خانوادگی", 450_000, 12)
+    opened: list = []
+    monkeypatch.setattr("app.screens.products.common.open_folder", lambda p: opened.append(str(p)) or True)
+    control = products_screen.build(FakePage(), "fa", store)
+    for key, suffix in (("product_export_xlsx", ".xlsx"), ("product_export_pdf", ".pdf")):
+        button = find(control, key)
+        assert button is not None, key
+        fire(button, "on_click")
+        assert any(p.suffix == suffix for p in report_xlsx.reports_dir().glob("*")), key
+    assert opened == [str(report_xlsx.reports_dir())] * 2
+    note = find(control, "product_import_note")
+    assert note.visible and "سطری ساخته شد" in note.value and str(report_xlsx.reports_dir()) in note.value
+    path = sorted(report_xlsx.reports_dir().glob("*.xlsx"))[-1]
+    _p, header, body = report_xlsx.read_report(path)
+    assert len(body) == 1 and header[0] == "نام" and body[0][2] == "450000"  # پولِ خامِ عددی در اکسل
+
+
+def test_report_buttons_respect_show_inactive_switch(tmp_path, monkeypatch):
+    """سوییچِ «نمایشِ غیرفعال‌ها» همان چیزی است که کاربر می‌بیند؛ گزارش هم همان را می‌فرستد."""
+    monkeypatch.setattr("app.screens.products.common.open_folder", lambda p: True)
+    store = make_store(tmp_path)
+    pid = store.add("فعال", 1000, 2)
+    store.add("دیگر", 2000, 3)
+    store.set_active(pid, False)
+    control = products_screen.build(FakePage(), "fa", store)
+    fire(find(control, "product_export_xlsx"), "on_click")
+    _p, _h, body = report_xlsx.read_report(sorted(report_xlsx.reports_dir().glob("*.xlsx"))[-1])
+    assert [row[0] for row in body] == ["دیگر"]
+    fire(find(control, "show_inactive_switch"), "on_change", True)
+    fire(find(control, "product_export_xlsx"), "on_click")
+    _p, _h, body = report_xlsx.read_report(sorted(report_xlsx.reports_dir().glob("*.xlsx"))[-1])
+    assert sorted(row[0] for row in body) == ["دیگر", "فعال"]
+
+
+def test_report_button_without_products_shows_persian_error(tmp_path, monkeypatch):
+    monkeypatch.setattr("app.screens.products.common.open_folder", lambda p: True)
+    control = products_screen.build(FakePage(), "fa", make_store(tmp_path))
+    fire(find(control, "product_export_xlsx"), "on_click")
+    note = find(control, "product_import_note")
+    assert note.value == report_xlsx.EMPTY_ERROR and note.visible and note.color == theme.DANGER
+    assert list(report_xlsx.reports_dir().glob("*.xlsx")) == []

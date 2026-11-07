@@ -53,14 +53,14 @@ def default_fields(lang: str = "fa") -> list:
     if lang == "en":
         return [
             CheckoutField("name", "Name", "Please send your full name:", "text", True, min_len=2, max_len=60),
-            CheckoutField("phone", "Mobile", "Please send your mobile number (e.g. 09123456789):", "phone", True),
+            CheckoutField("phone", "Mobile", "Please send your mobile number:", "phone", True),
             CheckoutField("address", "Address", "Please send your full delivery address:", "text", True, min_len=8, max_len=300),
             CheckoutField("postal", "Postal code", "Postal code (10 digits):", "number", False, min_len=10, max_len=10),
             CheckoutField("notes", "Notes", "Any notes for the seller?", "text", False, max_len=300),
         ]
     return [
         CheckoutField("name", "نام و نام‌خانوادگی", "نام و نام‌خانوادگیت رو بفرست:", "text", True, min_len=2, max_len=60),
-        CheckoutField("phone", "شماره موبایل", "شماره موبایلت رو بفرست (مثلاً 09123456789):", "phone", True),
+        CheckoutField("phone", "شماره موبایل", "شماره موبایلت رو بفرست:", "phone", True),
         CheckoutField("address", "آدرس", "آدرس کاملِ تحویل رو بفرست:", "text", True, min_len=8, max_len=300),
         CheckoutField("postal", "کدپستی", "کدپستیِ ۱۰ رقمی (اختیاری):", "number", False, min_len=10, max_len=10),
         CheckoutField("notes", "توضیحات", "توضیحاتی برای فروشنده داری؟ (اختیاری)", "text", False, max_len=300),
@@ -69,14 +69,8 @@ def default_fields(lang: str = "fa") -> list:
 
 def templates(lang: str = "fa") -> dict:
     base = {f.id: f for f in default_fields(lang)}
-    fa = lang != "en"
     return {
         "physical": [base["name"], base["phone"], base["address"], base["postal"], base["notes"]],
-        "services": [
-            base["name"],
-            base["phone"],
-            CheckoutField("request", "درخواست" if fa else "Request", "درخواستت رو بنویس:" if fa else "Describe your request:", "text", True, min_len=3, max_len=500),
-        ],
     }
 
 
@@ -163,7 +157,7 @@ def validate_value(f: CheckoutField, raw: str) -> tuple:
         return False, "لطفاً یه مقدار بفرست."
     if f.type == "phone":
         phone = normalize_phone(text)
-        return (True, phone) if phone else (False, "شماره‌ی موبایل معتبر نیست؛ مثلاً 09123456789 بفرست.")
+        return (True, phone) if phone else (False, "شماره‌ی موبایل معتبر نیست؛ شماره‌ی ۱۱ رقمی بفرست.")
     if f.type == "number":
         digits = re.sub(r"[\s\-]", "", text)
         if not digits.isdigit():

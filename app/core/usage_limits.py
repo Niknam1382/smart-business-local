@@ -66,9 +66,15 @@ class UsageLimiter:
         return {"ai_calls": int(row["calls"]), "tokens_est": int(row["tokens"]), "chats": int(row["chats"]), "cap_per_chat": per_chat, "cap_total": total}
 
     def check_ai(self, platform: str, chat_id: str) -> str:
-        """``ok`` | ``kill`` | ``chat`` | ``total`` — ۰ یعنی «بدونِ سقف»."""
-        if getattr(self._get_settings(), "ai_kill_switch", False):
+        """``ok`` | ``kill`` | ``off`` | ``chat`` | ``total`` — ۰ یعنی «بدونِ سقف».
+
+        ``off`` یعنی سوییچِ هوش مصنوعیِ *همان* پیام‌رسان خاموش است (قلم ۲۴): رباتِ بله می‌تواند
+        هوش داشته باشد و تلگرام نه، یا بالعکس — و هیچ‌کدام به درگاهِ پرداخت ربطی ندارد."""
+        settings = self._get_settings()
+        if getattr(settings, "ai_kill_switch", False):
             return "kill"
+        if not getattr(settings, "ai_enabled_for", lambda _p: True)(platform):
+            return "off"
         per_chat, total = self._caps()
         if per_chat > 0 and self.chat_calls(platform, chat_id) >= per_chat:
             return "chat"

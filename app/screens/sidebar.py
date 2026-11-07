@@ -2,7 +2,7 @@
 
 مشکلِ قبلی: ۱۵+ آیتمِ منو در یک ستونِ بدونِ اسکرول بودن و روی پنجره‌های کم‌ارتفاع (لپ‌تاپ ۷۶۸) آیتم‌های پایین
 (تنظیمات، درباره) بیرون می‌افتادن و قابل‌دسترسی نبودن. حالا: سرتیترِ برند ثابت، فهرستِ وسط اسکرول‌پذیر،
-و سه آیتمِ پایین (راهنما/درباره/تنظیمات) همیشه ثابت و در دسترس.
+آیتم‌هایِ پایین (راهنما/حمایت/درباره/تنظیمات) دیگر به تهِ نوار میخ نمی‌شن: در همان فهرستِ اسکرول‌پذیر می‌آیند، پس روی پنجره‌ی کوتاه هیچ‌وقت زیرِ لبه نمی‌مانند (قلم ۴).
 """
 
 from __future__ import annotations
@@ -117,9 +117,10 @@ def build(
                     content=ft.Text(welcome, size=11.5, color=_TEXT_FAINT, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
                 ),
                 divider(),
-                ft.Column(key="sidebar_scroll", expand=True, spacing=1, scroll=ft.ScrollMode.AUTO, controls=middle),
-                divider(),
-                *[nav_item(e, active) for e in bottom],
+                ft.Column(
+                    key="sidebar_scroll", expand=True, spacing=1, scroll=ft.ScrollMode.ADAPTIVE,
+                    controls=[*middle, divider(), *[nav_item(e, active) for e in bottom]],
+                ),
             ],
         ),
     )

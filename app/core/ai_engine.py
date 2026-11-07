@@ -87,22 +87,70 @@ class LocalEngine:
     # می‌شه) — پایپ‌لاین ربات تماس‌های محلی رو پشت یه قفل سریالی می‌کنه.
     concurrent_safe = False
 
+    # سقفِ خروجیِ «کلاسیک» وقتی تنظیمِ خودکار خاموش است (رفتارِ قدیمیِ ۱.۰.۰).
+    FLAT_REPLY_TOKENS = 512
+    FLAT_TOOL_TOKENS = 700
+
     def __init__(
         self,
         model_path: Path,
         n_ctx: int = 4096,
-        n_gpu_layers: int = 0,  # بیلدِ رسمیِ برنامه فقط-CPUه؛ ۰ = درست. کاربرِ حرفه‌ای می‌تونه بالا ببره.
+        n_gpu_layers: int = 0,  # ۰ = خودکار؛ بیلدِ رسمیِ برنامه CPU-only است پس همان ۰ می‌ماند
         n_threads: Optional[int] = None,
         model_id: str = "",
+        adaptive_tokens: bool = True,
+        token_history: bool = True,
     ):
         self.model_path = Path(model_path)
         self.n_ctx = int(n_ctx)
         self.n_gpu_layers = int(n_gpu_layers)
         self.n_threads = n_threads
         self.model_id = model_id
+        self.adaptive_tokens = bool(adaptive_tokens)
+        self.token_history = bool(token_history)
         self._llm = None
         self.record_usage = True
         self.last_usage: dict = {}
+
+    # ------------------------------------------------------ بودجه و تاریخچه
+
+    def reply_tokens(self, user_message: str, tools: bool = False) -> int:
+        """سقفِ پاسخ به‌تناسبِ پرسش؛ با سؤالِ کوتاه پاسخِ کوتاه، با سؤالِ بلندتر فضایِ بیشتر.
+
+        هیچ‌وقت بیشتر از نصفِ پنجره‌ی زمینه نمی‌شه، وگرنه بودجه‌ی تاریخچه منفی می‌شه و
+        مدل «بدونِ حافظه» جواب می‌ده."""
+        if not self.adaptive_tokens:
+            want = self.FLAT_TOOL_TOKENS if tools else self.FLAT_REPLY_TOKENS
+        else:
+            from app.core import token_budget
+
+            want = token_budget.pick_max_tokens(user_message, tools=tools)
+        return max(64, min(want, self.n_ctx // 2)) if self.n_ctx else want
+
+    def _history(self, system_prompt: str, history: list, user_message: str, reply_tokens: int, tool_chars: int = 0) -> list:
+        """پیام‌هایِ قدیمی را تا جا شدنِ همه‌چیز در پنجره‌ی زمینه کم می‌کنه.
+
+        حالتِ پیش‌فرض «توکنی» است (``token_opt_history_window``): تخمینِ کاراکتریِ قدیمی روی
+        فارسی خطا دارد و گاه پاسخ از وسط می‌برد."""
+        if self.token_history:
+            from app.core import token_budget
+
+            return token_budget.fit_history(
+                system_prompt, history, user_message, self.n_ctx,
+                reply_tokens=reply_tokens, extra_tokens=int(tool_chars / 2.5) + 1,  # همان قاعده‌ی تخمینِ توکنِ فارسی
+            )
+        max_chars = self.n_ctx * (2 if tool_chars else 3) - tool_chars
+        return _trim_history(system_prompt, history, user_message, max_chars=max(256, max_chars))
+
+    def _complete(self, messages: list, max_tokens: int, temperature: float = 0.4, stop: Optional[list] = None) -> tuple[str, str, dict]:
+        """(متن، finish_reason، usage) — ``finish_reason`` نگه داشته می‌شه تا «پاسخ نصفه ماند» دیده بشه."""
+        kwargs = dict(messages=messages, temperature=temperature, max_tokens=max_tokens)
+        if stop:
+            kwargs["stop"] = stop
+        result = self._llm.create_chat_completion(**kwargs)
+        choice = result["choices"][0]
+        usage = result.get("usage") if isinstance(result, dict) else None
+        return _strip_think(choice["message"].get("content") or ""), (choice.get("finish_reason") or ""), dict(usage) if isinstance(usage, dict) else {}
 
     def _ensure_loaded(self) -> None:
         if self._llm is not None:
@@ -129,25 +177,33 @@ class LocalEngine:
 
     def chat(self, system_prompt: str, history: list[ChatMessage], user_message: str) -> str:
         self._ensure_loaded()
-        trimmed = _trim_history(system_prompt, history, user_message, max_chars=self.n_ctx * 3)
+        trimmed = self._history(system_prompt, history, user_message, self.reply_tokens(user_message))
         messages = [{"role": "system", "content": system_prompt}]
         messages += [{"role": m.role, "content": m.content} for m in trimmed]
         messages.append({"role": "user", "content": user_message})
 
         began = time.monotonic()
+        budget = self.reply_tokens(user_message)
+        usage: dict = {}
         try:
-            result = self._llm.create_chat_completion(messages=messages, temperature=0.4, max_tokens=512)
+            answer, reason, usage = self._complete(messages, budget)
+            if reason == "length":
+                # پاسخ نصفه ماند: یک‌بار با سقفِ دوبله و تاریخچه‌ی کوتاه‌تر تلاش می‌شه.
+                trimmed = self._history(system_prompt, history, user_message, budget * 2)
+                retry = [{"role": "system", "content": system_prompt}]
+                retry += [{"role": m.role, "content": m.content} for m in trimmed]
+                retry.append({"role": "user", "content": user_message})
+                answer, reason, usage = self._complete(retry, budget * 2)
+                messages = retry
         except Exception as exc:
             self._note_failure(messages, user_message, began)
             raise AiEngineError(f"اجرای مدل محلی شکست خورد: {exc}") from exc
 
-        answer = _strip_think(result["choices"][0]["message"].get("content") or "")
-        self._note_usage(result, messages, answer, began, "chat")
+        self._note_usage(usage, messages, answer, began, "chat")
         return answer
 
-    def _note_usage(self, result, messages: list, answer: str, began: float, kind: str) -> None:
-        usage = result.get("usage") if isinstance(result, dict) else None
-        self.last_usage = dict(usage) if isinstance(usage, dict) and "prompt_tokens" in usage else {}
+    def _note_usage(self, usage: dict, messages: list, answer: str, began: float, kind: str) -> None:
+        self.last_usage = dict(usage) if "prompt_tokens" in usage else {}
         if not self.record_usage:
             return
         from app.core import ai_usage, token_budget
@@ -182,21 +238,26 @@ class LocalEngine:
         خاصِ llama-cpp. ``stop`` جلوی حدس‌زدنِ نتیجه‌ی ابزار رو می‌گیره (پارسر تگِ
         بسته‌نشده رو هم می‌پذیره)."""
         self._ensure_loaded()
-        trimmed = _trim_history(
-            system_prompt, history, user_message, max_chars=self.n_ctx * 2 - _tool_messages_chars(tool_messages)
-        )
+        tool_chars = _tool_messages_chars(tool_messages)
+        budget = self.reply_tokens(user_message, tools=True)
+        trimmed = self._history(system_prompt, history, user_message, budget, tool_chars=tool_chars)
         messages = tool_protocol.to_text_messages(system_prompt, trimmed, user_message, tool_messages, tools)
         began = time.monotonic()
+        stop = [tool_protocol.CLOSE_TAG, tool_protocol.RESULT_OPEN]
         try:
-            result = self._llm.create_chat_completion(
-                messages=messages, temperature=0.3, max_tokens=700, stop=[tool_protocol.CLOSE_TAG, tool_protocol.RESULT_OPEN]
-            )
+            content, reason, usage = self._complete(messages, budget, temperature=0.3, stop=stop)
+            turn = tool_protocol.parse_text_turn(content)
+            if not turn.tool_calls and reason == "length":
+                # پاسخِ نصفه *بدونِ درخواستِ ابزار*: یک‌بار با سقفِ دوبله — وگرنه جوابِ کاملِ مشتری هرگز نمی‌رسه.
+                trimmed = self._history(system_prompt, history, user_message, budget * 2, tool_chars=tool_chars)
+                messages = tool_protocol.to_text_messages(system_prompt, trimmed, user_message, tool_messages, tools)
+                content, reason, usage = self._complete(messages, budget * 2, temperature=0.3, stop=stop)
+                turn = tool_protocol.parse_text_turn(content)
         except Exception as exc:
             self._note_failure(messages, user_message, began)
             raise AiEngineError(f"اجرای مدل محلی شکست خورد: {exc}") from exc
-        content = _strip_think(result["choices"][0]["message"].get("content") or "")
-        self._note_usage(result, messages, content, began, "tools")
-        return tool_protocol.parse_text_turn(content)
+        self._note_usage(usage, messages, content, began, "tools")
+        return turn
 
     def unload(self) -> None:
         """حافظه‌ی مدل را آزاد می‌کنه (برنامه روی لپ‌تاپِ ۴ گیگ اجرا می‌شه؛ نگه‌داشتنِ مدل
@@ -320,6 +381,27 @@ def expanded_user(text: str) -> str:
     return str(_P(text).expanduser())
 
 
+def auto_gpu_layers(hw, model_size_bytes: int) -> int:
+    """«چند لایه روی GPU؟» را از خودِ سیستم می‌پرسه، نه از نامِ کارت (قلم ۱۴ مستر‌پرامپت).
+
+    پاسخِ ``gpu_offload_available`` از *بیلدِ نصب‌شده‌ی* llama-cpp می‌آید؛ بیلدِ رسمیِ برنامه CPU
+    است و برای همین همیشه ۰ برمی‌گرده — یعنی هیچ عددِ ساختگیِ GPU به مدل داده نمی‌شه. اگر کاربر
+    بیلدِ CUDA نصب کرده باشد: با VRAMِ کافی مدلِ کامل روی گرافیک (‎-۱)، و با VRAMِ نصفه‌نیمه
+    همه‌ی لایه‌ها جز ده لایه‌ی آخر (‎-۱۱) تا مدل در حافظه‌ی گرافیک جا بشه.
+    """
+    if not gpu_offload_available():
+        return 0
+    vram = float(getattr(hw, "gpu_vram_gb", 0) or 0)
+    if vram < 2.0:
+        return 0
+    model_gb = max(0.0, (model_size_bytes or 0) / (1024**3))
+    if vram >= model_gb + 1.5:
+        return -1
+    if vram >= model_gb * 0.4:
+        return -11
+    return 0
+
+
 def build_engine_from_settings(settings) -> LocalEngine:
     """موتور را از AppSettings می‌سازد (بارگذاریِ واقعی تنبل و در اولین تماس است)."""
     from app.core import hardware, model_catalog
@@ -345,10 +427,15 @@ def build_engine_from_settings(settings) -> LocalEngine:
         else:
             n_ctx = 4096 if size_bytes < 3 * (1024**3) else 8192
     threads = int(getattr(settings, "ai_threads", 0) or 0) or model_catalog.auto_threads(hw)
+    gpu_layers = int(getattr(settings, "ai_gpu_layers", 0) or 0)
+    if gpu_layers == 0:
+        gpu_layers = auto_gpu_layers(hw, size_bytes)  # ۰ = خودکار، نه «همیشه CPU»
     return LocalEngine(
         model_path=path,
         n_ctx=n_ctx,
-        n_gpu_layers=int(getattr(settings, "ai_gpu_layers", 0) or 0),
+        n_gpu_layers=gpu_layers,
         n_threads=threads,
         model_id=getattr(settings, "model_id", "") or path.name,
+        adaptive_tokens=bool(getattr(settings, "token_opt_max_tokens", True)),
+        token_history=bool(getattr(settings, "token_opt_history_window", True)),
     )

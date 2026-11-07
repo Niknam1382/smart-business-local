@@ -176,7 +176,9 @@ def test_faq_lines_skips_broken_items_and_truncates(tmp_path):
     assert "پرسش: ارسال؟\nپاسخ: پست" in out
     assert "بی‌پاسخ" not in out and "بی‌سؤال" not in out and "متنِ خراب" not in out
     lines = out.splitlines()
-    assert lines[2] == "پرسش: " + "س" * 200 and lines[3] == "پاسخ: " + "پ" * 400
+    # سقف‌ها از ۲۰۰/۴۰۰ به ۱۸۰/۳۰۰ رسید (قلم ۱۱ مستر‌پرامپت: پرامپتِ سبک‌تر ⇒ جا برای پاسخِ کامل)
+    assert lines[2] == "پرسش: " + "س" * prompt_kit.MAX_FAQ_QUESTION
+    assert lines[3] == "پاسخ: " + "پ" * prompt_kit.MAX_FAQ_ANSWER
     assert len(lines) == 4
     assert prompt_kit.faq_lines(Harness(tmp_path / "f").settings) == ""
     # بدونِ FAQ، سرتیتر هم در پرامپت نمی‌آید

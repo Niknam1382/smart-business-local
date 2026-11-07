@@ -346,7 +346,7 @@ def test_invoice_carries_the_shipping_line(tmp_path):
     assert (invoice.subtotal_irr, invoice.discount_irr, invoice.shipping_irr, invoice.total_irr) == (1_000_000, 0, 120_000, 1_120_000)
     assert invoice.subtotal_irr - invoice.discount_irr + invoice.shipping_irr == invoice.total_irr
     body = invoice_text(invoice, digits="en")
-    assert "ارسال/سایر: 120,000 ریال" in body and "مبلغِ نهایی: 1,120,000 ریال" in body
+    assert "هزینه ارسال: 120,000 ریال" in body and "مبلغ نهایی: 1,120,000 ریال" in body
 
 
 def test_ledger_income_equals_the_order_total(tmp_path):

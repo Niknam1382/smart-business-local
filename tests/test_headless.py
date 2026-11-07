@@ -179,7 +179,7 @@ def test_headless_serves_real_telegram_traffic_then_stops_cleanly(tmp_path, tg, 
     try:
         assert wait_until(lambda: (data / headless.HEARTBEAT_FILE).exists(), timeout=20)
         assert wait_until(lambda: manager.get_status().platforms["telegram"].connected, timeout=20)
-        assert set(manager.get_status().platforms) == {"telegram"}  # بله پیام‌رسان نیست؛ فقط تلگرام
+        assert set(manager.get_status().platforms) == {"telegram", "bale"}  # هر دو پیام‌رسان در وضعیت هستن (قلم ۲۴)
         tg.push_message(10, "سلام تلگرام")
         assert wait_until(lambda: any("جواب headless" in m or "پاسخ" in m for m in tg.sent_to(10)), timeout=15)
         hb = json.loads((data / headless.HEARTBEAT_FILE).read_text(encoding="utf-8"))

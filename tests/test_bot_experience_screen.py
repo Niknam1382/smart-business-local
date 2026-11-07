@@ -97,14 +97,16 @@ def test_checkout_fields_add_edit_validate_move_delete_templates(tmp_path):
     assert e.settings.checkout_fields[1]["id"] == first
     e.click("fld_del_5")
     assert len(e.settings.checkout_fields) == 5
-    e.f("fld_template").value = "services"
+    e.f("fld_template").value = "physical"
     e.click("fld_apply_tpl")
-    assert [f["id"] for f in e.settings.checkout_fields] == ["name", "phone", "request"]
+    assert [f["id"] for f in e.settings.checkout_fields] == ["name", "phone", "address", "postal", "notes"]
     e.click("fld_defaults")
     assert e.settings.checkout_fields == [] and len(e.f("exp_fields_list").controls) == 5
-    e.f("fld_template").value = "services"  # حذفِ آخرین فیلد ممنوع
+    e.f("fld_template").value = "physical"  # حذفِ آخرین فیلد ممنوع
     e.click("fld_apply_tpl")
-    e.click("fld_del_0"); e.click("fld_del_0")
+    for _ in range(4):
+        e.click("fld_del_0")
+    assert len(e.settings.checkout_fields) == 1
     e.click("fld_del_0")
     assert "حداقل یک فیلد" in e.note("exp_fields_note") and len(e.settings.checkout_fields) == 1
 
@@ -381,27 +383,30 @@ def test_catalog_section_saves_and_validates_in_its_own_note(tmp_path):
 
 def test_quick_setup_card_lists_presets_and_applies_without_touching_other_settings(tmp_path):
     e = Env(tmp_path)
-    assert [o.key for o in e.f("qs_type").options] == ["physical", "services", "consult", "support"]
+    assert [o.key for o in e.f("qs_type").options] == ["physical", "consult"]
     e.settings.card_to_card_number = "6037991234567890"
     e.settings.faq_items = [{"q": "الف", "a": "ب"}]
-    e.f("qs_type").value = "services"
+    # فرمِ شخصی‌سازی‌شده‌ی کوچک، تا اعمالِ پیش‌تنظیمِ فروشگاه واقعاً چیزی را عوض کند
+    e.settings.checkout_fields = [{"id": "name", "label": "نام", "prompt": "اسمت؟", "type": "text",
+                                   "required": True, "regex": "", "choices": [], "min_len": 2, "max_len": 50}]
+    e.f("qs_type").value = "physical"
     fire(e.f("qs_type"), "on_select")
-    assert "درخواست" in e.f("qs_desc").value
+    assert "آدرس" in e.f("qs_desc").value
     e.click("qs_apply")
-    assert [f["id"] for f in e.settings.checkout_fields] == ["name", "phone", "request"] and e.saves == 1
+    assert [f["id"] for f in e.settings.checkout_fields] == ["name", "phone", "address", "postal", "notes"] and e.saves == 1
     assert "✅ انجام شد" in e.note("qs_note") and "فرمِ سفارش" in e.note("qs_note")
-    assert "درخواست" in collect_text(e.f("exp_fields_list"))  # فهرستِ فیلدها هم با تنظیماتِ تازه هماهنگ شد
+    assert "آدرس" in collect_text(e.f("exp_fields_list"))  # فهرستِ فیلدها هم با تنظیماتِ تازه هماهنگ شد
     assert e.settings.card_to_card_number == "6037991234567890" and e.settings.faq_items == [{"q": "الف", "a": "ب"}]
     e.click("qs_apply")  # دوباره: بی‌اثر
     assert "همین الان هم همین‌طور" in e.note("qs_note")
 
 
-def test_quick_setup_support_preset_leaves_the_derived_mode_alone(tmp_path):
+def test_quick_setup_consult_preset_leaves_the_derived_mode_alone(tmp_path):
     # ۱.۰.۰: حالت از «نوع کسب‌وکار» مشتق می‌شه؛ پیش‌تنظیم «پاسخ‌گویی» دیگر dropdown/انتخابِ حالت نمی‌سازه.
     from app.core import modes
 
     e = Env(tmp_path)
-    e.f("qs_type").value = "support"
+    e.f("qs_type").value = "consult"
     e.click("qs_apply")
     assert find(e.control, "exp_mode") is None  # هیچ ویرایشگرِ حالتی در صفحه نیست
     assert modes.resolve_mode(e.settings).id == "shop_buttons"  # فروشگاه همچنان فروشگاه می‌ماند
@@ -409,9 +414,9 @@ def test_quick_setup_support_preset_leaves_the_derived_mode_alone(tmp_path):
     assert e.saves == 1
 
 
-def test_consultants_only_get_consult_and_support_presets_and_a_shop_hint(tmp_path):
+def test_consultants_only_get_the_consult_preset_and_a_shop_hint(tmp_path):
     e = Env(tmp_path, "consultation")
-    assert [o.key for o in e.f("qs_type").options] == ["consult", "support"]
+    assert [o.key for o in e.f("qs_type").options] == ["consult"]
     assert e.f("exp_shop_hint").visible is True
     assert Env(tmp_path / "s", "store").f("exp_shop_hint").visible is False
 
@@ -421,7 +426,7 @@ def test_field_and_button_forms_hide_technical_inputs_and_generate_ids(tmp_path)
     # انواع به زبانِ ساده؛ مقدارِ ذخیره‌شده همان شناسه‌ی قدیمی
     assert {o.key: o.text for o in e.f("fld_type").options}["phone"] == "شماره‌ی موبایل"
     assert find(e.control, "fld_applies") is None  # «اعمال برای» با حذفِ نوعِ محصول از ویرایشگر رفت
-    assert [o.key for o in e.f("fld_template").options] == ["physical", "services"]
+    assert [o.key for o in e.f("fld_template").options] == ["physical"]
     assert "regex" not in e.f("fld_regex").label.lower() and "regex" not in e.f("fld_id").label.lower()
     assert find(e.f("fld_advanced"), "fld_id") is not None and find(e.f("fld_advanced"), "fld_regex") is not None  # زیرِ «حرفه‌ای»
     assert find(e.f("exp_field_form").content.controls[0], "fld_id") is None  # در ردیفِ اصلی نیست
@@ -436,3 +441,22 @@ def test_field_and_button_forms_hide_technical_inputs_and_generate_ids(tmp_path)
     e.f("btn_label").value, e.f("btn_value").value = "قوانین", "ارسال ۳ روزه"
     e.click("btn_save")
     assert e.settings.custom_buttons[-1]["id"] == "b1" and e.settings.custom_buttons[-1]["label"] == "قوانین"
+
+
+def test_support_phone_is_saved_next_to_working_hours_and_bad_numbers_are_refused(tmp_path):
+    """۱۵: شماره‌ی تماسِ پشتیبانی در همین برنامه گرفته می‌شه (ارقامِ فارسی هم پذیرفته می‌شه)."""
+    e = Env(tmp_path)
+    e.f("sup_phone").value = "۰۲۱ ۸۸ ۷۷ ۶۶ ۵۵"
+    e.f("sup_note").value = "شنبه تا پنجشنبه، ۹ تا ۱۸"
+    e.click("wh_save")
+    assert e.settings.support_phone == "021 88 77 66 55"
+    assert e.settings.support_direct_note.startswith("شنبه")
+
+    e.f("sup_phone").value = "021-ABC-!!"
+    e.click("wh_save")
+    assert "فقط رقم" in e.note("wh_note")
+    assert e.settings.support_phone == "021 88 77 66 55"  # مقدارِ خراب جای قبلی را ننوشت
+
+    e.f("sup_phone").value = ""
+    e.click("wh_save")
+    assert e.settings.support_phone == ""

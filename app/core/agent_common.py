@@ -42,3 +42,35 @@ def sanitize_display_name(name: str) -> str:
     و مدل برعکس/پنهان نشان داد."""
     cleaned = re.sub(r"[\x00-\x1f\x7f\u2028\u2029\u200b-\u200f\ufeff\u202a-\u202e\u2066-\u2069`#]+", " ", name or "")
     return re.sub(r"\s+", " ", cleaned).strip()[:40]
+
+
+# ============================================================ تمیزکردنِ پاسخِ مدل ====
+
+_BOLD = re.compile(r"\*\*(.+?)\*\*|__(.+?)__", re.DOTALL)
+_ITALIC_STAR = re.compile(r"(?<![*\w])\*([^*\n]{1,120})\*(?![*\w])")
+_UNDERSCORE_IT = re.compile(r"(?<![_\w])_([^_\n]{1,120})_(?![_\w])")
+_INLINE_CODE = re.compile(r"`{1,3}([^`\n]{1,400})`{1,3}")
+_HEADING = re.compile(r"^\s{0,3}#{1,6}\s*", re.MULTILINE)
+_BULLET = re.compile(r"^\s*[-*+•]\s+", re.MULTILINE)
+_TABLE_LINE = re.compile(r"^\s*\|?[\s:|-]{3,}\|?\s*$", re.MULTILINE)  # خطِ جداکننده‌ی جدولِ مارک‌داون
+
+
+def plain_answer(text: str) -> str:
+    """مارک‌داون را از پاسخِ مدل می‌گیرد: تلگرام (و بله) متنِ ساده می‌فرستند، پس «**قیمت**»
+    همان‌طور با ستاره به چشمِ مشتری می‌آید.
+
+    ستاره/زیرخط/بک‌تیک و سرِصفحه‌ها حذف می‌شن، لیست‌ها با «- » می‌مونند و خطِ جداکننده‌ی
+    جدول (که در چت فقط شلوغی است) برداشته می‌شه. متنِ خودِ پاسخ دست‌نخورده می‌ماند.
+    """
+    if not text:
+        return ""
+    out = _BOLD.sub(lambda m: m.group(1) if m.group(1) is not None else m.group(2), text)
+    out = _ITALIC_STAR.sub(r"\1", out)
+    out = _UNDERSCORE_IT.sub(r"\1", out)
+    out = _INLINE_CODE.sub(r"\1", out)
+    out = _HEADING.sub("", out)
+    out = _TABLE_LINE.sub("", out)
+    out = _BULLET.sub("- ", out)
+    out = re.sub(r"[ \t]+\n", "\n", out)
+    out = re.sub(r"\n{3,}", "\n\n", out)
+    return out.strip()

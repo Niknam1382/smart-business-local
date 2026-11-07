@@ -24,6 +24,7 @@ import time
 from typing import Awaitable, Callable, Optional
 
 from app.core import admins as admins_mod
+from app.core.ui import Btn
 from app.core import checkout_fields as cf
 from app.core.orders import (
     METHOD_BALE_PAY,
@@ -208,12 +209,14 @@ class OwnerConsole:
         save_settings: Callable[[], None],
         handoff=None,
         admins=None,  # Optional[AdminStore] — N11: مدیرانِ غیرمالک با نقش
+        send_ui=None,  # Optional[Callable] — ارسالِ اعلان با دکمه (قلم ۲۲)؛ نباشد = فقط متن
     ):
         """``deliver(platform, chat_id, text, log_history) -> bool`` — ارسال از طریق آداپتورِ زنده."""
         self._get_settings = get_settings
         self._orders = order_store
         self._products = product_store
         self._deliver = deliver
+        self._send_ui = send_ui
         self._save = save_settings
         self._handoff = handoff
         self._admins = admins
@@ -437,16 +440,32 @@ class OwnerConsole:
         return "📦 کم‌موجود/تمام‌شده:\n" + "\n".join(rows) if rows else "همه‌ی کالاها موجودیِ کافی دارن. ✅"
 
     # ------------------------------------------------------------------ اعلان‌ها
-    async def notify(self, text: str, to_managers: bool = False) -> bool:
+    def order_action_rows(self, order: Order) -> list:
+        """۲۲: اعلانِ سفارش با دکمه می‌آید، نه با دستورِ متنی."""
+        if order.status != STATUS_PAID:
+            return []
+        return [
+            [Btn("✅ تأییدِ سفارش", f"adm:ok:{order.id}"), Btn("❌ ردِ سفارش", f"adm:no:{order.id}")],
+            [Btn("🔎 جزئیاتِ سفارش", f"adm:od:{order.id}"), Btn("🛠 پنلِ مدیریت", "adm:home")],
+        ]
+
+    async def notify(self, text: str, to_managers: bool = False, rows: Optional[list] = None) -> bool:
         """به همه‌ی چت‌های ثبت‌شده‌ی مالک پیام می‌ده؛ True اگه حداقل به یکی رسید. ``to_managers``: مدیرانِ فعالِ دارای
-        قابلیتِ «تأیید/ردِ سفارش» هم خبردار می‌شن (فقط اعلانِ سفارش؛ هشدارهای فنی/سقفِ AI فقط برای مالک)."""
+        قابلیتِ «تأیید/ردِ سفارش» هم خبردار می‌شن (فقط اعلانِ سفارش؛ هشدارهای فنی/سقفِ AI فقط برای مالک).
+
+        ``rows`` (دکمه‌ها) فقط وقتی به کار می‌ره که ``send_ui`` تزریق شده باشد؛ وگرنه همان متن
+        فرستاده می‌شه — پس هیچ مسیری بدونِ آداپتور نمی‌شکند."""
         delivered = False
         targets = list(self.owner_chats().items())
         if to_managers and self._admins is not None:
             targets += [(a.platform, a.user_id) for a in self._admins.active_with(admins_mod.CAP_ORDERS_DECIDE)]
         for platform, chat_id in targets:
             try:
-                if await self._deliver(platform, chat_id, text, False):
+                if rows and self._send_ui is not None:
+                    ok = await self._send_ui(platform, chat_id, text, rows)
+                else:
+                    ok = await self._deliver(platform, chat_id, text, False)
+                if ok:
                     delivered = True
             except Exception:  # noqa: BLE001
                 logger.exception("اعلان به مالک/مدیر (%s) ناموفق بود", platform)
@@ -457,5 +476,6 @@ class OwnerConsole:
         if order.status == STATUS_CONFIRMED:
             return await self.notify(order_alert_text(order, "sale"), to_managers=True)
         if order.status == STATUS_PAID:
-            return await self.notify(order_alert_text(order, "needs_confirm"), to_managers=True)
+            # ۲۲: «منتظر تأیید» با دکمه‌ی تأیید/رد می‌رسه — نیازی به تایپِ دستور نیست.
+            return await self.notify(order_alert_text(order, "needs_confirm"), to_managers=True, rows=self.order_action_rows(order))
         return False

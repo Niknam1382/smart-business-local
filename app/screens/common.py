@@ -147,21 +147,41 @@ def page_header(page: ft.Page, icon: str, title: str, subtitle: str = "") -> ft.
     return ft.Column(spacing=6, controls=controls)
 
 
+def _mounted(owner: ft.Control) -> bool:
+    """در Flet 1.0 ``Control.page`` یک property است که پیش از mount شدن RuntimeError می‌دهد؛
+    ``getattr(..., None)`` آن استثنا را نمی‌بلعد و تردِ تیکر را در اولین تیک می‌کُشت (باگِ واقعی:
+    نوارِ پیشرفتِ دانلود هرگز جلو نمی‌رفت)."""
+    try:
+        return getattr(owner, "page", None) is not None
+    except Exception:  # noqa: BLE001 — هنوز به صفحه اضافه نشده
+        return False
+
+
 def start_ticker(page: ft.Page, owner: ft.Control, tick: Callable[[], None], seconds: float = 15.0, sleep: Callable[[float], None] = time.sleep) -> threading.Thread:
     """بازتازه‌کنندگیِ دوره‌ایِ بخشی از صفحه (تایمرِ معکوسِ زنده).
 
-    هر ``seconds`` ثانیه ``tick()`` را صدا می‌زنه و ``page.update()``؛ **خودش متوقف می‌شه** وقتی ``owner`` از صفحه برداشته
-    شد (کاربر صفحه را عوض کرد) یا هر خطایی پیش اومد. اولین tick بعد از ``seconds`` است تا کنترل Mount شده باشه."""
+    هر ``seconds`` ثانیه ``tick()`` را صدا می‌زنه و ``page.update()``. تا وقتی ``owner`` هنوز به صفحه
+    اضافه نشده صبر می‌کنه (نه اینکه بمیره)؛ وقتی قبلاً mount شده دیده شد و حالا از صفحه برداشته شده
+    (کاربر صفحه را عوض کرد) یا خطایی پیش اومد، متوقف می‌شه."""
 
     def loop() -> None:
+        seen_mounted = False
+        unmounted_ticks = 0
         while True:
             sleep(seconds)
             try:
-                if getattr(owner, "page", None) is None:
-                    return
+                if not _mounted(owner):
+                    if seen_mounted:
+                        return  # صفحه عوض شد
+                    unmounted_ticks += 1
+                    if unmounted_ticks > 60:  # حدودِ یک دقیقه فرصت برای mount شدن
+                        return
+                    continue
+                seen_mounted = True
+                unmounted_ticks = 0
                 tick()
                 page.update()
-            except Exception:  # noqa: BLE001 — کنترل حذف شده/صفحه بسته؛ بی‌سروصدا متوقف
+            except Exception:  # noqa: BLE001 — کنترل حذف شده/صفحه بسته؛ بی‌صدا متوقف
                 return
 
     thread = threading.Thread(target=loop, name="ui-ticker", daemon=True)
@@ -178,7 +198,9 @@ def screen_frame(page: ft.Page, header: ft.Control, controls: list, key: Optiona
         key=key,
         expand=True,
         padding=ft.Padding.symmetric(horizontal=28, vertical=20),
-        content=ft.Column(expand=True, spacing=16, scroll=ft.ScrollMode.AUTO, controls=[header, *controls]),
+        # قلم ۴: ALWAYS + scrollbar_themeِ رنگیِ theme.py یعنی نوارِ اسکرولِ سمتِ راست
+        # همیشه دیده می‌شه؛ کاربر برای فهمیدنِ «ادامه دارد؟» نباید حدس بزند.
+        content=ft.Column(expand=True, spacing=16, scroll=ft.ScrollMode.ALWAYS, controls=[header, *controls]),
     )
 
 

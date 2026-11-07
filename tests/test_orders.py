@@ -284,3 +284,23 @@ def test_fulfillment_never_touches_money_state_or_stock(tmp_path):
     assert after.status == before.status == "confirmed"
     assert after.total_irr == before.total_irr and after.updated_at >= before.updated_at
     assert products.get(products.list()[0].id).stock_quantity == 9  # موجودی همان‌جا که تایید کمش کرد می‌مونه
+
+
+def test_fulfillment_message_for_each_state(tmp_path):
+    """۷: سه وضعیتِ ارسال سه پیامِ متفاوت دارند (پیش‌تر فقط «ارسال شد» پیام می‌داد)."""
+    from app.core import orders as orders_module
+
+    products, store = make_stores(tmp_path)
+    pid = products.add("کالا", 1000, 5)
+    oid = store.create("telegram", "1", [(pid, 1)])
+    store.mark_paid(oid, "card_to_card", "r")
+    store.confirm(oid)
+
+    preparing = store.set_fulfillment(oid, "preparing")
+    assert "آماده" in orders_module.build_order_fulfillment_text(preparing)
+    shipped = store.set_fulfillment(oid, "shipped", tracking_code="TG-7")
+    shipped_text = orders_module.build_order_fulfillment_text(shipped)
+    assert "ارسال شد" in shipped_text and "TG-7" in shipped_text
+    delivered = store.set_fulfillment(oid, "delivered")
+    assert "تحویل" in orders_module.build_order_fulfillment_text(delivered)
+    assert orders_module.build_order_shipped_text(shipped) == shipped_text

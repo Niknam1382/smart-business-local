@@ -26,17 +26,13 @@ class Preset:
 # کلیکِ «راه‌اندازیِ سریع». پیش‌تنظیم‌هایِ مشاوره فقط پیش‌فرض‌های مشترک را می‌گذارند.
 PRESETS = (
     Preset("physical", True, "physical"),
-    Preset("services", True, "services"),
     Preset("consult", False, None),
-    Preset("support", False, None),
 )
 _BY_ID = {p.id: p for p in PRESETS}
 
 _TEXT = {
     "physical": ("فروشگاهِ کالای فیزیکی", "Physical goods shop", "فروشگاهِ دکمه‌ای؛ فرمِ سفارش: نام، موبایل، آدرس، کدپستی و توضیحات.", "Button shop; order form: name, phone, address, postal code and notes."),
-    "services": ("خدمات (سفارشِ خدمت)", "Services (orders for a service)", "فروشگاهِ دکمه‌ای؛ فرمِ سفارش: نام، موبایل و توضیحِ درخواست.", "Button shop; order form: name, phone and a description of the request."),
     "consult": ("مشاوره (فقط گفتگو)", "Consulting (chat only)", "ربات فقط با هوش مصنوعی گفتگو و مشاوره می‌ده؛ بدونِ دکمه و سبد.", "The bot only chats and advises with AI; no buttons or cart."),
-    "support": ("پاسخ‌گویی و پشتیبانی", "Answers & support", "پاسخ از «سؤالات متداول» و هوش مصنوعی + اتصال به پشتیبانِ انسانی؛ بدونِ فروش.", "Answers from your FAQ and AI + a link to a human; no selling."),
 }
 _BUSINESS_NAME = {
     "store": ("فروشگاهی (منوی دکمه‌ای)", "Shop (button menu)"),

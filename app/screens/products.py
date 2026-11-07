@@ -19,6 +19,7 @@ import flet as ft
 
 from app import theme
 from app.core import product_import
+from app.core import report_pdf, report_xlsx
 from app.core.paths import get_app_data_dir
 from app.core.products import Product, ProductError, ProductStore, copy_photo_into_store, delete_photo_file
 from app.i18n import t
@@ -28,6 +29,21 @@ from app.screens.common import card, get_or_create_file_picker, page_header, pri
 _FA_DIGITS = "۰۱۲۳۴۵۶۷۸۹"
 _AR_DIGITS = "٠١٢٣٤٥٦٧٨٩"
 _DIGIT_MAP = {d: str(i) for i, d in enumerate(_FA_DIGITS)} | {d: str(i) for i, d in enumerate(_AR_DIGITS)}
+
+# دکمه‌هایِ «گزارشِ حرفه‌ای» (دوزبانه و محلیِ همین صفحه؛ i18n دست‌نخورده می‌ماند)
+_R = {
+    "title": ("گزارشِ رسمیِ این بخش", "Official report for this section"),
+    "xlsx": ("خروجِ اکسل", "Excel export"),
+    "pdf": ("خروجِ PDF", "PDF export"),
+    "done": ("✅ گزارشِ {n} سطری ساخته شد: {path}", "✅ Report with {n} rows created: {path}"),
+    "failed": ("ساختنِ فایل ناموفق بود: {error}", "Could not create the file: {error}"),
+}
+
+
+def _r(key: str, lang: str, **kw) -> str:
+    fa, en = _R[key]
+    text = en if lang == "en" else fa
+    return text.format(**kw) if kw else text
 
 
 def _normalize_digits(s: str) -> str:
@@ -371,6 +387,39 @@ def build(page: ft.Page, lang: str, store: ProductStore, settings=None, save=Non
         ],
     )
 
+    # --------------------------------------------------- گزارشِ اکسل/PDF (بخش ۸)
+    def do_report(fmt: str, _e=None) -> None:
+        """کارنامه‌ی محصولات/انبار (همان لیستِ فعال/غیرفعالِ روی صفحه) را به فایلِ اکسل یا PDF
+        تبدیل می‌کند؛ فایل در ``<داده>/reports`` می‌نشیند و پوشه‌اش باز می‌شود — مثلِ فاکتور."""
+
+        def work() -> None:
+            try:
+                data = report_xlsx.products_report(store.list(include_inactive=ui["show_inactive"]),
+                                                   shop_name=report_xlsx.shop_name_of(settings))
+                path = report_pdf.write_pdf(data) if fmt == "pdf" else report_xlsx.write_xlsx(data)
+            except report_xlsx.ReportError as exc:  # «چیزی برای خروجی گرفتن نیست» / شکستِ PDF
+                show_note(str(exc), False)
+                return
+            except OSError as exc:
+                show_note(_r("failed", lang, error=str(exc)), False)
+                return
+            show_note(_r("done", lang, n=data.count, path=str(path)), True)
+            common.open_folder(path.parent)
+
+        page.run_thread(work)
+
+    report_row = ft.Row(
+        spacing=10,
+        wrap=True,
+        controls=[
+            ft.Text(_r("title", lang), size=13, weight=ft.FontWeight.W_600),
+            ft.OutlinedButton(key="product_export_xlsx", content=_r("xlsx", lang),
+                              icon=ft.Icons.TABLE_VIEW, on_click=lambda e: do_report("xlsx")),
+            ft.OutlinedButton(key="product_export_pdf", content=_r("pdf", lang),
+                              icon=ft.Icons.PICTURE_AS_PDF_ROUNDED, on_click=lambda e: do_report("pdf")),
+        ],
+    )
+
     # ------------------------------------------------------------- لیست
     def product_card(product: Product) -> ft.Control:
         thumb = (
@@ -519,6 +568,7 @@ def build(page: ft.Page, lang: str, store: ProductStore, settings=None, save=Non
             *low_stock_controls(),
             import_row,
             import_note,
+            report_row,
             ft.Row(controls=[ft.Switch(key="show_inactive_switch", label=t("products.show_inactive", lang), value=ui["show_inactive"], on_change=handle_toggle_show_inactive)]),
             ft.Text(t("products.deactivate_note", lang), size=11, color=theme.text_secondary(page)),
             form_container,

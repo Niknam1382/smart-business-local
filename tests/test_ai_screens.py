@@ -495,3 +495,56 @@ def test_the_gpu_warning_is_bilingual(monkeypatch, s0, dl):
     en = AppSettings(business_mode="store", language="en", ai_gpu_layers=99)
     note = collect_text(find(ai_setup.build(FakePage(), "en", en, lambda: None), "adv_gpu_note"))
     assert "no CUDA" in note
+
+
+# -------------------------------------------- باگِ واقعی: نوارِ پیشرفت جلو نمی‌رفت ----
+
+
+def test_download_progress_repaints_the_bar_without_any_ticker(monkeypatch, s0, dl):
+    """تردِ دانلود خودش هر نیم‌ثانیه نوار/متن را رنگ می‌کند؛ پیش از این فقط تیکرِ صفحه این کار را
+    می‌کرد و اگر تیکر می‌مرد، کاربر تا پایانِ دانلود هیچ عددی نمی‌دید."""
+    patch_hw(monkeypatch)
+    page = QueuedPage()
+    hub = ai_select.ModelHub(page, "fa", s0, lambda: None)
+    entry = rec_for(hardware.detect())
+    hub.start_download(entry)
+    bar, text, _job = hub._prog[entry.id]
+    assert bar.value == 0.0
+    ticks = iter(range(1, 10_000))
+    monkeypatch.setattr(ai_select, "time", types.SimpleNamespace(time=lambda: next(ticks)))
+    page.drain()
+    assert bar.value == 1.0 and "100" in text.value
+
+
+def test_ticker_waits_for_mount_instead_of_dying(monkeypatch):
+    """در Flet 1.0 خواندنِ ``Control.page`` پیش از mount شدن RuntimeError می‌دهد؛ getattr آن را
+    نمی‌بلعد و تیکر در اولین تیک می‌مرد. حالا تا mount شدن صبر می‌کند و بعد از حذفِ صفحه می‌ایستد."""
+    from app.screens import common
+
+    class Owner:
+        mounted = False
+
+        @property
+        def page(self):
+            if not self.mounted:
+                raise RuntimeError("Control must be added to the page first")
+            return object()
+
+    owner = Owner()
+    painted = []
+    sleeps = []
+
+    def tick():
+        painted.append(1)
+
+    def fake_sleep(seconds):
+        sleeps.append(seconds)
+        if painted:
+            owner.mounted = False  # صفحه بسته شد → ترد باید خودش بی‌صدا تمام شود
+        elif len(sleeps) == 3:
+            owner.mounted = True
+
+    thread = common.start_ticker(FakePage(), owner, tick, seconds=0.01, sleep=fake_sleep)
+    thread.join(timeout=5)
+    assert not thread.is_alive()
+    assert painted == [1] and len(sleeps) == 4  # دو تیکِ صبر + یک تیکِ موفق + تشخیصِ بسته‌شدن

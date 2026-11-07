@@ -15,6 +15,7 @@ import flet as ft
 from app import theme
 from app.core import jalali
 from app.core import customers as crm
+from app.core import report_pdf, report_xlsx
 from app.core.bot_manager import BotManagerError
 from app.core.paths import get_app_data_dir
 from app.i18n import STRINGS, t
@@ -25,6 +26,14 @@ MAX_ROWS = 200
 _ORDER_ROWS = 5
 _CHAT_ROWS = 6
 _PLATFORM_ICON = {"telegram": ft.Icons.SEND_ROUNDED, "bale": ft.Icons.CHAT_BUBBLE_OUTLINE_ROUNDED}  # «بله» فقط برچسبِ داده‌ی قدیمی
+
+# متنِ دکمه‌هایِ خروجیِ حرفه‌ای (دوزبانه، محلیِ همین صفحه — کلیدهایِ تازه به i18n اضافه نمی‌شوند)
+_X = {"xlsx": ("خروجِ اکسل", "Excel export"), "pdf": ("خروجِ PDF", "PDF export")}
+
+
+def _x(key: str, lang: str) -> str:
+    fa, en = _X[key]
+    return en if lang == "en" else fa
 
 
 def _stamp(ts: int) -> str:
@@ -96,6 +105,28 @@ def build(page: ft.Page, lang: str, manager, order_store=None, export_dir: Optio
             ui["export_dir"] = str(folder)
         refresh()
 
+    def on_report(fmt: str, _e=None) -> None:
+        """گزارشِ حرفه‌ایِ اکسل/PDF از **همان** فهرستِ فیلترشده — فایل در ``<داده>/reports`` ساخته
+        می‌شود و پوشه‌اش باز می‌شود (دقیقاً همان تجربه‌ی PDFِ فاکتور)."""
+
+        def work() -> None:
+            try:
+                data = report_xlsx.customers_report(query(), shop_name=report_xlsx.shop_name_of(manager))
+                path = report_pdf.write_pdf(data) if fmt == "pdf" else report_xlsx.write_xlsx(data)
+            except report_xlsx.ReportError as exc:  # «چیزی برای خروجی گرفتن نیست» و خطایِ PDF
+                say(str(exc), ok=False)
+                ui["export_dir"] = ""
+            except OSError as exc:
+                say(t("customers.export_failed", lang, error=str(exc)), ok=False)
+                ui["export_dir"] = ""
+            else:
+                say(t("customers.export_done", lang, n=data.count, path=str(path)))
+                ui["export_dir"] = str(path.parent)
+                common.open_folder(path.parent)
+            refresh()
+
+        page.run_thread(work)
+
     def dropdown(key: str, label: str, options: list, value: str, handler, width: int = 190) -> ft.Dropdown:
         return ft.Dropdown(key=key, label=label, border_radius=10, width=width, value=value, on_select=handler, options=[ft.DropdownOption(key=k, text=txt) for k, txt in options])
 
@@ -140,6 +171,8 @@ def build(page: ft.Page, lang: str, manager, order_store=None, export_dir: Optio
                     dropdown("customers_filter", t("customers.filter", lang), [(f, t(f"customers.filter.{f}", lang)) for f in crm.FILTERS], ui["filter"], on_filter),
                     dropdown("customers_sort", t("customers.sort", lang), [(s_, t(f"customers.sort.{s_}", lang)) for s_ in crm.SORTS], ui["sort"], on_sort),
                     ft.OutlinedButton(key="customers_export", content=t("customers.export", lang), icon=ft.Icons.FILE_DOWNLOAD_ROUNDED, on_click=on_export),
+                    ft.OutlinedButton(key="customers_export_xlsx", content=_x("xlsx", lang), icon=ft.Icons.TABLE_VIEW, on_click=lambda e: on_report("xlsx")),
+                    ft.OutlinedButton(key="customers_export_pdf", content=_x("pdf", lang), icon=ft.Icons.PICTURE_AS_PDF_ROUNDED, on_click=lambda e: on_report("pdf")),
                 ],
             ),
             *notice_line(),

@@ -17,8 +17,6 @@ logger = logging.getLogger(__name__)
 
 MAX_STEPS = 3
 MAX_SUGGEST = 4
-MAX_PROMPT_PRODUCTS = 40
-MAX_FAQ_IN_PROMPT = 20
 
 SUGGEST_SPEC = ToolSpec(
     name="suggest_products",
@@ -37,13 +35,13 @@ SUGGEST_SPEC = ToolSpec(
 # گاردهایِ تغییرناپذیر یک‌جا نوشته می‌شن تا پرامپتِ پیش‌نمایش‌شده در UI دقیقاً همان چیزی باشد
 # که مدل می‌گیرد.
 
-def build_prompt(base_prompt: str, settings, products, orders, display_name: str, can_suggest: bool) -> str:
+def build_prompt(base_prompt: str, settings, products, orders, display_name: str, can_suggest: bool, context_tokens: int = 0) -> str:
     """پرامپتِ سیستمِ این نوبت — از راهِ «سیستمِ پرامپتِ مرکزی» (``prompt_kit``).
 
-    ``base_prompt`` متنِ صاحب فروشگاه است (همان ``settings.system_prompt``؛ اگر پایپ‌لاین
-    چیز دیگری بدهد، جایش اینجا است). گاردریل‌هایِ تغییرناپذیر، کاتالوگِ فقط‌خواندنی،
-    سؤالات متداول و نامِ اعتمادناپذیرِ مشتری را همان ماژول می‌چیند — پس چیزی که در صفحه‌ی
-    «سیستم پرامپت» پیش‌نمایش می‌شود، دقیقاً همان چیزی است که مدل می‌گیرد.
+    ``base_prompt`` متنِ صاحب فروشگاه است (همان ``settings.system_prompt``) — **نه** پرامپتِ
+    آماده‌شده: اگر پایپ‌لاین پرامپتِ کامل را اینجا بدهد، گاردریل‌ها و سؤالات متداول دو بار به
+    مدل می‌روند و نصفِ پنجره‌ی زمینه بی‌فایده می‌سوزد.
+    ``context_tokens`` (``LocalEngine.n_ctx``) باعث می‌شه کاتالوگ و FAQ در همان پنجره جا بشن.
     """
     from app.core import prompt_kit
 
@@ -55,6 +53,7 @@ def build_prompt(base_prompt: str, settings, products, orders, display_name: str
         display_name=display_name,
         include_catalog=bool(can_suggest),
         owner_prompt=base_prompt or "",
+        context_tokens=context_tokens,
     )
 
 
@@ -64,9 +63,15 @@ class QaAgent:
         self._orders = order_store
         self._flow = shop_flow
 
-    async def respond(self, call_engine, settings, platform, chat_id, display_name, base_prompt, history, user_message, can_suggest=True) -> AgentReply:
+    def system_prompt(self, settings, display_name: str, can_suggest: bool, context_tokens: int = 0) -> str:
+        """پرامپتِ این نوبت — تنها جایِ چیدنِ آن. پایپ‌لاین همین را به مدل می‌دهد و به ایجنت
+        می‌دهد؛ ایجنت دیگر آن را از نو نمی‌سازد (سهمِ مالک از متنِ settings می‌آید)."""
+        from app.core import prompt_kit
+
+        return build_prompt(prompt_kit.owner_text(settings), settings, self._products, self._orders, display_name, can_suggest, context_tokens)
+
+    async def respond(self, call_engine, platform, chat_id, system_prompt, history, user_message, can_suggest=True) -> AgentReply:
         can_suggest = bool(can_suggest and self._flow is not None)
-        system_prompt = build_prompt(base_prompt, settings, self._products, self._orders, display_name, can_suggest)
         specs = [SUGGEST_SPEC] if can_suggest else []
         tool_messages: list = []
         outbox: list = []

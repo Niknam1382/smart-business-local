@@ -48,17 +48,36 @@ def main_scrollable(area):
     return [c for c in walk(area) if getattr(c, "scroll", None) is not None or isinstance(c, ft.ListView)]
 
 
-def test_sidebar_middle_is_scrollable_and_bottom_items_are_pinned(app):
+def test_the_whole_menu_list_scrolls_and_nothing_is_pinned(app):
+    """۴: آیتم‌هایِ پایینِ منو (راهنما/حمایت/درباره/تنظیمات) به تهِ نوار میخ نمی‌شن —
+    در همان فهرستِ اسکرول‌پذیرند، پس روی پنجره‌ی کوتاه هیچ‌وقت خارج از صفحه نمی‌مانند."""
     root = app.controls[0].content
     side = find(root, "sidebar")
     assert side is not None and side.width == sidebar.SIDEBAR_WIDTH
     scroll = find(root, "sidebar_scroll")
     assert scroll.scroll is not None and scroll.expand, "فهرستِ منو باید اسکرول‌پذیر باشه (۱۵+ آیتم روی پنجره‌ی کوتاه)"
     inside = {c.key for c in walk(scroll) if getattr(c, "key", None)}
-    assert "nav_ai" in inside and "nav_products" in inside and "nav_customers" in inside
-    assert not {"nav_guide", "nav_about", "nav_settings"} & inside, "آیتم‌های پایین بیرون از بخشِ اسکرول و همیشه ثابت‌اند"
-    pinned = {c.key for c in walk(side) if getattr(c, "key", None)}
-    assert {"nav_guide", "nav_about", "nav_settings"} <= pinned
+    assert {"nav_ai", "nav_products", "nav_customers", "nav_guide", "nav_support", "nav_about", "nav_settings"} <= inside
+    outside = {c.key for c in walk(side) if getattr(c, "key", None)} - inside
+    assert not any(name.startswith("nav_") for name in outside), outside
+
+
+def test_scrollbars_are_coloured_and_always_visible(app):
+    """۴: اسکرولِ رنگی و همیشه‌دیده (هم تم، هم قابِ هر صفحه)."""
+    import flet as ft
+
+    from app import theme
+
+    page = app
+    assert page.theme.scrollbar_theme is not None and page.dark_theme.scrollbar_theme is not None
+    light = page.theme.scrollbar_theme
+    assert light.thickness >= 8 and light.thumb_color == theme.PRIMARY and light.track_color
+    assert light.thumb_visibility is True and light.track_visibility is True
+    assert page.dark_theme.scrollbar_theme.thumb_color == theme.PRIMARY_LIGHT
+
+    root = app.controls[0].content
+    columns = [c for c in walk(root) if isinstance(c, ft.Column) and c.scroll is not None]
+    assert columns and any(col.scroll is ft.ScrollMode.ALWAYS for col in columns), "قابِ هر صفحه باید اسکرولِ همیشه‌دیده داشته باشه"
 
 
 @pytest.mark.parametrize("key", ["home", "ai", "products", "orders", "finance", "discounts", "experience", "prompt", "bots", "chats", "customers",

@@ -211,11 +211,27 @@ def _local(tag: str) -> str:
     return tag.split("}")[-1]
 
 
+# یک xlsxِ سالم هیچ‌وقتبرچسبِ DOCTYPE/ENTITY دارد؛ داشتنشان یعنی فایلِ دست‌کاری‌شده
+# (هجومِ «mildly billion laughs»: چند کیلوبایت فایل، CPU و RAMِ فروشنده را قفل می‌کند).
+_XML_DECL = re.compile(rb"<!(DOCTYPE|ENTITY)", re.IGNORECASE)
+
+
+def xml_root(raw: bytes):
+    """parseِ محافظت‌شده: هر XMLِ درونِ فایلِ اکسل اول از وجودِ برچسب‌هایِ داخلی پاس می‌شود."""
+    if _XML_DECL.search(raw or b""):
+        raise ProductImportError("فایلِ اکسل بخشِ داخلیِ خطرناک (ENTITY/DOCTYPE) داره؛ برای امنیتِ سیستم باز نمی‌شه.")
+    try:
+        return ET.fromstring(raw)
+    except ET.ParseError as exc:
+        raise ProductImportError(f"ساختارِ فایلِ اکسل خرابه: {exc}") from exc
+
+
 def _shared_strings(archive: zipfile.ZipFile) -> list:
     try:
-        root = ET.fromstring(archive.read("xl/sharedStrings.xml"))
+        raw = archive.read("xl/sharedStrings.xml")
     except KeyError:
         return []
+    root = xml_root(raw)
     return ["".join(node.text or "" for node in si.iter() if _local(node.tag) == "t") for si in root]
 
 
@@ -224,13 +240,13 @@ def _first_sheet_name(archive: zipfile.ZipFile) -> str:
     fallback = "xl/worksheets/sheet1.xml"
     try:
         rid = ""
-        for node in ET.fromstring(archive.read("xl/workbook.xml")).iter():
+        for node in xml_root(archive.read("xl/workbook.xml")).iter():
             if _local(node.tag) == "sheet":
                 rid = next((v for k, v in node.attrib.items() if _local(k) == "id"), "")
                 break
         target = ""
         if "xl/_rels/workbook.xml.rels" in archive.namelist():
-            for item in ET.fromstring(archive.read("xl/_rels/workbook.xml.rels")):
+            for item in xml_root(archive.read("xl/_rels/workbook.xml.rels")):
                 if _local(item.tag) == "Relationship" and item.attrib.get("Id") == rid:
                     target = item.attrib.get("Target", "")
         joined = target.lstrip("/")
@@ -275,12 +291,12 @@ def _xlsx_rows(data: bytes) -> list:
         shared = _shared_strings(archive)
         try:
             sheet = _first_sheet_name(archive)
-            raw = archive.read(sheet) if sheet in archive.namelist() else None
-            if raw is None:
-                raise ProductImportError("برگه‌ی اولِ فایلِ اکسل پیدا نشد؛ فایلِ قالبِ خودِ برنامه را باز کن.")
-            root = ET.fromstring(raw)
         except ET.ParseError as exc:
             raise ProductImportError(f"ساختارِ فایلِ اکسل خرابه: {exc}") from exc
+        raw = archive.read(sheet) if sheet in archive.namelist() else None
+        if raw is None:
+            raise ProductImportError("برگه‌ی اولِ فایلِ اکسل پیدا نشد؛ فایلِ قالبِ خودِ برنامه را باز کن.")
+        root = xml_root(raw)
         rows: list = []
         for element in root.iter():
             if _local(element.tag) != "row":

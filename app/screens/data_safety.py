@@ -30,7 +30,7 @@ from app.version import __version__
 RESET_WORDS = ("reset", "ریست")
 
 
-_MODE_KEYS = {"env": "data.mode.env", "system": "data.mode.system"}
+_MODE_KEYS = {"env": "data.mode.env", "system": "data.mode.system", "install": "data.mode.install"}
 
 
 def build(

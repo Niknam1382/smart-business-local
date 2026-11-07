@@ -11,6 +11,8 @@ from app.core.bot_pipeline import (
     IncomingMessage,
     RateLimiter,
 )
+import time
+
 from app.core.conversations import ConversationStore
 
 FAST = dict(debounce_wait=0.1, debounce_max_wait=0.4)
@@ -479,3 +481,49 @@ def test_pipeline_without_store_agent_behaves_exactly_as_before(env):
         await p.shutdown()
 
     run(go())
+
+
+# ═════════════ بازبینیِ عملکرد (قلم ۲۵): کرانِ حافظه و ساختِ تنها یک‌باره‌ی موتور ═════════════
+
+
+def test_rate_limiter_forgets_chats_that_have_gone_quiet():
+    """محدودیتِ سیل نباید حافظه را بی‌نهایت پر کند: کلیدهایِ بی‌استفاده حذف می‌شن."""
+    clock = {"t": 0.0}
+    limiter = RateLimiter(max_events=5, window_seconds=60.0, clock=lambda: clock["t"])
+    for index in range(limiter.MAX_KEYS + 500):
+        limiter.allow(("telegram", str(index)))
+    assert len(limiter._events) <= limiter.MAX_KEYS + 1
+
+    hot = ("telegram", "hot")
+    clock["t"] = 10.0
+    for _ in range(3):
+        limiter.allow(hot)
+    for index in range(2000):
+        limiter.allow(("telegram", f"noise-{index}"))
+    assert hot in limiter._events, "کلیدی که همین حالا فعال است حذف نمی‌شه"
+    assert len(limiter._events) <= limiter.MAX_KEYS + 1
+
+
+def test_engine_is_built_only_once_when_settings_change_under_load(tmp_path, monkeypatch):
+    """چهار تماسِ هم‌زمان بعد از عوض‌شدنِ تنظیمات نباید چهار مدلِ چندگیگابایتی لود کنند."""
+    import threading as _threading
+
+    settings = FakeSettings(tmp_path)
+    store = ConversationStore(db_path=tmp_path / "e.db")
+    pipeline = ConversationPipeline(settings, store=store, **FAST)
+    builds = []
+    started = _threading.Event()
+
+    def slow_build(_s):
+        builds.append(1)
+        started.set()
+        time.sleep(0.25)  # پنجره‌ای که در آنِ سهThread دیگر هم تقاضای موتور می‌کنند
+        return FakeEngine()
+
+    monkeypatch.setattr(ai_engine, "build_engine_from_settings", slow_build)
+    threads = [_threading.Thread(target=pipeline._get_engine) for _ in range(4)]
+    for one in threads:
+        one.start()
+    for one in threads:
+        one.join(timeout=15)
+    assert len(builds) == 1, builds

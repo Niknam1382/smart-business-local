@@ -128,10 +128,11 @@ class FakeLlama:
     با ``install(monkeypatch)`` داخل ``sys.modules`` می‌نشیند، پس ``LocalEngine`` بدونِ مدلِ واقعی
     و بدونِ شبکه تست می‌شه. هیچ‌وقت نباید در تست‌ها ``llama_cpp`` واقعی import بشه."""
 
-    def __init__(self, responses=(), usage=None, error=None):
+    def __init__(self, responses=(), usage=None, error=None, finish_reasons=()):
         self.responses = list(responses)
         self.usage = dict(usage) if usage is not None else {"prompt_tokens": 11, "completion_tokens": 7}
         self.error = error  # اگر بدهیم، create_chat_completion این استثنا را می‌دهد
+        self.finish_reasons = list(finish_reasons)  # مثلاً ("length", "stop") برایِ تستِ «پاسخ نصفه ماند»
         self.instances: list = []
         outer = self
 
@@ -146,8 +147,10 @@ class FakeLlama:
                 if outer.error is not None:
                     raise outer.error
                 self.requests.append(dict(messages=messages, **options))
+                index = len(self.requests) - 1
                 text = outer.responses.pop(0) if outer.responses else ""
-                return {"choices": [{"message": {"role": "assistant", "content": text}, "finish_reason": "stop"}], "usage": dict(outer.usage)}
+                reason = outer.finish_reasons[index] if index < len(outer.finish_reasons) else "stop"
+                return {"choices": [{"message": {"role": "assistant", "content": text}, "finish_reason": reason}], "usage": dict(outer.usage)}
 
             def close(self):
                 self.closed = True

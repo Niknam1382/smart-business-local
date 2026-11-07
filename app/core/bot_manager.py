@@ -66,7 +66,7 @@ from app.core.redact import redact
 
 logger = logging.getLogger(__name__)
 
-PLATFORMS = ("telegram",)  # بله فقط درگاهِ پرداخت است، پیام‌رسانِ ربات نیست
+PLATFORMS = ("telegram", "bale")  # قلم ۲۴: بله هم پیام‌رسانِ گفتگو است؛ «بله‌پی» درگاهِ جداست
 LOG_FILE_NAME = "bot.log"
 PROFILE_INTERVAL_SECONDS = 24 * 3600  # N17: هر ۲۴ ساعتِ اجرا بیوگرافیِ ربات دوباره بررسی می‌شه (خطِ اعتبار برگردونده بشه)
 PROFILE_POLL_SECONDS = 5.0  # تا وقتی آداپتور وصل نشده هر چند ثانیه دوباره نگاه کن
@@ -218,7 +218,7 @@ class BotManager:
         self._owner = (
             OwnerConsole(
                 lambda: self._settings, order_store, product_store, self._deliver, self._persist_settings,
-                handoff=self._handoff, admins=self._admins,
+                handoff=self._handoff, admins=self._admins, send_ui=self._deliver_ui,
             )
             if (order_store and product_store)
             else None
@@ -278,7 +278,18 @@ class BotManager:
             minutes = int(getattr(settings, "telegram_proxy_best_check_minutes", 10) or 0)
             return TelegramAdapter(settings.get_telegram_token(), pipeline, proxy=proxy, proxy_pool=pool, best_check_interval=minutes * 60.0)
 
-        return {"telegram": telegram}
+        def bale(settings, pipeline):
+            # قلم ۲۴: رباتِ چتِ بله = همان آداپتورِ تلگرام با میزبانِ APIِ بله.
+            # پروکسی لازم نیست (بله داخلِ ایران در دسترس است) و توکنِ خودش را دارد.
+            from app.core.telegram_adapter import BALE_API_BASE, PLATFORM_BALE, TelegramAdapter
+
+            minutes = int(getattr(settings, "telegram_proxy_best_check_minutes", 10) or 0)
+            return TelegramAdapter(
+                settings.get_bale_chat_token(), pipeline, api_base=BALE_API_BASE, platform=PLATFORM_BALE,
+                best_check_interval=minutes * 60.0,
+            )
+
+        return {"telegram": telegram, "bale": bale}
 
     # -------------------------------------------------- رباتِ پرداختِ بله (بدونِ چت)
 
@@ -381,6 +392,18 @@ class BotManager:
                 continue
             out.append((platform, chat_id, message_id or ""))
         return out
+
+    async def _deliver_ui(self, platform: str, chat_id: str, text: str, rows: list) -> bool:
+        """اعلانِ مالک/مدیر با دکمه (قلم ۲۲)؛ اگر آداپتور نتوانست، همان متن بی‌دکمه می‌رود."""
+        adapter = self._adapters.get(platform)
+        send_ui = getattr(adapter, "send_ui", None)
+        if callable(send_ui):
+            try:
+                if await send_ui(str(chat_id), UiMessage(text=text, rows=rows)):
+                    return True
+            except Exception:  # noqa: BLE001 — دکمه نشد، متن می‌رود؛ اعلان هرگز گم نمی‌شه
+                logger.info("ارسالِ اعلان با دکمه به %s/%s ناموفق بود؛ متن خالی می‌رود", platform, chat_id)
+        return await self._deliver(platform, chat_id, text, False)
 
     async def _notify_owner_text(self, text: str) -> None:
         if self._owner is not None:
@@ -827,11 +850,19 @@ class BotManager:
                 self._pipeline._settings = settings  # noqa: SLF001 — همون شیء زنده
 
     def enabled_platforms(self) -> list:
+        """پیام‌رسانِ گفتگوی روشن. هر دو مستقل‌اند؛ «بله» دیگر فقط درگاهِ پرداخت نیست (قلم ۲۴)."""
         s = self._settings
         platforms = []
         if s.telegram_enabled and s.get_telegram_token():
             platforms.append("telegram")
+        if s.bale_chat_configured():
+            platforms.append("bale")
         return platforms
+
+    def can_start(self) -> bool:
+        """آیا چیزی برای روشن‌کردن هست؟ گفتگو، یا فقط درگاهِ بله‌پی — هر ترکیبی ممکن است (قلم ۲۴)."""
+        s = self._settings
+        return bool(self.enabled_platforms() or s.bale_pay_configured())
 
     def is_running(self) -> bool:
         with self._lock:
@@ -860,12 +891,13 @@ class BotManager:
             if self.is_running():
                 return
             platforms = self.enabled_platforms()
-            if not platforms:
-                raise BotManagerError("اول توکنِ رباتِ تلگرام را وارد و فعال کن.")
+            if not self.can_start():
+                raise BotManagerError("اول یک پیام‌رسان (توکنِ تلگرام یا توکنِ رباتِ چتِ بله) را فعال کن، یا درگاهِ بله‌پی را کامل کن.")
 
             configure_logging(
                 [
                     self._settings.get_telegram_token(),
+                    self._settings.get_bale_chat_token(),
                     *proxy_secrets(self._settings.combined_telegram_proxy_text()),
                     *proxy_secrets(self._settings.get_telegram_proxy_sub_url()),
                     self._settings.get_bale_pay_provider_token(),
@@ -989,7 +1021,7 @@ class BotManager:
         pipeline = ConversationPipeline(self._settings, store=self._store, customers=self._customers, **pipeline_kwargs)
         self._pipeline = pipeline
         self._bale_pay_client = self._make_bale_pay_client()
-        adapters = {name: self._factories[name](self._settings, pipeline) for name in platforms}
+        adapters = {name: self._factories[name](self._settings, pipeline) for name in platforms if name in self._factories}
         self._adapters = adapters
         self._tasks = {
             name: asyncio.create_task(self._guarded(name, adapter), name=f"bot-{name}")

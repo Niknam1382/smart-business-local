@@ -278,7 +278,14 @@ class ShopFlow:
         for button in custom_buttons.visible(ctx.settings, ctx.platform):
             rows.append([Btn(_clip(button.display, 30), f"c:b:{button.id}")])
         rows.append([Btn(ctx.t("ui.back"), "c:m")])
-        return FlowResult([UiMessage(ctx.t("support.title"), rows, menu=self._menu_rows(ctx))])
+        text = ctx.t("support.title")
+        phone = str(getattr(ctx.settings, "support_phone", "") or "").strip()
+        if phone:
+            text += "\n\n" + ctx.t("support.direct", phone=phone)
+            note = str(getattr(ctx.settings, "support_direct_note", "") or "").strip()
+            if note:
+                text += "\n" + note[:300]
+        return FlowResult([UiMessage(text, rows, menu=self._menu_rows(ctx))])
 
     # ------------------------------------------------------------------ منو ----
 

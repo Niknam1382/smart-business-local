@@ -297,6 +297,28 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager=None) -> ft
     auto_confirm.on_change = toggle("auto_confirm_gateway_payments")
 
     # ---------------------------------------------------------- تست اتصال
+    def restart_bots() -> None:
+        """بله‌پی فقط وقتی «وصل» است که ربات‌ها در حالِ اجرا باشند — همین‌جا دکمه‌اش هست،
+        نه فقط اشاره به صفحه‌ی دیگر."""
+        save_card()
+        pay_error.visible = False
+        bale_note.value, bale_note.color, bale_note.visible = t("pay.restarting", lang), theme.text_secondary(page), True
+        page.update()
+
+        def work() -> None:
+            try:
+                manager.restart()
+                message = t("pay.restarted", lang)
+                ok = True
+            except Exception as exc:  # noqa: BLE001 — خطایِ ربات نباید صفحه را بشکند
+                message, ok = t("pay.restart_failed", lang, reason=str(exc)), False
+            refresh_texts()
+            # بعد از refresh_texts، چون خودش bale_note را از نو می‌نویسد
+            bale_note.value, bale_note.color, bale_note.visible = message, (theme.SUCCESS if ok else theme.DANGER), True
+            page.update()
+
+        page.run_thread(work)
+
     def make_diag(method: str, out: ft.Text):
         def handler(e=None) -> None:
             save_card()  # اگر کاربر Enter نزده، همین مقدارِ روی صفحه تست بشه
@@ -352,6 +374,9 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager=None) -> ft
                 pay_error,
                 bale_note,
                 *diag_button("diag_bale_pay", METHOD_BALE_PAY, diag_bale_text),
+                *([] if manager is None else [ft.OutlinedButton(
+                    key="restart_bots", content=t("pay.restart_bots", lang), icon=ft.Icons.REFRESH_ROUNDED,
+                    on_click=lambda e: restart_bots())]),
                 ft.Divider(height=1),
                 subtitle(t("pay.receipt.title", lang)),
                 ft.Text(t("pay.receipt.subtitle", lang), size=12, color=theme.text_secondary(page)),

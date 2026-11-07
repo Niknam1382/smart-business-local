@@ -94,6 +94,10 @@ from app.core.ui import Transport, UiMessage, plain_text, safe_url
 logger = logging.getLogger(__name__)
 
 PLATFORM = "telegram"
+PLATFORM_BALE = "bale"
+# بله یک Bot APIِ سازگار با تلگرام دارد (همان getUpdates/sendMessage/کیبوردِ شیشه‌ای)،
+# فقط میزبانِ سرور فرق می‌کند؛ به همین دلیل همین آداپتور با api_baseِ تازه به کار می‌آید.
+BALE_API_BASE = "https://tapi.bale.ai"
 
 MSG_INVALID_TOKEN = "توکن ربات تلگرام نامعتبره — از @BotFather دوباره بگیرید."
 MSG_CONFLICT = (
@@ -199,7 +203,9 @@ class TelegramAdapter:
         best_check_interval: float = 600.0,
         prober=None,
         clock=time.monotonic,
+        platform: str = PLATFORM,
     ):
+        self.platform = platform or PLATFORM
         self.token = token
         self.pipeline = pipeline
         self._pool = proxy_pool if proxy_pool is not None and len(proxy_pool) > 0 else None
@@ -222,7 +228,7 @@ class TelegramAdapter:
 
     # ------------------------------------------------------------------
     def _build_dispatcher(self) -> Dispatcher:
-        router = Router(name="smart_business_local_telegram")
+        router = Router(name=f"smart_business_local_{self.platform}")
 
         @router.message()
         async def on_message(message: Message, bot: Bot) -> None:
@@ -240,7 +246,7 @@ class TelegramAdapter:
 
             await self.pipeline.handle_incoming(
                 IncomingMessage(
-                    platform=PLATFORM,
+                    platform=self.platform,
                     chat_id=str(message.chat.id),
                     display_name=display_name,
                     text=text,
@@ -269,7 +275,7 @@ class TelegramAdapter:
 
             await self.pipeline.handle_incoming(
                 IncomingMessage(
-                    platform=PLATFORM,
+                    platform=self.platform,
                     chat_id=str(chat_id),
                     display_name=display_name,
                     text="",

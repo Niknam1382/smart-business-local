@@ -7,8 +7,12 @@ PDFِ فارسیِ (راست‌به‌چپ) فاکتور — ``fpdf2`` + ``uharf
   دقیقاً همان بایت‌ها می‌سازیم، پس PDF لازم نیست در پشتیبان باشد.
 - متن خریدار/فروشنده/نام کالا نامطمئن است: نویسه‌های کنترلی و bidi-override حذف و هر نویسه‌ای که
   فونت ندارد (ایموجی و…) دور ریخته می‌شود.
-- چیدمان: سربرگ رنگی با لوگو، کارت شماره/تاریخ، جدول اقلام با **شکست خط نام کالا** (قبلاً بی‌صدا
-  بریده می‌شد)، ردیف‌های یک‌درمیان، تکرار سرستون در صفحه بعد، کادر جمع‌ها، QR راستی‌آزمایی و شماره صفحه.
+- چیدمان: سربرگ رنگی با لوگو، کارت شماره/تاریخ، جدول اقلام با **شکست خط نام کالا** (هیچ واژه‌ای
+  بی‌صدا حذف نمی‌شود)، ردیف‌های یک‌درمیان، تکرار سرستون در صفحه بعد، کادر جمع‌ها، QR راستی‌آزمایی
+  و شماره صفحه.
+- **ریاضیِ فاکتور (قلم ۱۰):** قیمت‌ها «با مالیات» هستند، پس مالیات بر ارزش افزوده *جمعِ اضافه* نیست؛
+  به‌صورتِ یک خطِ اطلاعاتیِ جدا زیرِ «جمع کل» نشان داده می‌شود. ترتیبِ نمایش دقیقاً همین است:
+  جمع اقلام − تخفیف + ارسال = جمع کل، و «از این مبلغ، مالیات …».
 """
 
 from __future__ import annotations
@@ -26,7 +30,7 @@ from app.core import jalali
 from app.core.invoices import ANON_NAME, Invoice
 
 MAX_LOGO_BYTES = 300 * 1024
-_PAY_LABEL = {"card_to_card": "کارت‌به‌کارت", "bale_pay": "بله‌پی"}
+_PAY_LABEL = {"card_to_card": ("کارت‌به‌کارت", "Card to card"), "bale_pay": ("بله‌پی", "Bale Pay")}
 _CTRL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f‪-‮⁦-⁩‎‏]")
 _MUTED = (120, 120, 120)
 _INK = (28, 28, 30)
@@ -36,6 +40,56 @@ _ZEBRA = (247, 246, 243)
 
 class InvoicePdfError(Exception):
     """ساختِ PDF ناموفق بود (کتابخانه/فونت/ورودی)."""
+
+
+# برچسب‌هایِ فاکتور. ``Invoice.lang`` — همان ستونی که در دیتابیس بود و هیچ‌جا خوانده نمی‌شد —
+# حالا تعیین می‌کند فاکتور فارسی چاپ شود یا انگلیسی.
+LABELS = {
+    "sale": ("فاکتور فروش", "Sales invoice"),
+    "credit": ("فاکتور برگشتی", "Credit note"),
+    "number": ("شماره", "No."),
+    "date": ("تاریخ", "Date"),
+    "order": ("سفارش", "Order"),
+    "buyer": ("خریدار", "Customer"),
+    "phone": ("تلفن", "Phone"),
+    "address": ("نشانی", "Address"),
+    "pay_method": ("روش پرداخت", "Payment method"),
+    "trace": ("کد پیگیری/تراکنش", "Tracking / transaction code"),
+    "ref_invoice": ("مربوط به فاکتور", "Against invoice"),
+    "seller_address": ("نشانی", "Address"),
+    "national_id": ("شناسه ملی/اقتصادی", "National / economic ID"),
+    "col_row": ("ردیف", "No."),
+    "col_item": ("شرح کالا", "Item"),
+    "col_qty": ("تعداد", "Qty"),
+    "col_unit": ("قیمت واحد (ریال)", "Unit price (IRR)"),
+    "col_total": ("مبلغ (ریال)", "Amount (IRR)"),
+    "subtotal": ("جمع اقلام", "Items total"),
+    "discount": ("تخفیف", "Discount"),
+    "shipping": ("هزینه ارسال", "Shipping"),
+    "shipping_note": ("روش ارسال", "Shipping method"),
+    "total": ("جمع کل (مبلغ قابل پرداخت)", "Total payable"),
+    "final": ("مبلغ نهایی", "Final amount"),
+    "refund": ("مبلغ برگشتی", "Refund amount"),
+    "vat": ("که از این مبلغ، مالیات بر ارزش افزوده", "of which VAT"),
+    "verify": ("راستی‌آزمایی فاکتور", "Invoice verification"),
+    "page": ("صفحه", "Page"),
+    "of": ("از", "of"),
+    "rial": ("ریال", "IRR"),
+    "disclaimer": (
+        "این فاکتور با ابزار کمکی «کسب‌وکار هوشمند» ساخته شده و جایگزین سامانه مودیان یا حسابدار رسمی نیست.",
+        "Produced with the Smart Business helper tool; not a tax-authority filing or a formal accounting statement.",
+    ),
+}
+
+# عرضِ ستون‌ها به نسبتِ عرضِ مفید؛ جمعشان باید ۱ شود (فاصله‌ها داخلِ cell مدیریت می‌شوند).
+_COLUMN_RATIOS = (0.055, 0.43, 0.09, 0.205, 0.22)
+_COLUMN_KEYS = ("col_row", "col_item", "col_qty", "col_unit", "col_total")
+_BOTTOM_GUARD = 22.0  # میلی‌مترِ امنِ پایینِ صفحه — هیچ کادری روی پابرگ نمی‌افتد
+
+
+def label(key: str, lang: str) -> str:
+    fa, en = LABELS[key]
+    return en if lang == "en" else fa
 
 
 def _pyinstaller_hint() -> None:  # pragma: no cover — فقط برای تحلیل ایستای PyInstaller (ایمپورت تنبل)
@@ -95,27 +149,31 @@ def _load_logo(path: str) -> Optional[bytes]:
 
 
 def wrap_lines(pdf, text: str, width: float, max_lines: int = 3) -> list:
-    """شکست متن به خط‌ها با عرض واقعیِ همان فونت (بدون APIهای نسخه‌به‌نسخه‌ای fpdf).
+    """شکست متن به خط‌ها با عرض واقعیِ همان فونت (بدونِ APIهای نسخه‌به‌نسخه‌ای fpdf).
 
-    نام کالا دیگر بی‌صدا نصفه نمی‌شود: اگر از ``max_lines`` گذشت، خط آخر با «…» بسته می‌شود."""
+    دو قولِ سخت: (۱) تا جا باشد هیچ واژه‌ای حذف نمی‌شود؛ (۲) اگر جا نبود، خطِ آخر با «…» بسته
+    می‌شود — پس نامِ کالا هرگز نصفه‌ی بی‌علامت روی فاکتور نمی‌آید."""
+    words = (text or "").split(" ")
     lines: list = []
     current = ""
-    for word in (text or "").split(" "):
+    overflow = False
+    for word in words:
         candidate = f"{current} {word}".strip()
         if not current or pdf.get_string_width(candidate) <= width:
             current = candidate
             continue
+        if len(lines) >= max_lines - 1:  # خطِ آخر پر است؛ برش را علامت می‌زنیم
+            overflow = True
+            break
         lines.append(current)
         current = word
-        if len(lines) >= max_lines:
-            break
     if current and len(lines) < max_lines:
         lines.append(current)
-    if len(lines) >= max_lines and pdf.get_string_width(lines[-1]) > width:
+    if lines and (overflow or pdf.get_string_width(lines[-1]) > width):
         clipped = lines[-1]
         while clipped and pdf.get_string_width(clipped + "…") > width:
             clipped = clipped[:-1]
-        lines[-1] = clipped.rstrip() + "…"
+        lines[-1] = (clipped.rstrip() + "…") if clipped else "…"
     return [ln for ln in lines if ln] or ["—"]
 
 
@@ -153,10 +211,12 @@ class _PageStampPDFMixin:
         self.set_y(-12)
         self.set_font("V", "", 7.5)
         self.set_text_color(*_MUTED)
-        half = (self.w - 24) / 2
+        lang = ctx.get("lang", "fa")
+        # self.w خودش «عرضِ مفید» (پنجره منهای مارجین) است؛ کم‌کردنِ دوباره‌ی مارجین، متن را ۱۲ میلی‌متر جابه‌جا می‌کرد
+        half = self.w / 2
         self.cell(half, 5, ctx.get("name", ""), align="L", new_x="RIGHT", new_y="TOP")
-        self.cell(half, 5, f"صفحه {_num(self.page_no(), ctx['digits'])} از {_num('{nb}', ctx['digits'])}",
-                  align="R", new_x="LMARGIN", new_y="NEXT")
+        counter = f"{label('page', lang)} {_num(self.page_no(), ctx['digits'])} {label('of', lang)} {_num('{nb}', ctx['digits'])}"
+        self.cell(half, 5, counter, align="R", new_x="LMARGIN", new_y="NEXT")
 
 
 class _InvoicePDF:
@@ -165,6 +225,7 @@ class _InvoicePDF:
     def __init__(self, inv: Invoice):
         self.inv = inv
         self.digits = "en" if inv.seller.get("digits") == "en" else "fa"
+        self.lang = "en" if getattr(inv, "lang", "fa") == "en" else "fa"
         self.brand = _hex_rgb(inv.seller.get("color", ""))
         paper = inv.seller.get("paper") if inv.seller.get("paper") in ("A4", "A5") else "A4"
         self.paper = paper
@@ -191,9 +252,26 @@ class _InvoicePDF:
         self.small = 8 if paper == "A5" else 9
         self.body = 9.5 if paper == "A5" else 10.5
         self.row_h = 6.4 if paper == "A5" else 7.0
-        self.columns = [("ردیف", 0.055), ("شرح کالا / خدمات", 0.43), ("تعداد", 0.09),
-                        ("قیمت واحد (ریال)", 0.205), ("مبلغ (ریال)", 0.22)]
-        self.widths = [self.w * ratio for _label, ratio in self.columns]
+        self.columns = [(label(key, self.lang), self.w * ratio) for key, ratio in zip(_COLUMN_KEYS, _COLUMN_RATIOS, strict=True)]
+        self.widths = [width for _label, width in self.columns]
+
+    # ------------------------------------------------------------------ helpers
+
+    def _l(self, key: str) -> str:
+        return label(key, self.lang)
+
+    def _money_line(self, value: int) -> str:
+        return f"{money(value, self.digits)} {self._l('rial')}"
+
+    def _room_left(self, needed: float) -> bool:
+        return self.pdf.get_y() + needed <= self.pdf.h - _BOTTOM_GUARD
+
+    def _need_page(self, needed: float, repeat_header: bool = False) -> None:
+        if self._room_left(needed):
+            return
+        self.pdf.add_page()
+        if repeat_header:
+            self.table_header()
 
     # ------------------------------------------------------------------ primitives
 
@@ -230,25 +308,25 @@ class _InvoicePDF:
         pdf.set_xy(12, top + 4.5)
         pdf.set_font("V", "B", 15 if self.paper == "A4" else 13)
         pdf.set_text_color(255, 255, 255)
-        pdf.cell(self.w - 6, 8, clean(seller.get("name", "") or "فاکتور"), align="R", new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(self.w - 6, 8, clean(seller.get("name", "") or self._l("sale")), align="R", new_x="LMARGIN", new_y="NEXT")
         sub = " · ".join(clean(x, 60) for x in (seller.get("legal_name", ""), seller.get("phone", "")) if x)
         if sub:
             pdf.set_xy(12, top + 13)
             pdf.set_font("V", "", self.small)
             pdf.cell(self.w - 6, 5, sub, align="R", new_x="LMARGIN", new_y="NEXT")
         pdf.set_y(top + 23)
-        details = [("نشانی", seller.get("address", "")),
-                   ("شناسه ملی/اقتصادی", _num(seller.get("national_id", ""), self.digits) if seller.get("national_id") else "")]
-        for label, value in details:
+        details = [(self._l("seller_address"), seller.get("address", "")),
+                   (self._l("national_id"), _num(seller.get("national_id", ""), self.digits) if seller.get("national_id") else "")]
+        for name, value in details:
             if value:
-                self.text(f"{label}: {clean(value, 120)}", self.small, color=_MUTED, height=5.4)
+                self.text(f"{name}: {clean(value, 120)}", self.small, color=_MUTED, height=5.4)
         pdf.ln(1)
 
     # ---------------------------------------------------------------- meta cards
 
     def meta_block(self, order_label: str, ref_number: str):
         pdf, inv, _seller = self.pdf, self.inv, self.inv.seller
-        title = "فاکتور برگشتی" if inv.is_credit else "فاکتور فروش"
+        title = self._l("credit" if inv.is_credit else "sale")
         card_w = self.w * 0.38
         info_w = self.w - card_w - 5
         y0 = pdf.get_y()
@@ -263,38 +341,41 @@ class _InvoicePDF:
         pdf.set_xy(card_x + 4, y0 + 11)
         pdf.set_font("V", "", self.small)
         pdf.set_text_color(*_INK)
-        pdf.cell(card_w - 8, 5, f"شماره: {clean(inv.number, 32)}", align="R", new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(card_w - 8, 5, f"{self._l('number')}: {clean(inv.number, 32)}", align="R", new_x="LMARGIN", new_y="NEXT")
         pdf.set_xy(card_x + 4, y0 + 17)
-        pdf.cell(card_w - 8, 5, "تاریخ: " + jalali.format_ts(inv.issued_ts, with_time=True, digits=self.digits),
+        pdf.cell(card_w - 8, 5, f"{self._l('date')}: " + jalali.format_ts(inv.issued_ts, with_time=True, digits=self.digits),
                  align="R", new_x="LMARGIN", new_y="NEXT")
 
         buyer = inv.buyer or {}
         name = ANON_NAME if buyer.get("anonymized") else (buyer.get("name") or "")
         rows = []
         if order_label:
-            rows.append(("سفارش", clean(order_label, 60)))
-        rows.append(("خریدار", clean(name, 80) or "—"))
+            rows.append((self._l("order"), clean(order_label, 60)))
+        rows.append((self._l("buyer"), clean(name, 80) or "—"))
         if buyer.get("phone"):
-            rows.append(("تلفن", _num(clean(buyer["phone"], 30), self.digits)))
+            rows.append((self._l("phone"), _num(clean(buyer["phone"], 30), self.digits)))
         if buyer.get("address"):
-            rows.append(("نشانی", clean(buyer["address"], 120)))
-        method = _PAY_LABEL.get(inv.pay_method, "")
+            rows.append((self._l("address"), clean(buyer["address"], 120)))
+        shipping_note = clean(buyer.get("shipping_method", ""), 40)
+        if shipping_note:
+            rows.append((self._l("shipping_note"), shipping_note))
+        method = _PAY_LABEL.get(inv.pay_method)
         if method:
-            rows.append(("روش پرداخت", method))
+            rows.append((self._l("pay_method"), method[1] if self.lang == "en" else method[0]))
         if buyer.get("trace"):
-            rows.append(("کد پیگیری/تراکنش", _num(clean(buyer["trace"], 40), self.digits)))
+            rows.append((self._l("trace"), _num(clean(buyer["trace"], 40), self.digits)))
         if inv.is_credit and ref_number:
-            rows.append(("مربوط به فاکتور", clean(ref_number, 40)))
+            rows.append((self._l("ref_invoice"), clean(ref_number, 40)))
 
         yy = y0 + 2
-        for label, value in rows:
+        for field_name, value in rows:
             if not value:
                 continue
             pdf.set_xy(12, yy)
             pdf.set_font("V", "", self.small)
             pdf.set_text_color(*_MUTED)
-            pdf.cell(info_w * 0.34, 5.4, clean(label, 32), align="R", new_x="RIGHT", new_y="TOP")
-            pdf.set_font("V", "B" if label == "خریدار" else "", self.small)
+            pdf.cell(info_w * 0.34, 5.4, clean(field_name, 32), align="R", new_x="RIGHT", new_y="TOP")
+            pdf.set_font("V", "B" if field_name == self._l("buyer") else "", self.small)
             pdf.set_text_color(*_INK)
             pdf.cell(info_w * 0.66, 5.4, value, align="R", new_x="LMARGIN", new_y="NEXT")
             yy += 5.6
@@ -310,10 +391,10 @@ class _InvoicePDF:
         pdf.set_fill_color(*self.brand)
         pdf.set_text_color(255, 255, 255)
         x = 12 + self.w
-        for index, (label, width) in enumerate(self.columns):
+        for index, (caption, width) in enumerate(self.columns):
             x -= width
             pdf.set_xy(x, pdf.get_y())
-            pdf.cell(width, self.row_h, clean(label, 40), align="R" if index == 1 else "C", fill=True)
+            pdf.cell(width, self.row_h, clean(caption, 40), align="R" if index == 1 else "C", fill=True)
         pdf.set_x(12)
         pdf.set_y(pdf.get_y() + self.row_h)
 
@@ -322,9 +403,7 @@ class _InvoicePDF:
         description = clean(item.get("name", ""), 200)
         lines = wrap_lines(pdf, description, self.widths[1] - 4)
         height = self.row_h * len(lines)
-        if pdf.get_y() + height > pdf.h - 22:
-            pdf.add_page()
-            self.table_header()
+        self._need_page(height + self.row_h, repeat_header=True)
         y_row = pdf.get_y()
         if index % 2 == 0:  # ردیف‌های یک‌درمیان؛ چشم خط را گم نکند
             pdf.set_fill_color(*_ZEBRA)
@@ -335,7 +414,7 @@ class _InvoicePDF:
         values = [_num(index, self.digits), "", _num(item.get("qty", 0), self.digits),
                   money(item.get("unit_irr", 0), self.digits), money(item.get("total_irr", 0), self.digits)]
         x = 12 + self.w
-        for column, (label, width) in enumerate(self.columns):
+        for column, (_caption, width) in enumerate(self.columns):
             x -= width
             pdf.set_xy(x, y_row)
             pdf.cell(width, height, values[column], align="R" if column == 1 else "C", border="B")
@@ -349,26 +428,34 @@ class _InvoicePDF:
 
     # ------------------------------------------------------------------- totals
 
-    def totals(self):
-        pdf, inv, seller = self.pdf, self.inv, self.inv.seller
-        rows = [("جمع اقلام", inv.subtotal_irr, False)]
+    def total_rows(self) -> list:
+        """سطرهایِ جمع. ترتیب و معنا با ریاضیِ ``compute_totals`` یکی است:
+        جمع اقلام − تخفیف + ارسال = جمع کل؛ مالیات *زیرِ* جمع کل و فقط اطلاع‌رسانی."""
+        inv, seller = self.inv, self.inv.seller
+        rows = [(self._l("subtotal"), inv.subtotal_irr, False)]
         if inv.discount_irr:
-            rows.append(("تخفیف", -abs(int(inv.discount_irr)), False))
+            rows.append((self._l("discount"), -abs(int(inv.discount_irr)), False))
         if inv.shipping_irr:
-            rows.append(("هزینه ارسال", inv.shipping_irr, False))
+            rows.append((self._l("shipping"), inv.shipping_irr, False))
+        rows.append(((self._l("refund") if inv.is_credit else self._l("final")), inv.total_irr, True))
         if inv.tax_irr:
             rate = (seller.get("vat_rate_bp", 0) or 0) / 100
-            rows.append((f"مالیات (نمایشی، {_num(f'{rate:g}', self.digits)}٪)", inv.tax_irr, False))
-        rows.append((("مبلغ برگشتی" if inv.is_credit else "مبلغ نهایی"), inv.total_irr, True))
-        pdf.ln(1)
+            vat = f"{self._l('vat')} {_num(f'{rate:g}', self.digits)}٪: {money(inv.tax_irr, self.digits)}"
+            rows.append((vat, None, False))  # value=None یعنی «خطِ اطلاع‌رسانی»، نه جمعِ جدید
+        return rows
+
+    def totals(self):
+        pdf = self.pdf
+        rows = self.total_rows()
         box_h = 6.6 * (len(rows) - 1) + 8.5
+        self._need_page(box_h + 6)
+        pdf.ln(1)
         top = pdf.get_y()
         pdf.set_draw_color(*_LINE)
         pdf.rect(12 + self.w - 92, top, 92, box_h, style="D")
-        for index, (label, value, final) in enumerate(rows):
-            y = top + 1.4 + index * (8.5 if final else 6.6)
+        y = top + 1.4
+        for index, (caption, value, final) in enumerate(rows):
             pdf.set_xy(12 + self.w - 90, y)
-            pdf.set_font("V", "B" if final else "", self.body if final else self.small + 0.5)
             if final:
                 pdf.set_fill_color(*self.brand)
                 pdf.set_text_color(255, 255, 255)
@@ -376,25 +463,34 @@ class _InvoicePDF:
                 pdf.set_xy(12 + self.w - 90, y + 1.4)
                 pdf.set_font("V", "B", self.body)
                 pdf.set_text_color(255, 255, 255)
+                pdf.cell(46, 5.4, clean(caption, 48), align="R", new_x="RIGHT", new_y="TOP")
+                pdf.cell(40, 5.4, self._money_line(value), align="C", new_x="LMARGIN", new_y="NEXT")
+                y += 8.5
+                continue
+            pdf.set_font("V", "", self.small + 0.5)
+            pdf.set_text_color(*(_MUTED if value is None else _INK))
+            if value is None:  # خطِ اطلاع‌رسانی (مالیات): متن کامل، یک‌جا
+                pdf.cell(86, 5.4, clean(caption, 120), align="R")
             else:
-                pdf.set_text_color(*_INK)
-            pdf.cell(46, 5.4, clean(label, 48), align="R", new_x="RIGHT", new_y="TOP")
-            pdf.cell(40, 5.4, money(value, self.digits) + " ریال", align="C", new_x="LMARGIN", new_y="NEXT")
+                pdf.cell(46, 5.4, clean(caption, 48), align="R", new_x="RIGHT", new_y="TOP")
+                pdf.cell(40, 5.4, self._money_line(value), align="C", new_x="LMARGIN", new_y="NEXT")
+            y += 6.6
         pdf.set_y(top + box_h + 4)
 
     # ------------------------------------------------------------------- footer
 
     def closing(self):
         pdf, seller = self.pdf, self.inv.seller
+        self._need_page(24)
         footer_top = pdf.get_y()
         qr = _qr_png(_verify_payload(self.inv))
-        if qr and pdf.h - footer_top > 30:
+        if qr:
             try:
                 pdf.image(BytesIO(qr), x=12, y=footer_top, h=19)
                 pdf.set_xy(33, footer_top + 3)
                 pdf.set_font("V", "", 7.5)
                 pdf.set_text_color(*_MUTED)
-                pdf.cell(60, 4, "راستی‌آزمایی فاکتور", new_x="LMARGIN", new_y="NEXT")
+                pdf.cell(60, 4, self._l("verify"), new_x="LMARGIN", new_y="NEXT")
                 pdf.set_xy(33, footer_top + 8)
                 pdf.cell(60, 4, clean(self.inv.number, 40), new_x="LMARGIN", new_y="NEXT")
                 pdf.set_y(footer_top + 21)
@@ -402,8 +498,7 @@ class _InvoicePDF:
                 pdf.set_y(footer_top)
         if seller.get("footer"):
             self.text(seller["footer"], self.small, color=_MUTED, height=5.4)
-        self.text("این فاکتور با ابزار کمکی «کسب‌وکار هوشمند» ساخته شده و جایگزین سامانه مودیان یا "
-                  "حسابدار رسمی نیست.", 7.5, color=_MUTED, height=5)
+        self.text(self._l("disclaimer"), 7.5, color=_MUTED, height=5)
 
     # --------------------------------------------------------------------- build
 
@@ -416,7 +511,7 @@ class _InvoicePDF:
         self.pdf.ln(3)
         self.totals()
         self.closing()
-        self.pdf.stamp_ctx = {"name": clean(seller_name(self.inv.seller), 40), "digits": self.digits}
+        self.pdf.stamp_ctx = {"name": clean(seller_name(self.inv.seller), 40), "digits": self.digits, "lang": self.lang}
         return bytes(self.pdf.output())
 
 
@@ -428,3 +523,13 @@ def render(inv: Invoice, ref_number: str = "", order_label: str = "") -> bytes:
         raise
     except Exception as exc:  # noqa: BLE001 — کتابخانه/فونت/ورودی غیرمنتظره
         raise InvoicePdfError(f"ساختِ PDF ناموفق بود: {type(exc).__name__}") from exc
+
+
+# ------------------------------------------------------------------ یارِ عمومی ----
+# افزودنِ صرفِ یکِ نامِ عمومی (بدونِ هیچ تغییری در چیدمان/رفتارِ فاکتور): ``report_pdf``
+# همان پوشه‌ی فونت را می‌خواهد و کپی‌کردنِ مسیریابیِ PyInstaller دو نسخه می‌ساخت.
+
+
+def fonts_dir() -> Path:
+    """پوشه‌ی فونتِ Vazirmatn (همان ``_fonts_dir``) — برایِ گزارش‌های PDFِ ``app.core.report_pdf``."""
+    return _fonts_dir()

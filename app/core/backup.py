@@ -480,11 +480,9 @@ def shop_data_reset(*, data_dir: Optional[Path] = None, make_backup: bool = True
 def scrub(text: str) -> str:
     """لایه‌ی دومِ پاک‌سازی برای بسته‌ی تشخیصی: علاوه بر ``redact`` (توکن/UUID/پروکسی)،
     شماره کارت، کلید ``sk-…``، ایمیل و موبایل هم ***‌دار می‌شن."""
-    text = redact(text)
-    text = _CARD_RE.sub("****-****-****-****", text)
-    text = _API_KEY_RE.sub("***", text)
-    text = _EMAIL_RE.sub("***@***", text)
-    return _PHONE_RE.sub("09*********", text)
+    # الگوهایِ کارت/کلید/ایمیل/موبایل از نسخه‌ی ۱.۰.۰ داخلِ خودِ ``redact`` اند؛
+    # این فقط برایِ خوانایی و سازگاریِ فراخوانی‌ها نگه داشته شده (کارِ تکراری نمی‌کند).
+    return redact(text)
 
 
 def _redacted_settings(data: Path) -> str:

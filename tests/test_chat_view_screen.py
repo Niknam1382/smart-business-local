@@ -217,3 +217,48 @@ def test_clear_history_arm_resets_when_switching_conversation(tmp_path):
     assert store.get_messages("bale", "2") != []
     assert store.get_messages("telegram", "1") != []  # مکالمه‌ی قبلی هم دست‌نخورده
     cleanup()
+
+
+# ═══════════════ قلم ۸: خروجِ اکسل/PDFِ گفتگوها (سرنوشتِ گزارش در همان صفحه) ═══════════════
+
+
+def test_chat_export_buttons_write_the_visible_report(tmp_path, monkeypatch):
+    from pathlib import Path as _P
+
+    from app.core import report_xlsx
+
+    opened: list = []
+    monkeypatch.setattr(chat_view, "open_folder", lambda p: opened.append(_P(p)) or True)
+    manager, store = make_env(tmp_path)
+    store.ensure_conversation("telegram", "1", "علی")
+    store.add_message("telegram", "1", "user", "سلام")
+    store.add_message("telegram", "1", "assistant", "سلام علی")
+    page = FakePage()
+    control, cleanup = chat_view.build(page, "fa", manager, on_open_bots=lambda: None)
+
+    fire(find(control, "conv_telegram_1"), "on_click")
+    fire(find(control, "chats_export_xlsx"), "on_click")
+    assert "سطر" in collect_text(find(control, "chats_export_result"))
+    files = sorted(report_xlsx.reports_dir().glob("*.xlsx"))
+    assert files and opened and opened[-1] == report_xlsx.reports_dir()
+
+    _preamble, _header, body = report_xlsx.read_report(files[-1])
+    assert "سلام علی" in " ".join(str(cell) for row in body for cell in row)
+
+    fire(find(control, "chats_export_pdf"), "on_click")
+    assert sorted(report_xlsx.reports_dir().glob("*.pdf")), "PDFِ همان گفتگو هم ساخته شد"
+    cleanup()
+
+
+def test_chat_export_without_any_conversation_is_an_honest_error(tmp_path, monkeypatch):
+    from app.core import report_xlsx
+
+    opened: list = []
+    monkeypatch.setattr(chat_view, "open_folder", lambda p: opened.append(p) or True)
+    manager, _store = make_env(tmp_path)
+    page = FakePage()
+    control, cleanup = chat_view.build(page, "fa", manager, on_open_bots=lambda: None)
+    fire(find(control, "chats_export_xlsx"), "on_click")
+    assert "نیست" in collect_text(find(control, "chats_export_result")) and opened == []
+    assert list(report_xlsx.reports_dir().glob("*.xlsx")) == []
+    cleanup()

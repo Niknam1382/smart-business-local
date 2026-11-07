@@ -16,6 +16,7 @@ import flet as ft
 from app import theme
 from app.core import finance as fin
 from app.core import jalali
+from app.core import report_pdf, report_xlsx
 from app.core.invoice_pdf import money as pdf_money  # noqa: F401  (هم‌خانواده‌ی قالبِ پولیِ PDF)
 from app.core.invoices import InvoiceError
 from app.core.settings import save_settings
@@ -39,6 +40,11 @@ _S = {
     "refunds_note": ("این سفارش‌ها با درگاه پرداخت شده‌اند ولی تأیید نشدند؛ کالا فروخته نشده، پس پول در دفترِ فروش نیامده و باید خودت عودتش بدهی.", "These orders were paid through the gateway but never confirmed; no sale is recorded, so refund them yourself."),
     "daily": ("درآمدِ روزانه", "Daily income"), "none": ("هنوز داده‌ای نیست.", "No data yet."), "export": ("خروجیِ CSV", "Export CSV"),
     "exported": ("✅ ذخیره شد: {path}", "✅ Saved: {path}"), "open_folder": ("باز کردنِ پوشه", "Open folder"),
+    # گزارشِ حرفه‌ایِ اکسل/PDF (بخش ۸ از master prompt) — همان بازه‌ی انتخابیِ داشبورد
+    "report_xlsx": ("خروجِ اکسل", "Excel export"), "report_pdf": ("خروجِ PDF", "PDF export"),
+    "report_hint": ("گزارشِ رسمیِ همین بازه:", "Formal report for this period:"),
+    "report_done": ("✅ گزارشِ {n} سطری ساخته شد: {path}", "✅ Report with {n} rows created: {path}"),
+    "report_failed": ("ساختنِ فایل ناموفق بود: {error}", "Could not create the file: {error}"),
     "inv_search": ("جستجو (شماره/نامِ خریدار/شماره‌ی سفارش)", "Search (number / buyer / order id)"), "inv_none": ("فاکتوری نیست.", "No invoices."),
     "inv_row": ("{number} — {date} — {buyer} — {total} {unit}", "{number} — {date} — {buyer} — {total} {unit}"),
     "inv_sent": ("✅ ارسال شده", "✅ Sent"), "inv_fail": ("❌ ارسال نشد", "❌ Not sent"), "inv_wait": ("— ارسال نشده", "— Not sent"),
@@ -191,55 +197,79 @@ def build(page: ft.Page, lang: str, manager, settings, product_store=None) -> ft
         cust = inv.sent.get("customer")
         return S("inv_wait", lang) if not cust else S("inv_sent" if cust.get("ok") else "inv_fail", lang)
 
+    # بازبینیِ عملکرد (قلم ۲۵): این چهار کار هر کدام شبکه (ارسالِ فاکتور به مشتری)،
+    # پردازنده (ساختِ PDF) یا دیتابیس (برگشتی + ردیفِ دفتر) درگیر می‌کنند — پس همه روی
+    # تردِ پس‌زمینه اجرا می‌شن تا پنجره یخ نزند (همان الگوی «خروجِ اکسل/PDF» در همین صفحه).
+    back_sw_value = lambda: bool(back_sw.value)  # noqa: E731 — خواندنِ مقدار روی همان لحظه‌ی کلیک
+
     def do_resend(inv_id: int) -> None:
-        try:
-            out = manager.send_invoice(inv_id)
-        except Exception as exc:  # noqa: BLE001 — BotManagerError (ربات خاموش) و غیره
-            say(str(exc) or S("send_off", lang), False)
-        else:
-            why = out.split(":", 1)[1] if ":" in out else ""
-            say(S("sent_ok", lang) if out == "sent" else S("send_skip", lang, why=why or out), out == "sent")
-        render()
+        def work() -> None:
+            try:
+                out = manager.send_invoice(inv_id)
+            except Exception as exc:  # noqa: BLE001 — BotManagerError (ربات خاموش) و غیره
+                say(str(exc) or S("send_off", lang), False)
+            else:
+                why = out.split(":", 1)[1] if ":" in out else ""
+                say(S("sent_ok", lang) if out == "sent" else S("send_skip", lang, why=why or out), out == "sent")
+            render()
+            page.update()
+
+        page.run_thread(work)
 
     def do_pdf(inv_id: int) -> None:
-        inv = invoices.store.get(inv_id)
-        try:
-            path = invoices.ensure_pdf(inv)
-        except Exception as exc:  # noqa: BLE001
-            say(str(exc), False)
-        else:
-            say(S("pdf_ok", lang, path=path), True)
-            common.open_folder(path.parent)
-        page.update()
+        def work() -> None:
+            inv = invoices.store.get(inv_id)
+            try:
+                path = invoices.ensure_pdf(inv)
+            except Exception as exc:  # noqa: BLE001
+                say(str(exc), False)
+            else:
+                say(S("pdf_ok", lang, path=path), True)
+                common.open_folder(path.parent)
+            page.update()
+
+        page.run_thread(work)
 
     def do_credit(inv_id: int) -> None:
         if st["credit"] != inv_id:  # دو مرحله‌ای: اول «مطمئنی؟»
             st["credit"] = inv_id
             render()
+            page.update()
             return
         st["credit"] = None
-        try:
-            cn = invoices.credit_note(inv_id, cogs_back=bool(back_sw.value))
-            say(S("credit_done", lang, number=cn.number), True)
-        except InvoiceError as exc:
-            say(str(exc), False)
-        render()
+        back = back_sw_value()
+
+        def work() -> None:
+            try:
+                cn = invoices.credit_note(inv_id, cogs_back=back)
+                say(S("credit_done", lang, number=cn.number), True)
+            except InvoiceError as exc:
+                say(str(exc), False)
+            render()
+            page.update()
+
+        page.run_thread(work)
 
     back_sw = ft.Switch(key="fn_credit_back", label=S("credit_back", lang), value=False)
     issue_tf = ft.TextField(key="fn_issue_order", label=S("issue_order", lang), width=220, border_radius=10)
 
     def do_issue(_e=None) -> None:
         raw = jalali.en_digits(issue_tf.value or "").lstrip("#").strip()
-        order = order_lookup(int(raw)) if raw.isdigit() else None
-        if order is None:
-            say(S("bad", lang, label=S("issue_order", lang)), False)
-        else:
-            try:
-                inv = invoices.issue(order)
-                say(S("issued", lang, number=inv.number), True)
-            except InvoiceError as exc:
-                say(str(exc), False)
-        render()
+
+        def work() -> None:
+            order = order_lookup(int(raw)) if raw.isdigit() else None
+            if order is None:
+                say(S("bad", lang, label=S("issue_order", lang)), False)
+            else:
+                try:
+                    inv = invoices.issue(order)
+                    say(S("issued", lang, number=inv.number), True)
+                except InvoiceError as exc:
+                    say(str(exc), False)
+            render()
+            page.update()
+
+        page.run_thread(work)
 
     def order_lookup(order_id: int):
         return finance._orders.get(order_id)  # noqa: SLF001 — همان OrderStoreِ مدیر
@@ -327,6 +357,33 @@ def build(page: ft.Page, lang: str, manager, settings, product_store=None) -> ft
         say(S("exported", lang, path=path), True)
         common.open_folder(folder)
         page.update()
+
+    def do_report(fmt: str, _e=None) -> None:
+        """کارنامه‌ی مالیِ **همان بازه‌ای که کاربر در داشبورد دیده**: ردیف‌هایِ دفتر + جمع‌هایِ KPI،
+        در فایلِ اکسل یا PDFِ راست‌به‌چپ. فایل در ``<داده>/reports`` می‌نشیند و پوشه‌اش باز می‌شود
+        (همان تجربه‌ی «ساخت/نمایشِ PDF»ِ فاکتور)."""
+
+        def work() -> None:
+            a, b = period_range(st["period"])
+            try:
+                data = report_xlsx.finance_report(
+                    finance.report(a, b),
+                    finance.list_entries(start_ts=a, end_ts=b, kind=st["kind"], limit=report_xlsx.MAX_ROWS),
+                    shop_name=report_xlsx.shop_name_of(settings),
+                )
+                path = report_pdf.write_pdf(data, digits=settings.invoice_digits or "fa",
+                                            paper=settings.invoice_paper or "A4",
+                                            brand=settings.invoice_color or "#1F6FEB") if fmt == "pdf" else report_xlsx.write_xlsx(data)
+            except report_xlsx.ReportError as exc:  # «چیزی برای خروجی گرفتن نیست» و خطایِ PDF
+                say(str(exc), False)
+            except (OSError, ValueError) as exc:
+                say(S("report_failed", lang, error=str(exc)), False)
+            else:
+                say(S("report_done", lang, n=data.count, path=str(path)), True)
+                common.open_folder(path.parent)
+            page.update()
+
+        page.run_thread(work)
 
     def ledger_tab() -> list:
         fill_categories()
@@ -424,7 +481,14 @@ def build(page: ft.Page, lang: str, manager, settings, product_store=None) -> ft
         switcher = ft.Row(spacing=8, wrap=True, controls=[
             (ft.FilledButton if st["tab"] == k else ft.OutlinedButton)(key=f"fn_tab_{k}", content=S(f"tab_{k}", lang), on_click=lambda _e, kk=k: (st.update(tab=kk), render()))
             for k in tabs])
-        body.controls = [switcher, notice, *tabs[st["tab"]]()]
+        reports = ft.Row(spacing=8, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER, controls=[
+            ft.Text(S("report_hint", lang), size=12.5, color=secondary),
+            ft.OutlinedButton(key="fn_export_xlsx", content=S("report_xlsx", lang), icon=ft.Icons.TABLE_VIEW,
+                              on_click=lambda _e: do_report("xlsx")),
+            ft.OutlinedButton(key="fn_export_pdf", content=S("report_pdf", lang), icon=ft.Icons.PICTURE_AS_PDF_ROUNDED,
+                              on_click=lambda _e: do_report("pdf")),
+        ])
+        body.controls = [switcher, reports, notice, *tabs[st["tab"]]()]
         if update:
             page.update()
 

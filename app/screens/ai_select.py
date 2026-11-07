@@ -223,6 +223,13 @@ class ModelHub:
             job["done"] = downloaded
             if total:
                 job["total"] = total
+            # نوار باید حتی اگر تیکرِ صفحه هنوز راه نیفتاده باشد جلو برود: خودِ تردِ دانلود هر
+            # نیم‌ثانیه یک‌بار رنگ می‌کند (پیش از این مرگِ بی‌صدای تیکر = نوارِ خاموش تا پایانِ دانلود).
+            now = time.time()
+            if now - job.get("painted", 0.0) >= 0.5:
+                job["painted"] = now
+                self.tick()
+                self._notify()
 
         def worker() -> None:
             try:

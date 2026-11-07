@@ -15,9 +15,29 @@ def test_invalid_config():
         pass
 
     with pytest.raises(ValueError):
-        Debouncer(noop, wait_seconds=0)
+        Debouncer(noop, wait_seconds=-1)
     with pytest.raises(ValueError):
         Debouncer(noop, wait_seconds=2, max_wait_seconds=1)
+
+
+def test_zero_wait_never_merges():
+    """۱۸: تنظیمِ «ادغام نکن» ⇒ هر پیام همان‌جا و جدا پردازش می‌شه."""
+
+    async def go():
+        results = []
+
+        async def on_flush(key, text):
+            results.append(text)
+
+        d = Debouncer(on_flush, wait_seconds=0, max_wait_seconds=10)
+        d.feed("c", "سلام")
+        await asyncio.sleep(0.02)
+        d.feed("c", "قیمت؟")
+        await asyncio.sleep(0.02)
+        assert results == ["سلام", "قیمت؟"]
+
+    run(go())
+
 
 
 def test_merges_rapid_messages_after_quiet_period():

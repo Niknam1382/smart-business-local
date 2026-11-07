@@ -2,6 +2,7 @@ import flet as ft
 from fake_page import collect_text, FakePage, find, fire
 
 from app import theme
+from app.core import report_xlsx
 from app.core.orders import METHOD_BALE_PAY, METHOD_CARD_TO_CARD, OrderStore
 from app.core.products import ProductStore
 from app.core.settings import AppSettings
@@ -434,49 +435,60 @@ def test_state_line_shows_jalali_updated_date(tmp_path):
     assert "آخرین تغییر: ۱۴" in line, "تاریخِ جلالی (سال ۱۴xx) بدونِ رقمِ میلادی"
 
 
-def test_ship_notice_sent_only_when_flag_on(tmp_path):
+def test_every_fulfillment_change_is_sent_to_the_customer(tmp_path):
+    """۷: فقط «ارسال شد» نبود — حالا هر سه وضعیت (آماده‌سازی / ارسال شد / تحویل شد) برای
+    مشتری می‌رود و سوییچِ صفحه پیش‌فرض روشن است."""
     products, store = make_stores(tmp_path)
     pid = products.add("محصول", 1000, 5)
-    off = store.create("telegram", "1", [(pid, 1)])
-    store.mark_paid(off, METHOD_CARD_TO_CARD)
-    store.confirm(off)
+    oid = store.create("telegram", "1", [(pid, 1)])
+    store.mark_paid(oid, METHOD_CARD_TO_CARD)
+    store.confirm(oid)
 
     settings = AppSettings()
     settings.business_mode = "store"
     mgr = RecorderMgr()
     page = FakePage()
     control = orders_screen.build(page, "fa", store, mgr, settings, save_callback=lambda: None)
+    assert find(control, "notify_on_fulfillment").value is True, "پیش‌فرض روشن است"
 
-    fire(find(control, f"fulfill_preparing_{off}"), "on_click")
-    fire(find(control, f"fulfill_shipped_{off}"), "on_click")
-    assert store.get(off).fulfillment == "shipped", "وضعیت حتی بدونِ اعلان ثبت می‌شه"
-    assert mgr.sent == [], "پیش‌فرضِ notify_on_shipment خاموش است: هیچ پیامی به مشتری نمی‌ره"
+    find(control, f"tracking_{oid}").value = "TG-9"
+    fire(find(control, f"fulfill_preparing_{oid}"), "on_click")
+    fire(find(control, f"fulfill_shipped_{oid}"), "on_click")
+    fire(find(control, f"fulfill_delivered_{oid}"), "on_click")
+    assert [t for _p, _c, t in mgr.sent] and store.get(oid).fulfillment == "delivered"
+    texts = [t for _p, _c, t in mgr.sent]
+    assert len(texts) == 3
+    assert "آماده‌سازی" in texts[0] and f"#{oid}" in texts[0]
+    assert "ارسال شد" in texts[1] and "TG-9" in texts[1]
+    assert "تحویل" in texts[2]
 
-    settings.notify_on_shipment = True
-    on = store.create("telegram", "2", [(pid, 1)])
-    store.mark_paid(on, METHOD_CARD_TO_CARD)
-    store.confirm(on)
-    control = orders_screen.build(page, "fa", store, mgr, settings, save_callback=lambda: None)
-    assert find(control, "notify_on_shipment").value is True, "سوییچِ صفحه همان تنظیم را نشان می‌دهد"
-
-    find(control, f"tracking_{on}").value = "TG-9"
-    fire(find(control, f"fulfill_preparing_{on}"), "on_click")
-    fire(find(control, f"fulfill_shipped_{on}"), "on_click")
-    platform, chat_id, text = mgr.sent[-1]
-    assert (platform, chat_id) == ("telegram", "2")
-    assert "ارسال شد" in text and f"#{on}" in text and "TG-9" in text
-
-    # اصلاحِ کد رهگیری روی «ارسال‌شده» پیامِ دوم نمی‌فرستد (یک پیام، همان لحظه‌ی ارسال)
+    # اصلاحِ کد رهگیری روی همان وضعیت، پیامِ دوباره نمی‌فرستد
     before = len(mgr.sent)
-    fire(find(control, f"tracking_save_{on}"), "on_click")
+    fire(find(control, f"tracking_save_{oid}"), "on_click")
     assert len(mgr.sent) == before
+
+
+def test_fulfillment_notifications_stop_when_the_switch_is_off(tmp_path):
+    products, store = make_stores(tmp_path)
+    pid = products.add("محصول", 1000, 5)
+    oid = store.create("telegram", "7", [(pid, 1)])
+    store.mark_paid(oid, METHOD_CARD_TO_CARD)
+    store.confirm(oid)
+    settings = AppSettings()
+    settings.business_mode = "store"
+    settings.notify_on_fulfillment = False
+    mgr = RecorderMgr()
+    control = orders_screen.build(FakePage(), "fa", store, mgr, settings, save_callback=lambda: None)
+    fire(find(control, f"fulfill_preparing_{oid}"), "on_click")
+    fire(find(control, f"fulfill_shipped_{oid}"), "on_click")
+    assert store.get(oid).fulfillment == "shipped" and mgr.sent == []
 
 
 def test_ship_notice_skipped_silently_without_manager(tmp_path):
     """ربات/سرویسِ متصل نیست (manager=None): تغییرِ وضعیت باید موفق بمونه، بدونِ هیچ خطا."""
     products, store, oid = confirmed_order(tmp_path)
     settings = AppSettings()
-    settings.notify_on_shipment = True
+    settings.notify_on_fulfillment = True
     control = orders_screen.build(FakePage(), "fa", store, None, settings)
     fire(find(control, f"fulfill_preparing_{oid}"), "on_click")
     fire(find(control, f"fulfill_shipped_{oid}"), "on_click")
@@ -548,4 +560,47 @@ def test_pending_payment_order_without_method_has_no_payment_status_card(tmp_pat
     oid = store.create("telegram", "1", [(pid, 1)])
     control = orders_screen.build(FakePage(), "fa", store)
     assert find(control, f"paystat_{oid}") is None, "هیچ داده‌یِ پرداختی نیست؛ کارتِ خالی نشان نده"
+
+
+# ------------------------------------------------- گزارشِ اکسل/PDF (بخش ۸ِ master prompt) ----
+
+def test_excel_and_pdf_report_buttons_write_files(tmp_path, monkeypatch):
+    """«خروجِ اکسل»/«خروجِ PDF» همان فهرستِ سفارش‌ها را در ``<داده>/reports`` می‌نویسند، پوشه را باز
+    می‌کنند و پیامِ تایید را نشان می‌دهند — هیچ سفارشی را عوض نمی‌کنند."""
+    products, store = make_stores(tmp_path)
+    pid = products.add("شام‌خور", 100_000, 5)
+    oid = store.create("telegram", "1", [(pid, 2)], payment_method=METHOD_CARD_TO_CARD, customer_name="علی رضایی")
+    store.mark_paid(oid, METHOD_CARD_TO_CARD)
+    store.confirm(oid)
+    before = store.get(oid).status
+    opened: list = []
+    monkeypatch.setattr("app.screens.orders.open_folder", lambda p: opened.append(str(p)) or True)
+    page = FakePage()
+    control = orders_screen.build(page, "fa", store)
+    for key, suffix in (("orders_export_xlsx", ".xlsx"), ("orders_export_pdf", ".pdf")):
+        button = find(control, key)
+        assert button is not None, key
+        fire(button, "on_click")
+        assert any(p.suffix == suffix for p in report_xlsx.reports_dir().glob("*")), key
+    assert opened == [str(report_xlsx.reports_dir())] * 2 and page.run_thread_calls >= 2
+    assert store.get(oid).status == before  # خروجی فقط می‌خواند
+    text = collect_text(control)
+    assert "سطری ساخته شد" in text and str(report_xlsx.reports_dir()) in text
+    path = sorted(report_xlsx.reports_dir().glob("*.xlsx"))[-1]
+    _p, _h, body = report_xlsx.read_report(path)
+    assert len(body) == 1 and body[0][0] == str(oid) and body[0][2] == "200000" and body[0][1] == "تاییدشده"
+
+
+def test_report_export_follows_the_status_filter(tmp_path, monkeypatch):
+    """فیلترِ وضعیتِ صفحه در فایل هم اعمال می‌شود (بخش ۸: «هر بخش» با همان دیدِ کاربر)."""
+    products, store = make_stores(tmp_path)
+    pid = products.add("محصول", 1000, 9)
+    store.create("telegram", "1", [(pid, 1)])
+    monkeypatch.setattr("app.screens.orders.open_folder", lambda p: True)
+    control = orders_screen.build(FakePage(), "fa", store)
+    fire(find(control, "status_filter"), "on_select", "cancelled")
+    before = len(list(report_xlsx.reports_dir().glob("*.xlsx")))
+    fire(find(control, "orders_export_xlsx"), "on_click")
+    assert len(list(report_xlsx.reports_dir().glob("*.xlsx"))) == before  # فایلی ساخته نشد
+    assert report_xlsx.EMPTY_ERROR in collect_text(control)  # خطایِ فارسی، بدونِ traceback
 

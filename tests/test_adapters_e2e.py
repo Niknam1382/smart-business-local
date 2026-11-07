@@ -93,9 +93,9 @@ def status(manager, name):
 # ------------------------------------------------------------ مسیر شاد ----
 
 
-def test_telegram_is_the_only_messenger_platform():
-    """بله دیگر پیام‌رسان نیست؛ هر چیزِ دیگری در «پلتفرم‌ها» یعنی بازگشتِ باگ."""
-    assert PLATFORMS == ("telegram",)
+def test_the_two_messenger_platforms_are_telegram_and_bale():
+    """قلم ۲۴: گفتگو فقط روی این دو پیام‌رسان معنا دارد (بله‌پی درگاه است، نه پیام‌رسان)."""
+    assert PLATFORMS == ("telegram", "bale")
 
 
 def test_full_flow_and_clean_stop(tmp_path, tg, engine):

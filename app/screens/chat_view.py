@@ -20,10 +20,11 @@ import flet as ft
 
 from app import theme
 from app.core import jalali
+from app.core import report_pdf, report_xlsx
 from app.core.bot_manager import BotManagerError
 from app.core.conversations import ConversationSummary
 from app.i18n import STRINGS, t
-from app.screens.common import card, page_header
+from app.screens.common import card, open_folder, page_header
 from app.screens.live import LiveRefresher
 
 _PLATFORM_ICON = {"telegram": ft.Icons.SEND_ROUNDED, "bale": ft.Icons.CHAT_BUBBLE_OUTLINE_ROUNDED}
@@ -51,12 +52,19 @@ _P = {
     "tpl.3": ("ممنون از صبرتان؛ تا چند دقیقه‌ی دیگر پاسخ می‌دهم.", "Thanks for your patience; I'll reply in a few minutes."),
     "tpl.4": ("متأسفانه این کالا فعلاً موجود نیست؛ جایگزین پیشنهاد بدهم؟", "Sorry, this item is out of stock for now; shall I suggest an alternative?"),
     "tpl.5": ("ممنون از خریدتان 🙏", "Thank you for your purchase 🙏"),
+    # گزارشِ رسمیِ گفتگوها (بخش ۸ از master prompt) — تاریخچه‌ی گفتگویِ انتخاب‌شده یا فهرستِ گفتگوها
+    "export.hint": ("گزارشِ رسمیِ گفتگوها:", "Formal report of the chats:"),
+    "export.xlsx": ("خروجِ اکسل", "Excel export"),
+    "export.pdf": ("خروجِ PDF", "PDF export"),
+    "export.done": ("✅ گزارشِ {n} سطری ساخته شد: {path}", "✅ Report with {n} rows created: {path}"),
+    "export.failed": ("ساختنِ فایل ناموفق بود: {error}", "Could not create the file: {error}"),
 }
 
 
-def tp(key: str, lang: str) -> str:
+def tp(key: str, lang: str, **kw) -> str:
     fa, en = _P[key]
-    return en if lang == "en" else fa
+    text = en if lang == "en" else fa
+    return text.format(**kw) if kw else text
 
 
 def _format_time(raw: str) -> str:
@@ -175,6 +183,54 @@ def build(
             ],
         ),
         padding=14,
+    )
+
+    # ------------------------------------------------- گزارشِ اکسل/PDFِ گفتگوها
+    export_result = ft.Text(key="chats_export_result", size=12, visible=False)
+
+    def show_export(message: str, ok: bool) -> None:
+        export_result.value, export_result.color, export_result.visible = message, theme.SUCCESS if ok else theme.DANGER, bool(message)
+
+    def on_report(fmt: str, _e=None) -> None:
+        """تاریخچه‌ی گفتگویِ انتخاب‌شده (نقش/زمانِ جلالی + میلادی/متن) و اگر چیزی انتخاب نشده باشد
+        فهرستِ گفتگوها را در فایلِ اکسل یا PDFِ راست‌به‌چپ می‌نویسد. فایل در ``<داده>/reports``
+        می‌نشیند و پوشه‌اش باز می‌شود — همان تجربه‌ی فاکتور؛ هیچ پیامی تغییر/حذف نمی‌شود."""
+
+        def work() -> None:
+            platform, chat_id = state["platform"], state["chat_id"]
+            try:
+                if chat_id:
+                    conv = next((c for c in manager.store.list_conversations(platform=platform) if c.chat_id == chat_id), None)
+                    data = report_xlsx.transcript_report(
+                        manager.store.get_messages(platform, chat_id, limit=report_xlsx.MAX_ROWS),
+                        conversation=conv, shop_name=report_xlsx.shop_name_of(manager))
+                else:
+                    data = report_xlsx.conversations_report(manager.store.list_conversations(),
+                                                            shop_name=report_xlsx.shop_name_of(manager))
+                path = report_pdf.write_pdf(data) if fmt == "pdf" else report_xlsx.write_xlsx(data)
+            except report_xlsx.ReportError as exc:  # «چیزی برای خروجی گرفتن نیست» / شکستِ PDF
+                show_export(str(exc), False)
+            except OSError as exc:
+                show_export(tp("export.failed", lang, error=str(exc)), False)
+            else:
+                show_export(tp("export.done", lang, n=data.count, path=str(path)), True)
+                open_folder(path.parent)
+            page.update()
+
+        page.run_thread(work)
+
+    export_row = ft.Row(
+        spacing=10,
+        wrap=True,
+        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        controls=[
+            ft.Text(tp("export.hint", lang), size=12.5, color=theme.text_secondary(page)),
+            ft.OutlinedButton(key="chats_export_xlsx", content=tp("export.xlsx", lang),
+                              icon=ft.Icons.TABLE_VIEW, on_click=lambda e: on_report("xlsx")),
+            ft.OutlinedButton(key="chats_export_pdf", content=tp("export.pdf", lang),
+                              icon=ft.Icons.PICTURE_AS_PDF_ROUNDED, on_click=lambda e: on_report("pdf")),
+            export_result,
+        ],
     )
 
     def platform_label(platform: str) -> str:
@@ -505,6 +561,7 @@ def build(
             controls=[
                 page_header(page, ft.Icons.FORUM_OUTLINED, t("chats.title", lang), t("chats.subtitle", lang)),
                 bots_off_banner,
+                export_row,
                 body,
             ],
         ),

@@ -49,21 +49,24 @@ def invoices_dir() -> Path:
 
 
 def invoice_text(inv: Invoice, digits: Optional[str] = None) -> str:
-    """فاکتورِ متنیِ ساده (جایگزینِ PDF)."""
+    """فاکتورِ متنیِ ساده (جایگزینِ PDF) — همان ترتیب و همان معنایِ PDF: مالیات «از این مبلغ» است."""
     d = digits or inv.seller.get("digits", "fa")
-    m = lambda n: invoice_pdf.money(n, d)  # noqa: E731
-    title = "فاکتور برگشتی" if inv.is_credit else "فاکتور فروش"
+    lang = "en" if getattr(inv, "lang", "fa") == "en" else "fa"
+    rial = invoice_pdf.label("rial", lang)
+    m = lambda n: f"{invoice_pdf.money(n, d)} {rial}"  # noqa: E731
+    title = invoice_pdf.label("credit" if inv.is_credit else "sale", lang)
     lines = [f"🧾 {title} {inv.number}", jalali.format_ts(inv.issued_ts, digits=d), inv.seller.get("name", "")]
     for it in inv.lines:
-        lines.append(f"- {it.get('name', '')} ×{it.get('qty', 0)} = {m(it.get('total_irr', 0))} ریال")
-    lines.append(f"جمعِ اقلام: {m(inv.subtotal_irr)} ریال")
+        lines.append(f"- {it.get('name', '')} ×{it.get('qty', 0)} = {m(it.get('total_irr', 0))}")
+    lines.append(f"{invoice_pdf.label('subtotal', lang)}: {m(inv.subtotal_irr)}")
     if inv.discount_irr:
-        lines.append(f"تخفیف: −{m(inv.discount_irr)} ریال")
+        lines.append(f"{invoice_pdf.label('discount', lang)}: −{m(inv.discount_irr)}")
     if inv.shipping_irr:
-        lines.append(f"ارسال/سایر: {m(inv.shipping_irr)} ریال")
+        lines.append(f"{invoice_pdf.label('shipping', lang)}: {m(inv.shipping_irr)}")
+    lines.append(f"{invoice_pdf.label('refund' if inv.is_credit else 'final', lang)}: {m(inv.total_irr)}")
     if inv.tax_irr:
-        lines.append(f"شاملِ مالیات بر ارزش افزوده: {m(inv.tax_irr)} ریال")
-    lines.append(f"مبلغِ نهایی: {m(inv.total_irr)} ریال")
+        rate = (inv.seller.get("vat_rate_bp", 0) or 0) / 100
+        lines.append(f"{invoice_pdf.label('vat', lang)} {invoice_pdf._num(f'{rate:g}', d)}٪: {m(inv.tax_irr)}")
     return "\n".join(x for x in lines if x)
 
 
@@ -127,9 +130,13 @@ class InvoiceService:
                 logger.warning("حذفِ PDFِ فاکتور ناموفق بود", exc_info=True)
 
     # ---------------------------------------------------------------- صدور
+    def _invoice_lang(self) -> str:
+        """زبانِ فاکتور = زبانِ برنامه‌ی فروشنده (قلم ۱۰: ستونِ lang دیگر تزئینی نیست)."""
+        return "en" if getattr(self._settings(), "language", "fa") == "en" else "fa"
+
     def issue(self, order) -> Invoice:
         """فاکتورِ فروش (idempotent) + PDF؛ خطای PDF فاکتور را نمی‌اندازد (متنی fallback است)."""
-        inv = self.store.issue_sale(order, self._settings(), now=int(self._clock()))
+        inv = self.store.issue_sale(order, self._settings(), lang=self._invoice_lang(), now=int(self._clock()))
         try:
             self.ensure_pdf(inv)
         except Exception:  # noqa: BLE001

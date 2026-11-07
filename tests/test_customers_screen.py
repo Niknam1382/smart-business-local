@@ -8,6 +8,7 @@ from test_customers import NOW, add_order, msg
 from test_update_banner_install import StubChecker
 
 from app.core.bot_manager import BotManagerError
+from app.core import report_xlsx
 from app.core.conversations import ConversationStore
 from app.core.customers import CustomerStore
 from app.core.orders import OrderStore
@@ -333,3 +334,49 @@ def test_customers_is_in_the_sidebar_and_opens_from_main():
     view = page.controls[0].content
     assert find(view, "customers_search") is not None and "مشتریان" in collect_text(view)
     assert find(view, "customers_platform") is None
+
+
+# ------------------------------------------------- گزارشِ اکسل/PDF (بخش ۸ِ master prompt) ----
+
+def test_excel_and_pdf_report_buttons_write_files(env, monkeypatch):
+    """«خروجِ اکسل»/«خروجِ PDF» همان فهرستِ فیلترشده را در ``<داده>/reports`` می‌نویسند و پوشه‌اش را
+    باز می‌کنند (دقیقاً همان تجربه‌ی PDFِ فاکتور) — و پیامِ «ذخیره شد» با دکمه‌ی «نمایش در پوشه»."""
+    manager, conv, crm, orders, _tmp = env
+    seed(conv, crm, orders)
+    opened: list = []
+    monkeypatch.setattr("app.screens.customers.common.open_folder", lambda p: opened.append(str(p)) or True)
+    root, page = make(env)
+    for key, suffix in (("customers_export_xlsx", ".xlsx"), ("customers_export_pdf", ".pdf")):
+        button = find(root, key)
+        assert button is not None, key
+        fire(button, "on_click")
+        assert any(p.suffix == suffix for p in report_xlsx.reports_dir().glob("*")), key
+    assert opened == [str(report_xlsx.reports_dir()), str(report_xlsx.reports_dir())]
+    assert page.run_thread_calls >= 2  # هیچ‌کدام روی تردِ UI ساخته نمی‌شود
+    notice = find(root, "customers_notice")
+    assert "ذخیره شد" in notice.value and str(report_xlsx.reports_dir()) in notice.value
+    assert find(root, "customers_open_folder") is not None
+
+
+def test_report_buttons_export_the_current_filter(env, monkeypatch):
+    """فیلترِ فعالِ صفحه باید در فایل هم بماند (این‌جا فقط «لغوِ پیام»کرده‌ها)."""
+    manager, conv, crm, orders, _tmp = env
+    seed(conv, crm, orders)
+    crm.set_opted_out("telegram", "1", True)
+    monkeypatch.setattr("app.screens.customers.common.open_folder", lambda p: True)
+    root, _page = make(env)
+    fire(find(root, "customers_filter"), "on_select", "opted_out")
+    fire(find(root, "customers_export_xlsx"), "on_click")
+    path = sorted(report_xlsx.reports_dir().glob("*.xlsx"))[-1]
+    _p, header, body = report_xlsx.read_report(path)
+    assert len(body) == 1 and "لغوِ پیام" in "".join(header)
+
+
+def test_report_button_says_there_is_nothing_to_export(env, monkeypatch):
+    """داده‌ای نیست ⇒ همان خطایِ فارسیِ روشن، بدونِ traceback و بدونِ فایلِ نیمه‌کاره."""
+    opened: list = []
+    monkeypatch.setattr("app.screens.customers.common.open_folder", lambda p: opened.append(p) or True)
+    root, _page = make(env)  # بدونِ seed
+    fire(find(root, "customers_export_xlsx"), "on_click")
+    assert find(root, "customers_notice").value == report_xlsx.EMPTY_ERROR
+    assert opened == [] and list(report_xlsx.reports_dir().glob("*.xlsx")) == []

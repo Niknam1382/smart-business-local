@@ -14,7 +14,7 @@ from typing import Optional
 import flet as ft
 
 from app import theme
-from app.core import backup, bot_manager, data_probe, update_install, updater
+from app.core import backup, bot_manager, data_probe, update_install, updater, window_close
 from app.core import guide as guide_core
 from app.core import settings as settings_module
 from app.core.orders import OrderStore
@@ -41,6 +41,7 @@ from app.screens import (
     data_found,
     mode_select,
     orders,
+    payment_settings,
     products,
     prompt_studio,
     settings_screen,
@@ -85,10 +86,14 @@ def main(
     page.theme = theme.build_theme()
     page.dark_theme = theme.build_dark_theme()
     page.theme_mode = ft.ThemeMode.LIGHT
+    # قلم ۱۳: رنگِ بومِ پنجره با سطحِ برنامه یکی است — در پنجره‌ی تمام‌صفحه حاشیه‌ی سفیدِ خام نمی‌بینی.
+    page.backgroundColor = theme.SURFACE_LIGHT
     page.window.width = 960
     page.window.height = 720
     page.window.min_width = 720
     page.window.min_height = 560
+    # قلم ۱۶: برنامه تمام‌صفحه باز می‌شه و ✕ دیگر بی‌سؤال نمی‌بندد (پس‌زمینه یا خروج، انتخابِ کاربر).
+    page.window.maximized = True
 
     state = settings_module.load_settings()
     page.rtl = state.language == "fa"
@@ -120,6 +125,8 @@ def main(
 
     def save() -> None:
         settings_module.save_settings(state)
+
+    window_close.bind(page, state, save)  # قلم ۱۶: ✕ = انتخابِ خودِ کاربر
 
     # ---------------- بررسیِ نسخه‌ی تازه (N14a) ----------------
     update_checker = checker or updater.UpdateChecker(lambda: state, save)
@@ -314,6 +321,7 @@ def main(
             entry("experience", ft.Icons.TUNE_ROUNDED, t("home.nav.experience", lang) + attention_badge(), show_experience),
             entry("prompt", ft.Icons.EDIT_NOTE_ROUNDED, t("home.nav.prompt", lang), show_prompt_studio),
             entry("bots", ft.Icons.LINK_ROUNDED, t("home.nav.bots", lang), show_bots),
+            entry("payment", ft.Icons.PAYMENTS_OUTLINED, t("home.nav.payment", lang), show_payment_settings),
             entry("chats", ft.Icons.FORUM_OUTLINED, t("home.nav.chats", lang), show_chats),
             entry("customers", ft.Icons.PEOPLE_ROUNDED, t("home.nav.customers", lang), show_customers),
             entry("search", ft.Icons.SEARCH_ROUNDED, t("home.nav.search", lang), show_search),
@@ -387,7 +395,7 @@ def main(
     def goto(target: str) -> None:
         {"home": show_home, "bots": show_bots, "ai": show_ai_setup, "products": show_products, "orders": show_orders,
          "finance": show_finance, "customers": show_customers, "chats": show_chats, "prompt": show_prompt_studio,
-         "experience": show_experience}.get(target, show_home)()
+         "experience": show_experience, "payment": show_payment_settings}.get(target, show_home)()
 
     def show_guide(article_id: Optional[str] = None) -> None:
         set_content(shell("guide", guide_screen.build(page, state.language, state, manager, open_article=article_id)))
@@ -403,6 +411,9 @@ def main(
 
     def show_orders() -> None:
         set_content(shell("orders", orders.build(page, state.language, order_store, manager, state, save)))
+
+    def show_payment_settings() -> None:
+        set_content(shell("payment", payment_settings.build(page, state.language, state, save, manager)))
 
     def show_bots() -> None:
         control, cleanup = bot_connect.build(page, state.language, state, save, manager)
@@ -458,6 +469,11 @@ def main(
         def on_change_ai() -> None:
             show_ai_select(editing=True)
 
+        def on_change_close(action: str) -> None:
+            window_close.apply_close(state, action)
+            save()
+            show_settings()
+
         def on_change_language(new_lang: str) -> None:
             state.language = new_lang
             save()
@@ -483,6 +499,7 @@ def main(
                     on_change_mode,
                     on_change_ai,
                     on_change_language,
+                    on_change_close,
                     on_data_changed=on_data_changed,
                     manager=manager,
                     notice=notice,

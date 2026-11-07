@@ -1,32 +1,46 @@
 """
-«پیش‌نمایشِ مشتری» (R8): ربات رو بدونِ تلگرام و بدونِ توکن، همین‌جا امتحان کن — دقیقاً همان ``ShopFlow`` واقعی با
-سفارش‌های واقعی (پلتفرمِ «preview»؛ موجودی رزرو می‌شه، «پاک‌کردنِ پیش‌نمایش» سفارش‌های باز رو لغو می‌کنه).
-فقط پرداختِ کارت‌به‌کارت در پیش‌نمایش فعاله (هیچ درگاهِ واقعی صدا زده نمی‌شه)؛ متنِ آزاد به AI نمی‌ره.
+«پیش‌نمایشِ مشتری» (R8): ربات رو بدونِ تلگرام و بدونِ توکن، همین‌جا امتحان کن — همان
+``ShopFlow`` و همان ``ConversationPipeline`` واقعی (پلتفرمِ «preview»؛ موجودی رزرو می‌شه،
+«پاک‌کردنِ پیش‌نمایش» سفارش‌های باز را لغو می‌کنه).
+
+قلم ۳ مستر‌پرامپت: پاسخِ هوش مصنوعی و دکمه‌ها باید در پیش‌نمایش دیده بشن. پیش‌تر فقط جریانِ
+دکمه‌ها اجرا می‌شد و متنِ آزاد یادداشتِ «AI در پیش‌نمایش کار نمی‌کنه» می‌گرفت؛ حالا همان پیام
+به پایپ‌لاینِ واقعی می‌ره، پس پاسخِ مدل و کارت‌های محصول با دکمه‌هایشان همین‌جا می‌نشینن.
+مدل که انتخاب/دانلود نشده باشد همان یادداشت صادق می‌گوید چرا (رباتِ واقعی هم بی‌مدل ساکت است).
+
+فقط پرداختِ کارت‌به‌کارت در پیش‌نمایش فعال است (هیچ درگاهِ واقعی صدا زده نمی‌شه).
 """
 
 from __future__ import annotations
 
 import concurrent.futures
+from typing import Optional
 
 import flet as ft
 
 from app import theme
-from app.core.bot_pipeline import IncomingMessage
+from app.core import ai_engine, paths
+from app.core.answer_cache import AnswerCache
+from app.core.bot_pipeline import ConversationPipeline, IncomingMessage
+from app.core.conversations import ConversationStore
 from app.core.orders import METHOD_CARD_TO_CARD, STATUS_PENDING_PAYMENT
 from app.core.payments import PaymentHooks, PaymentService
+from app.core.qa_agent import QaAgent
 from app.core.shop_flow import ShopFlow
 from app.core.ui import FlowResult, UiMessage
 from app.screens import common
 
 PREVIEW_PLATFORM = "preview"
 PREVIEW_CHAT = "preview-1"
+MAX_LOG = 80
 _TEXT = {
     "title": ("پیش‌نمایشِ مشتری", "Customer preview"),
     "help": ("ربات رو همین‌جا امتحان کن: دکمه‌های منو و دکمه‌های داخلِ پیام‌ها مثلِ تلگرام کار می‌کنن.", "Try the bot right here: menu and inline buttons work just like on Telegram."),
     "input": ("پیام به ربات…", "Message the bot…"),
     "send": ("ارسال", "Send"),
     "reset": ("پاک‌کردنِ پیش‌نمایش", "Reset preview"),
-    "ai_note": ("(در پیش‌نمایش پاسخِ AI ساخته نمی‌شه؛ در ربات واقعی این پیام به هوش مصنوعی می‌رسه.)", "(AI replies are not generated in the preview; in the real bot this goes to the AI.)"),
+    "no_ai": ("پاسخِ AI ساخته نمی‌شه: مدلی انتخاب یا دانلود نشده (صفحه‌ی «هوش مصنوعی»). دکمه‌ها و سفارش مثلِ قبل کار می‌کنن.",
+              "No AI answer: no model is selected or downloaded yet (see the AI page). Buttons and ordering still work."),
     "start": ("شروع (/start)", "Start (/start)"),
 }
 
@@ -37,11 +51,60 @@ def _tx(key: str, lang: str) -> str:
 
 
 def _run(coro):
-    """coroutine رو روی یه تردِ تازه (با event loopِ خودش) اجرا می‌کنه — از داخلِ هر handlerِ Flet امنه."""
+    """coroutine را روی تردِ تازه (با event loop خودش) اجرا می‌کنه — از هر handlerِ Flet امنه.
+
+    مدلِ محلی روی CPU گاهی یک دقیقه و بیشتر وقت می‌بره، پس سقفِ انتظارش خیلی بلندتر از یک
+    درخواستِ شبکه‌ای است."""
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
         import asyncio
 
-        return pool.submit(lambda: asyncio.run(coro)).result(timeout=60)
+        return pool.submit(lambda: asyncio.run(coro)).result(timeout=300)
+
+
+class PreviewTransport:
+    """پیش‌نمایش همان UiMessage‌های واقعی را با دکمه‌های واقعی نشان می‌دهد (ویرایش و حذف هم همین‌جا)."""
+
+    def __init__(self, log: list):
+        self._log = log
+        self._by_id: dict = {}
+        self._next = 0
+        self.menu: Optional[list] = None
+
+    def reset(self) -> None:
+        self._by_id.clear()
+        self._next = 0
+        self.menu = None
+
+    async def send_ui(self, chat_id: str, msg: UiMessage) -> Optional[str]:
+        self._next += 1
+        message_id = f"pv{self._next}"
+        self._by_id[message_id] = msg
+        self._log.append(("bot", msg))
+        if msg.menu is not None:
+            self.menu = msg.menu
+        return message_id
+
+    async def edit_ui(self, chat_id: str, message_id: str, msg: UiMessage) -> bool:
+        old = self._by_id.get(message_id)
+        if old is None:
+            return False
+        self._by_id[message_id] = msg
+        for index, (kind, payload) in enumerate(self._log):
+            if kind == "bot" and payload is old:
+                self._log[index] = ("bot", msg)
+                break
+        if msg.menu is not None:
+            self.menu = msg.menu
+        return True
+
+    async def delete_message(self, chat_id: str, message_id: str) -> None:
+        msg = self._by_id.pop(message_id, None)
+        if msg is not None:
+            self._log[:] = [row for row in self._log if not (row[0] == "bot" and row[1] is msg)]
+
+    async def answer_callback(self, callback_id: str, text: str = "", alert: bool = False) -> None:
+        if text:
+            self._log.append(("bot", UiMessage(text)))
 
 
 def build(page: ft.Page, lang: str, settings, product_store, order_store) -> ft.Control:
@@ -52,10 +115,29 @@ def build(page: ft.Page, lang: str, settings, product_store, order_store) -> ft.
     flow = ShopFlow(lambda: settings, product_store, order_store, PaymentService(order_store, product_store, settings), hooks)
     flow.methods_filter = lambda methods: [m for m in methods if m == METHOD_CARD_TO_CARD]
     ui: dict = {"log": [], "menu": []}
+    transport = PreviewTransport(ui["log"])
+    state: dict = {"pipeline": None}
+
+    def pipeline() -> ConversationPipeline:
+        """مغزِ واقعیِ ربات برایِ پیش‌نمایش: ادغامِ پیام خاموش (هر پیام فوراً پاسخ می‌گیره) و بدونِ کش."""
+        if state["pipeline"] is None:
+            state["pipeline"] = ConversationPipeline(
+                settings,
+                store=ConversationStore(db_path=paths.get_app_data_dir() / "preview_conversations.db"),
+                shop_flow=flow,
+                qa_agent=QaAgent(product_store, order_store, flow),
+                debounce_wait=0.0,
+                debounce_max_wait=1.0,
+                answer_cache=AnswerCache(ttl_seconds=0),
+            )
+        return state["pipeline"]
 
     chat = ft.Column(key="preview_chat", spacing=8, scroll=ft.ScrollMode.AUTO, height=360)
     menu_row = ft.Row(key="preview_menu", spacing=6, wrap=True)
     entry = ft.TextField(key="preview_input", hint_text=_tx("input", lang), border_radius=10, expand=True)
+
+    def trim() -> None:
+        del ui["log"][:-MAX_LOG]
 
     def bubble(kind: str, control: ft.Control) -> ft.Control:
         mine = kind == "me"
@@ -106,22 +188,50 @@ def build(page: ft.Page, lang: str, settings, product_store, order_store) -> ft.
             if msg.menu:
                 ui["menu"] = msg.menu
             ui["log"].append(("bot", msg))
-        if not result.consumed:
-            ui["log"].append(("bot", UiMessage(_tx("ai_note", lang))))
-        ui["log"] = ui["log"][-80:]
+        trim()
+
+    def message(text: str = "", callback_data: str = "") -> IncomingMessage:
+        return IncomingMessage(
+            PREVIEW_PLATFORM, PREVIEW_CHAT, "پیش‌نمایش", text,
+            callback_data=callback_data, callback_id="p" if callback_data else "", language_code=lang,
+        )
+
+    def ask(text: str, callback_data: str) -> None:
+        if not ai_engine.engine_readiness(settings)[0]:
+            # بی‌مدل همان کاری که رباتِ واقعی می‌کنه: اول جریانِ دکمه‌ها (برچسبِ منو هم متن است)؛
+            # هرچه جریانِ ربات نبود پاسخِ مدل می‌خواست — که اینجا صادقانه گفته می‌شه.
+            result = _run(flow.handle(message(text, callback_data)))
+            absorb(result)
+            if not result.consumed or result.ai_text:
+                ui["log"].append(("bot", UiMessage(_tx("no_ai", lang))))
+            trim()
+            return
+
+        async def go() -> None:
+            async def send(sent_text: str, buttons=None) -> None:
+                ui["log"].append(("bot", UiMessage(sent_text)))
+
+            brain = pipeline()
+            await brain.handle_incoming(message(text, callback_data), send, transport)
+            await brain.flush(PREVIEW_PLATFORM, PREVIEW_CHAT)
+
+        _run(go())
+        if transport.menu is not None:
+            ui["menu"] = transport.menu
+        trim()
 
     def say(text: str) -> None:
         text = (text or "").strip()
         if not text:
             return
         ui["log"].append(("me", text))
-        absorb(_run(flow.handle(IncomingMessage(PREVIEW_PLATFORM, PREVIEW_CHAT, "پیش‌نمایش", text, language_code=lang))))
+        ask(text, "")
         entry.value = ""
         render()
         page.update()
 
     def tap(data: str) -> None:
-        absorb(_run(flow.handle(IncomingMessage(PREVIEW_PLATFORM, PREVIEW_CHAT, "پیش‌نمایش", "", callback_data=data, callback_id="p", message_id="0", language_code=lang))))
+        ask("", data)
         render()
         page.update()
 
@@ -135,6 +245,8 @@ def build(page: ft.Page, lang: str, settings, product_store, order_store) -> ft.
         flow.carts.clear(PREVIEW_PLATFORM, PREVIEW_CHAT)
         flow.sessions.clear(PREVIEW_PLATFORM, PREVIEW_CHAT)
         ui["log"], ui["menu"] = [], []
+        transport.reset()
+        state["pipeline"] = None
         render()
         page.update()
 

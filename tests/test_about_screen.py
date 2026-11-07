@@ -44,10 +44,11 @@ def opened(monkeypatch):
     return urls, copies
 
 
-def build(lang="fa", checker=None, state=None, saves=None):
+def build(lang="fa", checker=None, state=None, saves=None, support=False):
     page = FakePage()
     state = state or AppSettings()
-    root = about.build(page, lang, state, (lambda: saves.append(1)) if saves is not None else (lambda: None), checker=checker, version="1.1.0")
+    root = about.build(page, lang, state, (lambda: saves.append(1)) if saves is not None else (lambda: None),
+                     checker=checker, version="1.1.0", support_first=support)
     return page, root, state
 
 
@@ -58,12 +59,15 @@ def test_builds_in_both_languages_and_shows_version_and_license():
         _page, root, _s = build(lang)
         text = collect_text(root)
         assert "1.1.0" in text and ("MIT" in text)
-        assert find(root, "about_check") is not None and find(root, "support_tile") is not None
+        assert find(root, "about_check") is not None
+        # کارتِ حمایت دیگر در «درباره» نیست؛ فقط در صفحه‌ی مخصوصِ خودش دیده می‌شه
+        assert find(root, "support_tile") is None
+        assert find(build(lang, support=True)[1], "support_tile") is not None
 
 
-def test_support_section_is_collapsed_and_fields_start_empty_with_no_presets():
-    _page, root, _s = build()
-    assert find(root, "support_tile").expanded is False
+def test_support_page_opens_the_form_with_empty_fields_and_no_presets():
+    _page, root, _s = build(support=True)
+    assert find(root, "support_tile").expanded is True
     assert not find(root, "support_amount").value and not find(root, "support_message").value
     assert find(root, "support_counter").value == "0/100"
 
@@ -79,7 +83,7 @@ def test_support_nav_entry_lands_on_the_open_support_form():
     assert "1.1.0" in collect_text(root)  # هیچ چیز از صفحه حذف نشده
 
     _page, plain, _s = build()
-    assert find(plain, "support_tile").expanded is False
+    assert find(plain, "support_tile") is None  # «درباره» دیگر کارتِ حمایت ندارد
     assert "درباره" in collect_text(plain.content.controls[0])
 
 
@@ -161,7 +165,7 @@ def test_auto_check_switch_persists_the_setting():
 
 def test_support_form_builds_the_exact_daramet_link_and_opens_it(opened):
     urls, copies = opened
-    _page, root, _s = build()
+    _page, root, _s = build(support=True)
     find(root, "support_amount").value = "۵٬۰۰۰"
     fire(find(root, "support_message"), "on_change", value="دمتون گرم 🙏")
     assert find(root, "support_counter").value == "12/100"  # ۹ حرف + ۱ فاصله + ایموجی (۲ واحدِ UTF-16)
@@ -176,7 +180,7 @@ def test_support_form_builds_the_exact_daramet_link_and_opens_it(opened):
 
 def test_support_form_shows_persian_errors_and_opens_nothing(opened):
     urls, _ = opened
-    _page, root, _s = build()
+    _page, root, _s = build(support=True)
     for amount, message, expected in (("", "", "مبلغ"), ("abc", "", "عدد"), ("0", "", "صفر"), ("500", "x" * 101, "100")):
         find(root, "support_amount").value = amount
         find(root, "support_message").value = message
@@ -188,7 +192,7 @@ def test_support_form_shows_persian_errors_and_opens_nothing(opened):
 
 
 def test_message_counter_turns_red_over_the_limit():
-    _page, root, _s = build()
+    _page, root, _s = build(support=True)
     fire(find(root, "support_message"), "on_change", value="x" * 120)
     counter = find(root, "support_counter")
     assert counter.value == "120/100"
@@ -200,7 +204,7 @@ def test_message_counter_turns_red_over_the_limit():
 def test_webintent_disabled_shows_only_the_profile_button(monkeypatch, opened):
     monkeypatch.setattr(branding, "DARAMET_WEBINTENT_ENABLED", False)
     urls, _ = opened
-    _page, root, _s = build()
+    _page, root, _s = build(support=True)
     assert find(root, "support_amount") is None and find(root, "support_make") is None
     fire(find(root, "support_profile"), "on_click")
     assert urls == ["https://daramet.com/Niknam1382"]
@@ -257,7 +261,7 @@ def test_main_has_no_banner_without_update_and_about_nav_opens_the_about_page(op
     body = page.controls[0]
     assert find(body.content, "update_banner") is None
     fire(find(body.content, "nav_about"), "on_click")
-    assert find(body.content, "about_check") is not None and find(body.content, "support_tile") is not None
+    assert find(body.content, "about_check") is not None and find(body.content, "support_tile") is None
 
 
 def test_update_thread_starts_only_when_enabled_and_refreshes_the_banner(opened):

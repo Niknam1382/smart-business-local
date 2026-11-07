@@ -828,12 +828,33 @@ class OrderStore:
             f"WHERE status IN ({marks}) AND {self._PII_PRESENT} AND updated_at < datetime('now', ?)",
             (*self._CLOSED, f"-{int(days)} day"),
         )
+        self._purge_receipts(conn, ids)
         conn.commit()
         self._anonymize_invoices(ids)
         return cur.rowcount
 
+    def _purge_receipts(self, conn, order_ids: list) -> None:
+        """رسیدِ کارت‌به‌کارت هم داده‌ی شخصی است: متن، شماره کارتِ آخر و فایلِ تصویر.
+
+        بدونِ این، «فراموشم کن» فقط نام/تلفن/نشانی را می‌بُرد و رسیدِ مشتری (که اغلب شماره
+        کارت و نامِ صاحب حساب دارد) در دیتابیس و در هر پشتیبانِ بعدی می‌ماند."""
+        if not order_ids:
+            return
+        marks = ", ".join("?" for _ in order_ids)
+        paths = [r["file_path"] for r in conn.execute(
+            f"SELECT file_path FROM payment_receipts WHERE order_id IN ({marks})", tuple(order_ids)
+        ).fetchall()]
+        conn.execute(f"DELETE FROM payment_receipts WHERE order_id IN ({marks})", tuple(order_ids))
+        for raw in paths:
+            if not raw:
+                continue
+            try:
+                Path(raw).unlink(missing_ok=True)
+            except OSError:
+                logger.warning("حذفِ فایلِ رسید ناموفق بود", exc_info=True)
+
     def anonymize_chat(self, platform: str, chat_id: str) -> int:
-        """``/forget``: مشخصاتِ شخصیِ سفارش‌های *بسته‌شده*‌ی همین چت پاک می‌شه (سفارش‌های باز دست‌نخورده)."""
+        """``/forget``: مشخصاتِ شخصی + رسیدهایِ سفارش‌های *بسته‌شده*‌ی همین چت پاک می‌شه (سفارشِ باز دست‌نخورده)."""
         marks = ", ".join("?" for _ in self._CLOSED)
         conn = self._connection()
         # فاکتورها را برای *همه‌ی* سفارش‌های همین چت ناشناس می‌کنیم (فاکتور فقط برای سفارشِ تاییدشده/بسته است)
@@ -845,6 +866,7 @@ class OrderStore:
             f"WHERE platform=? AND chat_id=? AND status IN ({marks}) AND {self._PII_PRESENT}",
             (platform, str(chat_id), *self._CLOSED),
         )
+        self._purge_receipts(conn, ids)
         conn.commit()
         self._anonymize_invoices(ids)
         return cur.rowcount
@@ -1209,10 +1231,21 @@ def build_order_confirmed_text(order: Order) -> str:
     return t("order.confirmed_head") + "\n\n" + build_order_summary_text(order) + "\n\n" + t("order.confirmed_tail")
 
 
+def build_order_fulfillment_text(order: Order) -> str:
+    """پیامِ وضعیتِ ارسال برای مشتری: آماده‌سازی، ارسال شد (با کد رهگیری) یا تحویل شد.
+    فقط وقتی ``settings.notify_on_fulfillment`` روشن است فرستاده می‌شود."""
+    if order.fulfillment == FULFILL_SHIPPED:
+        text = t("order.shipped_head", order_id=order.id)
+        if order.tracking_code:
+            text += "\n" + t("order.shipped_tracking", code=order.tracking_code)
+        return text
+    if order.fulfillment == FULFILL_PREPARING:
+        return t("order.preparing_head", order_id=order.id)
+    if order.fulfillment == FULFILL_DELIVERED:
+        return t("order.delivered_head", order_id=order.id)
+    return build_order_summary_text(order)
+
+
 def build_order_shipped_text(order: Order) -> str:
-    """پیامِ کوتاهِ «ارسال شد» برای مشتری — فقط وقتی کلیدِ ``notify_on_shipment``
-    روشن است فرستاده می‌شه (پیش‌فرض خاموش: ربات بی‌اجازه‌ی مالک پیامِ پیش‌قدم نمی‌ده)."""
-    text = t("order.shipped_head", order_id=order.id)
-    if order.tracking_code:
-        text += "\n" + t("order.shipped_tracking", code=order.tracking_code)
-    return text
+    """همان پیامِ وضعیت (نامِ قدیمی)."""
+    return build_order_fulfillment_text(order)

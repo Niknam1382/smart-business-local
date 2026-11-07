@@ -218,4 +218,5 @@ class HandoffService:
         sessions = self.list_open()
         if not sessions:
             return "گفتگوی پشتیبانیِ بازی نداری. ✅"
-        return "🙋 گفتگوهای پشتیبانیِ باز:\n" + "\n".join(f"• {s.customer_label} — /reply {s.ref} متن — /close {s.ref}" for s in sessions[:20])
+        # قلم ۲۲: فهرستِ مالک دستورِ متنی تبلیغ نمی‌کند — پاسخ و بستن، دکمه‌هایِ پنلِ مدیریت‌اند.
+        return "🙋 گفتگوهای پشتیبانیِ باز:\n" + "\n".join(f"• {s.customer_label} [{s.ref}]" for s in sessions[:20]) + "\n\nبرای پاسخ، از پنلِ مدیریت (/admin) روی نامِ مشتری بزن."

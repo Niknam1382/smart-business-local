@@ -41,6 +41,7 @@ class FakeManager:
     def __init__(self, running=False, diag_result=None):
         self.running = running
         self.diag_calls = []
+        self.restarts = []
         self.diag_result = diag_result
         self.errors = {}
 
@@ -49,6 +50,10 @@ class FakeManager:
 
     def payment_last_errors(self):
         return dict(self.errors)
+
+    def restart(self, timeout: float = 15.0) -> None:
+        self.restarts.append("restart")
+        self.running = True
 
     def diagnose_payment_sync(self, method, timeout=30.0):
         self.diag_calls.append(method)
@@ -390,6 +395,22 @@ def test_bale_diagnostic_calls_manager_and_prints_result():
     manager.diag_result = (False, "بله لینکِ آزمایشی را نپذیرفت: invalid provider_token")
     fire(find(control, "diag_bale_pay"), "on_click")
     assert out.color == theme.DANGER and "نپذیرفت" in out.value
+
+
+def test_restart_bots_button_restarts_and_says_so():
+    """۱۲: «بله‌پی وصل نیست» باید راه‌حلِ واقعی داشته باشد، نه اشاره به صفحه‌ی دیگر."""
+    settings = AppSettings()
+    fill_tokens_into_settings(settings)
+    manager = FakeManager(running=False)
+    _, control, _ = make_card(settings, manager)
+    fire(find(control, "restart_bots"), "on_click")
+    assert manager.restarts == ["restart"] and manager.running is True
+    assert "ری‌استارت" in collect_text(control)
+
+
+def test_restart_bots_button_absent_without_manager():
+    _, control, _ = make_card()
+    assert find(control, "restart_bots") is None
 
 
 def test_card_to_card_diagnostic_is_available_without_bots():

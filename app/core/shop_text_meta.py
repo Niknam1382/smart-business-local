@@ -131,6 +131,7 @@ handoff.started|support|basic|پیامِ شروعِ گفتگو با پشتیبا
 handoff.timeout|support|advanced|پیامِ بسته‌شدنِ گفتگو به‌خاطرِ بی‌فعالیتی|Support chat closed (inactivity)||
 limit.chat|system|advanced|پیامِ سقفِ روزانه‌ی گفتگوی هر مشتری|Per-customer daily AI limit||
 limit.kill|system|advanced|پیامِ خاموش‌بودنِ پاسخ‌گوییِ هوشمند|AI answers switched off||
+limit.off|system|advanced|پیامِ خاموشیِ هوش مصنوعیِ فقط یک پیام‌رسان|AI off for this messenger only||
 limit.total|system|advanced|پیامِ سقفِ کلِ روزانه‌ی هوشمند|Daily AI total limit reached||
 menu.cart|welcome|advanced|دکمه‌ی منو: سبد خرید|Menu button: Cart||
 menu.checkout|welcome|advanced|دکمه‌ی قدیمیِ «نهایی کردن» (فقط سازگاری)|Old “checkout” button (compat only)||
@@ -168,6 +169,9 @@ ord.fulfill.shipped|orders|advanced|برچسبِ وضعیتِ «ارسال شد�
 ord.fulfill.delivered|orders|advanced|برچسبِ وضعیتِ «تحویل شده»|"Delivered" fulfilment label||
 ord.tracking|orders|advanced|سطرِ کد رهگیری در جزئیاتِ سفارش|Tracking code line in order details||
 order.shipped_head|orders|advanced|تیترِ پیامِ «ارسال شد» برای مشتری|"Shipped" notice heading for the customer|وقتی «اعلانِ ارسال» روشن باشد و سفارش را ارسال بزنی|When the shipped notice is on and you mark an order shipped
+order.preparing_head|orders|advanced|تیترِ پیامِ «در حالِ آماده‌سازی» برای مشتری|"Preparing" notice heading for the customer|وقتی وضعیتِ سفارش را «آماده‌سازی» بزنی و اعلانِ وضعیت روشن باشد|When you mark an order preparing while status notices are on
+order.delivered_head|orders|advanced|تیترِ پیامِ «تحویل شد» برای مشتری|"Delivered" notice heading for the customer|وقتی وضعیتِ سفارش را «تحویل شد» بزنی و اعلانِ وضعیت روشن باشد|When you mark an order delivered while status notices are on
+support.direct|support|advanced|خطِ تماسِ مستقیمِ پشتیبانی در صفحه‌ی پشتیبانی|Direct support line on the support page|وقتی شماره‌ی پشتیبانی را در «تجربه‌ی ربات» نوشته باشی|When you saved a support phone in “Bot experience”
 order.shipped_tracking|orders|advanced|سطرِ کد رهگیری در پیامِ «ارسال شد»|Tracking line in the shipped notice||
 ord.title|orders|advanced|عنوانِ لیستِ سفارش‌ها|Orders list title||
 order.confirmed_head|orders|basic|تیترِ پیامِ تأییدِ سفارش|Order confirmed heading|وقتی تو سفارشِ پرداخت‌شده رو تأیید می‌کنی|When you confirm a paid order
@@ -263,6 +267,7 @@ _VARS = {
     "name": ("نامِ محصول", "Product name", "هدفون"),
     "number": ("شماره‌ی کارت", "Card number", "6037-99••-••••-1234"),
     "order_id": ("شماره‌ی سفارش", "Order number", "12"),
+    "phone": ("شماره‌ی تماس", "Phone number", "02188776655"),
     "page": ("شماره‌ی صفحه", "Page number", "1"),
     "pages": ("تعدادِ کلِ صفحه‌ها", "Total pages", "3"),
     "platform": ("پیام‌رسان", "Platform", "تلگرام"),

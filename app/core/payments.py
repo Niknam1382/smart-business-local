@@ -649,7 +649,8 @@ class PaymentService:
             return False, "توکنِ درگاه (provider_token) وارد نشده."
         client = hooks.bale_client()
         if client is None:
-            return False, "رباتِ پرداختِ بله وصل نیست — از صفحهٔ «تنظیماتِ پرداخت» آن را روشن کن."
+            return False, ("رباتِ پرداختِ بله وصل نیست — ربات‌ها خاموش‌اند؛ در صفحهٔ «ربات‌ها» روشن یا "
+                         "ری‌استارتشان کن (دکمهٔ «روشن/ری‌استارت کردنِ ربات‌ها» پایینِ همین کارت هم هست).")
         kind = describe_provider_token(provider)
         note = f" | توکن از نوعِ «{kind}»" + (" ⚠️ این توکنِ آزمایشیِ مستندات است" if is_test_provider_token(provider) else "")
         try:

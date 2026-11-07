@@ -4,6 +4,7 @@ import pytest
 from fake_page import FakePage, collect_text, find, fire
 
 from app.core.bot_manager import BotManager
+from app.core import report_xlsx
 from app.core.conversations import ConversationStore
 from app.core.orders import OrderStore
 from app.core.products import ProductStore
@@ -202,3 +203,45 @@ def test_english_ui_builds(tmp_path):
     assert "Dashboard" in collect_text(r.control) and "Net sales" in collect_text(r.control)
     for tab in ("inv", "led", "set"):
         r.click(f"fn_tab_{tab}")
+
+
+# ------------------------------------------------- گزارشِ اکسل/PDF (بخش ۸ِ master prompt) ----
+
+def test_excel_and_pdf_report_buttons_write_files(rig, monkeypatch):
+    """«خروجِ اکسل»/«خروجِ PDF» ردیف‌هایِ دفترِ همان بازه + جمع‌هایِ KPI را در
+    ``<داده>/reports`` می‌نویسند و پوشه را باز می‌کنند (همان تجربه‌ی «ساخت/نمایشِ PDF»ِ فاکتور)."""
+    rig.sale(100_000, 2, cost=40_000)
+    rig.manager.finance.post_missing()
+    opened: list = []
+    monkeypatch.setattr("app.screens.finance.common.open_folder", lambda p: opened.append(str(p)) or True)
+    rig.click("fn_period_all")
+    for key, suffix in (("fn_export_xlsx", ".xlsx"), ("fn_export_pdf", ".pdf")):
+        assert rig.f(key) is not None, key
+        rig.click(key)
+        assert rig.notice()[0].startswith("✅") and "سطری ساخته شد" in rig.notice()[0], rig.notice()
+        assert any(p.suffix == suffix for p in report_xlsx.reports_dir().glob("*")), key
+        assert str(report_xlsx.reports_dir()) in rig.notice()[0]
+    assert opened == [str(report_xlsx.reports_dir())] * 2 and rig.page.run_thread_calls >= 2
+    path = sorted(report_xlsx.reports_dir().glob("*.xlsx"))[-1]
+    preamble, header, body = report_xlsx.read_report(path)
+    assert len(body) >= 2 and header[3] == "مبلغ (ریال)"
+    assert all(row[3].lstrip("-").isdigit() for row in body)  # پولِ خامِ عددی تا اکسل جمع کند
+    xml = report_xlsx.sheet_xml_of(path)
+    assert "سودِ خالص (ریال)" in xml  # همان KPIهایِ داشبورد در فایل هم هستند
+
+
+def test_report_buttons_are_visible_on_every_tab(rig, monkeypatch):
+    """دکمه‌ها کنارِ تب‌هایند، پس در «دفتر» و «تنظیمات» هم دیده می‌شوند (نه فقط داشبورد)."""
+    monkeypatch.setattr("app.screens.finance.common.open_folder", lambda p: True)
+    for tab in ("dash", "inv", "led", "set"):
+        rig.click(f"fn_tab_{tab}")
+        assert rig.f("fn_export_xlsx") is not None and rig.f("fn_export_pdf") is not None, tab
+
+
+def test_report_export_without_data_shows_persian_error(rig, monkeypatch):
+    opened: list = []
+    monkeypatch.setattr("app.screens.finance.common.open_folder", lambda p: opened.append(p) or True)
+    rig.click("fn_period_all")
+    rig.click("fn_export_xlsx")
+    assert rig.notice()[0] == report_xlsx.EMPTY_ERROR and rig.notice()[1] is not None
+    assert opened == [] and list(report_xlsx.reports_dir().glob("*.xlsx")) == []

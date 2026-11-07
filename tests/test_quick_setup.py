@@ -59,7 +59,7 @@ def test_store_presets_set_form_and_defaults_and_nothing_else(preset):
     assert snapshot(s) == before  # توکن/پرداخت/FAQ/دکمه/متن/بیو/پرامپت/مدل دست‌نخورده
 
 
-@pytest.mark.parametrize("preset", ["consult", "support"])
+@pytest.mark.parametrize("preset", ["consult"])
 def test_non_store_presets_set_a_consultant_form_and_never_edit_mode(preset):
     for business, expected in (("consultant", "advisor"), ("store", "shop_buttons")):
         s = store()
@@ -84,7 +84,7 @@ def test_store_presets_are_no_ops_the_second_time_they_are_applied():
 def test_consultants_cannot_use_shop_presets_and_unknown_is_rejected():
     s = AppSettings()
     s.business_mode = "consultant"
-    assert quick_setup.available(s) == ["consult", "support"]
+    assert quick_setup.available(s) == ["consult"]
     with pytest.raises(ValueError):
         quick_setup.apply(s, "physical")
     with pytest.raises(ValueError):
@@ -95,11 +95,11 @@ def test_consultants_cannot_use_shop_presets_and_unknown_is_rejected():
 def test_english_bots_get_english_form_labels_and_english_change_list():
     s = dirty_store()
     s.bot_language = "en"
-    changes = quick_setup.apply(s, "services", "en")
+    changes = quick_setup.apply(s, "physical", "en")
     assert any("Order form" in c and "Name" in c for c in changes)
     assert [f.label for f in cf.load_fields(s)][0] == "Name"
     fa = dirty_store()
-    assert any("فرمِ سفارش" in c for c in quick_setup.apply(fa, "services", "fa"))
+    assert any("فرمِ سفارش" in c for c in quick_setup.apply(fa, "physical", "fa"))
     assert quick_setup.apply(store(), "physical") == []  # فروشگاهِ تازه از قبل همین پیش‌فرض‌هاست
 
 

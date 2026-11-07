@@ -8,9 +8,12 @@
 
 from __future__ import annotations
 
+import re
+
 import flet as ft
 
 from app import theme
+from app.core import ai_engine
 from app.core import checkout_fields as cf
 from app.core import custom_buttons as cb
 from app.core import modes, working_hours
@@ -88,6 +91,9 @@ _S = {
     "h.hint": ("مثلاً 09:00-17:00 یا چند بازه با کاما: 09:00-13:00, 16:00-20:00 (خالی = تعطیل)", "e.g. 09:00-17:00, or several with commas (empty = closed)"),
     "h.message": ("پیامِ خارج از ساعتِ کاری", "Off-hours message"),
     "h.timeout": ("بسته‌شدنِ خودکارِ گفتگوی پشتیبانی بعد از (ساعت)", "Auto-close support chats after (hours)"),
+    "h.phone": ("شماره‌ی تماسِ مستقیمِ پشتیبانی (برای مشتری)", "Direct support phone (shown to customers)"),
+    "h.phone_note": ("متنِ کنارِ شماره (اختیاری: ساعت پاسخ‌گویی، نامِ پشتیبان…)", "Optional line under the number (hours, agent name…)",),
+    "h.phone_bad": ("شماره‌ی تماس باید فقط رقم، +، - و فاصله باشد (۷ تا ۲۰ نویسه).", "The phone may only contain digits, +, -, spaces (7-20 chars)."),
     "h.note": ("ساعتِ کاری فقط برای پیامِ پشتیبانیه؛ فروش ۲۴ ساعته‌ست. منطقه‌ی زمانی: تهران.", "Working hours only affect support messages; selling is 24/7. Timezone: Tehran."),
     "d.mon": ("دوشنبه", "Mon"), "d.tue": ("سه‌شنبه", "Tue"), "d.wed": ("چهارشنبه", "Wed"), "d.thu": ("پنجشنبه", "Thu"),
     "d.fri": ("جمعه", "Fri"), "d.sat": ("شنبه", "Sat"), "d.sun": ("یکشنبه", "Sun"),
@@ -96,6 +102,20 @@ _S = {
     "l.total": ("سقفِ روزانه‌ی کل (۰ = بدونِ سقف)", "Daily total cap (0 = unlimited)"),
     "l.kill": ("قطعِ اضطراریِ AI (دکمه‌ها و پرداخت کار می‌کنن)", "AI kill switch (buttons and payments keep working)"),
     "l.retention": ("نگه‌داریِ داده (روز؛ ۰ = برای همیشه)", "Data retention (days; 0 = forever)"),
+    "l.perf": ("سرعت و هزینه‌ی پاسخ", "Answer speed and cost"),
+    "p.note": ("این سه تنظیم، تعدادِ تماس‌های مدل را کم می‌کنند: کشیدنِ پاسخِ تکراری، صبر برای ادغامِ پیام‌هایِ پشتِ‌سرهم و پاسخِ کامل.",
+                 "These three settings cut the number of model calls: cached repeat answers, merging a customer’s rapid messages, and complete answers."),
+    "p.cache": ("پاسخِ تکراری چند دقیقه در حافظه بماند (مدل دوباره صدا زده نمی‌شه)", "Keep a repeat answer in memory for a few minutes (no second model call)"),
+    "p.cache_minutes": ("سقفِ حافظه‌ی پاسخ (دقیقه؛ ۰ = خاموش)", "Answer cache lifetime (minutes; 0 = off)"),
+    "p.wait": ("چند ثانیه از آخرین پیام صبر کنیم تا سؤال کامل بشه (۰ = هر پیام جدا)", "Seconds of silence before one request (0 = answer every message)"),
+    "p.cap": ("حداکثرِ صبر برای مشتریِ پر‌پیام (ثانیه)", "Longest a busy customer is made to wait (seconds)"),
+    "p.gpu": ("شتابِ گرافیکیِ واقعیِ همین بیلد", "Actual GPU acceleration of this build"),
+    "p.gpu_cpu": ("پردازنده (بیلدِ رسمیِ برنامه CPU است؛ برای GPU باید بیلدِ CUDA را نصب کنی)",
+                  "CPU only (the official build is CPU; install a CUDA build of llama-cpp for GPU)"),
+    "p.gpu_on": ("موتورِ برنامه می‌تواند لایه روی گرافیک بگذارد ({layers})", "This engine can offload layers to the GPU ({layers})"),
+    "p.saved_restart": ("✅ ذخیره شد و ربات با تنظیماتِ تازه روشن شد.", "✅ Saved; the bot restarted with the new settings."),
+    "p.restart_failed": ("ذخیره شد، ولی ربات دوباره روشن نشد: {reason}", "Saved, but the bot did not restart: {reason}"),
+    "p.wait_bad": ("صبرِ حداکثر باید از صبرِ عادی بیشتر باشد.", "The maximum wait must not be shorter than the ordinary wait."),
     "i.empty": ("چیزی نیاز به توجه نداره ✅", "Nothing needs attention ✅"),
     "i.orders_waiting": ("⏳ {n} سفارشِ پرداخت‌شده منتظرِ تأییدِ توئه (صفحه‌ی سفارش‌ها)", "⏳ {n} paid order(s) waiting for your confirmation (Orders page)"),
     "i.done": ("انجام شد", "Done"), "i.all": ("همه انجام شد", "Mark all done"),
@@ -110,6 +130,22 @@ _S = {
     "i.lead": ("درخواستِ جدید", "New request"), "i.ai_cap": ("سقفِ AI", "AI cap"), "i.payment_failed": ("خطای پرداخت", "Payment error"),
     "i.payment_claim": ("مشتری گفته پرداخت کرده — رسید را بررسی کن", "A customer says they paid — check the receipt"), "i.other": ("سایر", "Other"),
 }
+
+
+def _num_text(value) -> str:
+    """۳٫۵ → «۳٫۵» نه «۳.۵»یِ انگلیسی؛ عددهایِ اعشاریِ تنظیمات را همان‌طور که هستند نشان می‌ده."""
+    number = float(value or 0)
+    return str(int(number)) if number == int(number) else f"{number:.1f}"
+
+
+def _float_input(raw, lo: float, hi: float, label: str) -> float:
+    try:
+        value = float(cf.normalize_input(str(raw or ""), 40).replace("٫", "."))
+    except ValueError:
+        raise ValueError(f"{label}: عددِ معتبر بنویس") from None
+    if not lo <= value <= hi:
+        raise ValueError(f"{label}: بین {lo} تا {hi}")
+    return value
 
 
 def S(key: str, lang: str, **kw) -> str:
@@ -287,7 +323,7 @@ def build(page: ft.Page, lang: str, settings, save_callback, product_store, orde
             f_form.visible = False
             page.update()
 
-    tpl_dd = dd("fld_template", S("f.template", lang), [(k, S(f"tpl.{k}", lang)) for k in ("physical", "services")], "physical", 220)
+    tpl_dd = dd("fld_template", S("f.template", lang), [(k, S(f"tpl.{k}", lang)) for k in ("physical",)], "physical", 220)
 
     def apply_template(e=None) -> None:
         chosen = cf.templates("en" if lang == "en" else "fa").get(tpl_dd.value or "physical", [])
@@ -418,6 +454,9 @@ def build(page: ft.Page, lang: str, settings, save_callback, product_store, orde
                                   value=", ".join((wh.get("days") or {}).get(d, []))) for d in ("sat", "sun", "mon", "tue", "wed", "thu", "fri")}
     h_message = ft.TextField(key="wh_message", label=S("h.message", lang), border_radius=10, value=str(wh.get("message", "")))
     h_timeout = ft.TextField(key="wh_timeout", label=S("h.timeout", lang), border_radius=10, width=300, value=str(settings.handoff_timeout_hours))
+    sup_phone = ft.TextField(key="sup_phone", label=S("h.phone", lang), border_radius=10, width=240, value=str(settings.support_phone),
+                              keyboard_type=ft.KeyboardType.PHONE)
+    sup_note = ft.TextField(key="sup_note", label=S("h.phone_note", lang), border_radius=10, value=str(settings.support_direct_note))
     h_note = note_control("wh_note")
 
     def save_hours(e=None) -> None:
@@ -433,13 +472,19 @@ def build(page: ft.Page, lang: str, settings, save_callback, product_store, orde
         except ValueError as exc:
             show(h_note, str(exc), False)
             return
+        phone = cf.normalize_input(sup_phone.value or "", 40)
+        if phone and not re.fullmatch(r"[+0-9\- ()]{7,20}", phone):
+            show(h_note, S("h.phone_bad", lang), False)
+            return
         settings.working_hours, settings.handoff_timeout_hours = raw, timeout
+        settings.support_phone, settings.support_direct_note = phone, (sup_note.value or "").strip()[:300]
         save_callback()
         show(h_note, S("saved", lang), True)
 
     hours_section = tile("sec_hours", S("sec.hours", lang), [
         ft.Text(S("h.note", lang), size=12, color=theme.text_secondary(page)), h_enabled, ft.Text(S("h.hint", lang), size=11, color=theme.text_secondary(page)),
-        ft.Row(spacing=10, wrap=True, controls=list(day_fields.values())), h_message, h_timeout, ft.Button(key="wh_save", content=S("save", lang), on_click=save_hours), h_note])
+        ft.Row(spacing=10, wrap=True, controls=list(day_fields.values())), h_message, h_timeout,
+        ft.Row(spacing=10, wrap=True, controls=[sup_phone, sup_note]), ft.Button(key="wh_save", content=S("save", lang), on_click=save_hours), h_note])
 
     # ========================================== ۷) مصرف و محدودیت
     def usage_text() -> str:
@@ -510,6 +555,54 @@ def build(page: ft.Page, lang: str, settings, save_callback, product_store, orde
     # ============================================ عضویتِ اجباریِ کانال (N13)
     channels_section = required_channels_card.build(page, lang, settings, save_callback, manager)
 
+    # ====================================== ۸-الف) سرعت و هزینه (قلم‌های ۱۴، ۱۷، ۱۸)
+    def gpu_line() -> str:
+        if not ai_engine.gpu_offload_available():
+            return S("p.gpu_cpu", lang)
+        return S("p.gpu_on", lang, layers=int(getattr(settings, "ai_gpu_layers", 0) or 0) or "خودکار")
+
+    gpu_info = ft.Text(gpu_line(), key="perf_gpu", size=13)
+    p_cache = ft.Switch(key="perf_cache", label=S("p.cache", lang), value=bool(settings.ai_response_cache))
+    p_minutes = ft.TextField(key="perf_cache_minutes", label=S("p.cache_minutes", lang), border_radius=10, width=250,
+                             value=str(settings.ai_response_cache_minutes))
+    p_wait = ft.TextField(key="perf_debounce_wait", label=S("p.wait", lang), border_radius=10, width=280,
+                          value=_num_text(settings.debounce_wait_seconds))
+    p_cap = ft.TextField(key="perf_debounce_max", label=S("p.cap", lang), border_radius=10, width=280,
+                         value=_num_text(settings.debounce_max_wait_seconds))
+    p_note = note_control("perf_note")
+
+    def save_perf(e=None) -> None:
+        try:
+            minutes = int_field(p_minutes.value, 0, 1440, S("p.cache_minutes", lang))
+            wait = _float_input(p_wait.value, 0.0, 30.0, S("p.wait", lang))
+            cap = _float_input(p_cap.value, 1.0, 60.0, S("p.cap", lang))
+        except ValueError as exc:
+            show(p_note, str(exc), False)
+            return
+        if cap < wait:
+            show(p_note, S("p.wait_bad", lang), False)
+            return
+        settings.ai_response_cache = bool(p_cache.value)
+        settings.ai_response_cache_minutes, settings.debounce_wait_seconds, settings.debounce_max_wait_seconds = minutes, wait, cap
+        save_callback()
+        if manager is not None and manager.started_platforms():
+            def work() -> None:  # راه‌اندازیِ دوباره چند ثانیه طول می‌کشه — صفحه نباید یخ بزنه
+                try:
+                    manager.restart()
+                    show(p_note, S("p.saved_restart", lang), True)
+                except Exception as exc:  # noqa: BLE001 — تنظیم ذخیره شد؛ فقط راه‌اندازیِ دوباره نشد
+                    show(p_note, S("p.restart_failed", lang, reason=str(exc)), False)
+                page.update()
+
+            page.run_thread(work)
+        else:
+            show(p_note, S("saved", lang), True)
+
+    perf_section = tile("sec_perf", S("l.perf", lang), [
+        ft.Text(S("p.note", lang), size=12, color=theme.text_secondary(page)), gpu_info, p_cache,
+        ft.Row(spacing=10, wrap=True, controls=[p_minutes, p_wait, p_cap]),
+        ft.Button(key="perf_save", content=S("save", lang), on_click=save_perf), p_note])
+
     # ================================================ ۹) پیش‌نمایش
     preview_section = tile("sec_preview", S("sec.preview", lang), [customer_preview.build(page, lang, settings, product_store, order_store)])
 
@@ -519,7 +612,7 @@ def build(page: ft.Page, lang: str, settings, save_callback, product_store, orde
         ("quick", S("tab.quick", lang), [wizard_section, mode_section, profile_section, preview_section]),
         ("shop", S("tab.shop", lang), [shop_hint, catalog_section, fields_section, buttons_section]),
         ("messages", S("tab.messages", lang), [texts_section, faq_section]),
-        ("advanced", S("tab.advanced", lang), [hours_section, channels_section, limits_section, inbox_section]),
+        ("advanced", S("tab.advanced", lang), [hours_section, channels_section, perf_section, limits_section, inbox_section]),
     ]
     panels = {tid: ft.Column(key=f"exp_panel_{tid}", spacing=14, visible=(tid == "quick"), controls=ctrls) for tid, _label, ctrls in tab_defs}
     tab_buttons: dict = {}

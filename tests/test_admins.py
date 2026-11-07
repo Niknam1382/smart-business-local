@@ -660,10 +660,10 @@ def test_support_view_without_a_handoff_service_is_graceful(rig):
     assert "پشتیبانی فعال نیست" in rig.t.texts()
     rig.panel._handoff = FakeHandoff()
     rig.tap("2", "adm:sup")
-    assert "گفتگوهای باز" in rig.t.texts() and "/reply" in rig.t.texts()
+    assert "گفتگوهای باز" in rig.t.texts()
     rig.admin("viewer", "3")
     rig.tap("3", "adm:sup")
-    assert "/reply" not in rig.t.texts()  # ناظر فقط می‌بینه
+    assert "/reply" not in rig.t.texts() and "/close" not in rig.t.texts()  # ۲۲: هیچ دستوری تبلیغ نمی‌شه
 
 
 def test_home_button_returns_to_the_menu_by_editing(rig):
@@ -754,3 +754,153 @@ def test_invite_a_manager_end_to_end_and_confirm_from_a_button(tmp_path, tg, bal
         assert orders.get(oid2).status == STATUS_PAID
     finally:
         manager.stop(timeout=10)
+
+
+# ============================== ۲۲) پنلِ پشتیبانیِ دکمه‌ای (بدونِ اسلش‌کماند) ==========
+
+
+class Session:
+    def __init__(self, platform, chat_id, label):
+        self.platform, self.chat_id, self.customer_label = platform, chat_id, label
+        self.ref = f"{platform[:1]}{chat_id}"
+        self.status = "open"
+
+
+class LiveHandoff(FakeHandoff):
+    """دو گفتگوی باز، تا دکمه‌ها و حالتِ پاسخ آزموده بشن."""
+
+    def __init__(self, sessions=None):
+        super().__init__()
+        self.sessions = sessions if sessions is not None else [Session("telegram", "40", "مریم"), Session("telegram", "41", "رضا")]
+
+    def list_open(self):
+        return list(self.sessions)
+
+    def get(self, platform, chat_id):
+        return next((s for s in self.sessions if s.platform == platform and s.chat_id == chat_id), None)
+
+    def owner_list(self):
+        return "📋 گفتگوهای باز: " + ", ".join(s.customer_label for s in self.sessions)
+
+
+def alerts(rig):
+    return [text for _cb, text, is_alert in rig.t.answers if is_alert]
+
+
+def test_support_panel_lists_sessions_as_buttons(rig):
+    rig.panel._handoff = LiveHandoff()
+    rig.admin("support", "2")
+    rig.tap("2", "adm:sup")
+    texts = rig.t.texts()
+    labels = " | ".join(rig.t.labels())
+    assert "مریم" in labels and "رضا" in labels  # اسمِ مشتری روی دکمه، نه توی متن
+    assert "/reply" not in texts and "/close" not in texts, "پنل باید دکمه بدهد، نه دستور"
+    assert "adm:sr:t40" in rig.t.buttons() and "adm:sc:t41" in rig.t.buttons()
+
+
+def test_support_reply_by_button_needs_no_slash_command(rig):
+    handoff = LiveHandoff()
+    rig.panel._handoff = handoff
+    rig.admin("support", "2")
+
+    rig.tap("2", "adm:sr:t40")
+    assert "حالتِ پاسخ" in rig.t.texts() and rig.panel._reply_target
+
+    rig.say("2", "سلام، فردا صبح ارسال می‌شه")
+    assert ("reply", "telegram", "40", "سلام، فردا صبح ارسال می‌شه") in handoff.calls
+    assert "فرستاده شد" in rig.t.texts() or any("فرستاده شد" in line for line in rig.replies)
+    assert not rig.panel._reply_target, "بعد از پاسخ، حالتِ پاسخ خاموش می‌شه"
+
+
+def test_support_reply_mode_ignores_commands_and_can_be_cancelled(rig):
+    handoff = LiveHandoff()
+    rig.panel._handoff = handoff
+    rig.admin("support", "2")
+    rig.tap("2", "adm:sr:t40")
+
+    rig.say("2", "/admin")  # دستورِ اسلشی بلعیده نمی‌شه و مثلِ همیشه به منو می‌رسه
+    assert handoff.calls == [] and rig.panel._reply_target
+
+    rig.tap("2", "adm:sw")
+    assert not rig.panel._reply_target
+
+
+def test_support_close_button_closes_the_session(rig):
+    handoff = LiveHandoff()
+    rig.panel._handoff = handoff
+    rig.admin("support", "2")
+    rig.tap("2", "adm:sc:t41")
+    assert ("close", "telegram", "41") in handoff.calls
+    assert "بسته شد" in rig.t.texts()
+
+
+def test_reply_button_requires_the_support_capability(rig):
+    rig.panel._handoff = LiveHandoff()
+    rig.admin("viewer", "3")
+    rig.tap("3", "adm:sup")
+    assert "adm:sr:t40" not in rig.t.buttons(), "ناظر دکمه‌ی پاسخ نمی‌بینه"
+
+
+def test_a_stale_ref_is_refused(rig):
+    rig.panel._handoff = LiveHandoff()
+    rig.admin("support", "2")
+    rig.tap("2", "adm:sr:t99")
+    assert any("باز نیست" in line for line in alerts(rig))
+    assert not rig.panel._reply_target
+
+
+# ============================== ۲۲) اعلانِ سفارش با دکمه (نه دستورِ متنی) ==============
+
+
+def ui_rig(tmp_path):
+    """Rig با کنسولی که send_ui دارد؛ دکمه‌های اعلانِ مالک همین‌جا ضبط می‌شن."""
+    rig = Rig(tmp_path)
+    sent_ui = []
+
+    async def send_ui(platform, chat_id, text, rows):
+        sent_ui.append((platform, chat_id, text, rows))
+        return True
+
+    rig.console._send_ui = send_ui
+    rig.settings.owner_chats = {"telegram": "900"}
+    return rig, sent_ui
+
+
+def test_paid_order_alert_carries_confirm_buttons(tmp_path):
+    rig, sent_ui = ui_rig(tmp_path)
+    _pid, oid = rig.paid_order(chat="10")
+    order = rig.orders.get(oid)
+    assert asyncio.run(rig.console.alert_order(order)) is True
+    platform, chat_id, text, rows = sent_ui[-1]
+    assert chat_id == "900" and "منتظر" in text
+    data = [b.data for row in rows for b in row]
+    assert f"adm:ok:{oid}" in data and f"adm:no:{oid}" in data and f"adm:od:{oid}" in data
+    assert all(len(b.data.encode("utf-8")) <= 64 for row in rows for b in row), "callback تلگرام حداکثر ۶۴ بایت است"
+
+
+def test_confirmed_order_alert_is_plain_text(tmp_path):
+    """«آماده‌ی ارسال» دکمه‌ی تأیید ندارد؛ همان متن می‌رود (و send_ui هم صدا زده نمی‌شود)."""
+    rig, sent_ui = ui_rig(tmp_path)
+    _pid, oid = rig.paid_order(chat="10")  # paid_order خودش سفارش را «پرداخت‌شده» می‌کند
+    rig.orders.confirm(oid)
+    order = rig.orders.get(oid)
+    assert asyncio.run(rig.console.alert_order(order)) is True
+    assert sent_ui == []  # rows خالی = مسیرِ متنیِ معمولی
+
+
+def test_alerts_still_work_without_a_ui_capable_sender(tmp_path):
+    """اگر آداپتور دکمه نفرستد، اعلانِ متن می‌رود — هیچ پیامی گم نمی‌شود."""
+    rig = Rig(tmp_path)
+    _pid, oid = rig.paid_order(chat="10")
+    order = rig.orders.get(oid)
+    assert asyncio.run(rig.console.alert_order(order)) is True
+    assert any("منتظر" in text for _p, _c, text in rig.delivered)
+
+
+def test_the_panel_menu_no_longer_advertises_text_commands(rig):
+    rig.admin("manager", "1")
+    rig.tap("1", "adm:home")
+    texts = rig.t.texts()
+    for command in ("/orders", "/stock", "/handoffs", "/reply", "/close"):
+        assert command not in texts, command
+    assert "/admin" in texts  # تنها چیزی که لازم است: راهِ برگشت به پنل

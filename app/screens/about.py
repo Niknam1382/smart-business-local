@@ -200,9 +200,8 @@ def build(page: ft.Page, lang: str, state, save, checker=None, version: str = __
         padding=6,
     )
 
-    cards = [version_card, creator_card, support_tile]
-    if support_first:
-        cards = [support_tile, version_card, creator_card]
+    # کارتِ حمایت فقط در صفحه‌ی «پشتیبانی/حمایت» است؛ «درباره» باید درباره‌ی خودِ برنامه باشد.
+    cards = [support_tile, version_card, creator_card] if support_first else [version_card, creator_card]
     return common.screen_frame(
         page,
         common.page_header(page, ft.Icons.FAVORITE_ROUNDED if support_first else ft.Icons.INFO_OUTLINE_ROUNDED,

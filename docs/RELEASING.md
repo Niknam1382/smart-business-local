@@ -22,7 +22,7 @@
   (`%APPDATA%\SmartBusinessLocal`, `~/Library/Application Support/SmartBusinessLocal`,
   `$XDG_DATA_HOME/SmartBusinessLocal`).
 - **Zarinpal is deleted** and the AI is **local-only** (llama.cpp + GGUF, downloaded at runtime), so no
-  release contains an API key, a payment callback URL or a model file. Bale is only a payment gateway.
+  release contains an API key, a payment callback URL or a model file. Bale Pay is a payment gateway; Bale chat is a separate, optional messenger and neither may leak its token into a release asset.
 - **No platform is `experimental`.** Windows and Linux each produce a real artefact and each can fail the
   run; fragile spots are called out in comments instead of being silently ignored. macOS produces no
   artefact (see *Status* above) — that is a decision, not a silenced failure.

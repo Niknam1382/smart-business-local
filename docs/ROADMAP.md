@@ -14,8 +14,9 @@ and troubleshooter · Jalali dates everywhere · the AI lost every write tool (o
   panel (model folder, context tokens, threads, GPU layers, reply caps, kill switch) and a *Test model* button.
 - **Central prompt studio**: persona editor + 12 ready-made templates + five non-removable guardrail segments + a live
   preview of the exact text the model receives + warnings (prompt length, hardcoded prices, injection bait).
-- **Telegram is the only messenger**; the Bale bot is gone and Bale survives as the **Bale Pay** gateway
-  (`createInvoiceLink` first, payment-bot deep link as fallback).
+- **Telegram is the main messenger**; the Bale chat bot is an optional, independent second messenger (own token at
+  `tapi.bale.ai`, own AI switch), and **Bale Pay** remains a separate gateway (`createInvoiceLink` first, payment-bot
+  deep link as fallback). Every combination works: Telegram only, Bale only, both, neither.
 - **Two payment methods**: card-to-card with receipt capture and an instant alarm (confirmation is always manual), and
   Bale Pay with gateway-verified auto-confirmation. Zarinpal is gone.
 - **Exactly two modes** (advisor / shop) and a **four-button** customer menu; guide + FAQ live under *Contact support*.
@@ -25,7 +26,7 @@ and troubleshooter · Jalali dates everywhere · the AI lost every write tool (o
 frozen per order so old invoices never change, with a “shipping charged” line in the ledger and on the finance
 dashboard) · a delivery track for confirmed orders (preparing → shipped → delivered, tracking code included, never
 touching the money) · a read-only payment-status panel on every paid order · global search across orders, products and
-customers from one box · the 11th prompt template (“store rules”) · 2062 tests.
+customers from one box · the 11th prompt template (“store rules”) · Excel and PDF export of every list · 2205 tests.
 
 **Next release candidates**
 
@@ -66,7 +67,7 @@ customers from one box · the 11th prompt template (“store rules”) · 2062 t
   رشته‌ها، لایه‌ی GPU، سقفِ پاسخ، کلیدِ خاموشی) و دکمه‌ی «آزمایشِ مدل».
 - **استودیوی مرکزیِ پرامپت:** ویرایشگرِ شخصیت + ۱۱ قالبِ آماده + پنج قطعه‌ی گاردریلِ حذف‌نشدنی + پیش‌نمایشِ همان
   متنی که مدل می‌خواند + هشدارها (بلندیِ پرامپت، قیمتِ دست‌نویس، عبارت‌هایِ پرخطرِ تزریق).
-- **تلگرام تنها پیام‌رسان است**؛ رباتِ گفتگوی بله حذف شد و بله فقط به‌عنوانِ درگاهِ **بله‌پی** مانده (اول
+- **تلگرام پیام‌رسانِ اصلی است**؛ رباتِ گفتگوی بله به‌صورتِ یک گزینه‌ی اختیاریِ مستقل اضافه شده (توکن و سوییچِ AIِ جدا، روی `tapi.bale.ai`) و درگاهِ **بله‌پی** کاملاً از آن جدا مانده — هر ترکیبی ممکن است (اول
   `createInvoiceLink`، اگر نشد دیپ‌لینکِ رباتِ پرداخت).
 - **دو روشِ پرداخت:** کارت‌به‌کارت با گرفتنِ رسید و آلارمِ فوری (تأیید همیشه دستی) و بله‌پی با تأییدِ خودکارِ
   پرداختِ تأییدشده‌ی درگاه. زرین‌پال حذف شد.
@@ -78,7 +79,7 @@ customers from one box · the 11th prompt template (“store rules”) · 2062 t
 هر سفارش تا فاکتورهایِ قدیمی عوض نشوند، با خطِ «کرایه‌ی ارسال» در دفتر و داشبوردِ مالی) · مسیرِ «در دستِ ارسال» برای
 سفارش‌های تأییدشده (آماده‌سازی ← ارسال ← تحویل، با کد رهگیری و بدونِ دست‌زدن به پول) · کارتِ فقط‌خواندنیِ «وضعیتِ
 پرداخت» روی هر سفارشِ پرداخت‌شده · جست‌وجوی سراسری در سفارش/مشتری/محصول در یک کادر · دوازدهمین قالبِ پرامپت
-(«قوانینِ فروشگاه») · ۲۰۶۲ تست.
+(«قوانینِ فروشگاه») · خروجِ اکسل و PDF از هر فهرست · ۲۲۰۵ تست.
 
 **بعدی (کاندیدهای انتشارِ بعد)**
 

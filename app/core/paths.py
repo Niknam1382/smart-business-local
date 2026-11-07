@@ -3,11 +3,12 @@
 ترتیب انتخاب پوشه‌ی داده (اولی که جور شد):
 
 ۱. متغیر محیطی ``SMART_BUSINESS_DATA_DIR`` (برای کاربران حرفه‌ای/تست/داکر).
-۲. پوشه‌ی استاندارد سیستم‌عامل:
-
-   ویندوز: %APPDATA%\\SmartBusinessLocal
-   مک:     ~/Library/Application Support/SmartBusinessLocal
-   لینوکس: $XDG_DATA_HOME/SmartBusinessLocal یا ~/.local/share/SmartBusinessLocal
+۲. بسته‌ی نصبیِ ویندوز بدونِ داده‌ی قبلی: همان درایوِ محلِ نصب،
+   ``<درایو>:\SmartBusinessLocal`` (بیرون از پوشه‌ی نصب تا حذفِ برنامه داده را نبرد).
+۳. پوشه‌ی استاندارد سیستم‌عامل (ویندوز: %APPDATA%\\SmartBusinessLocal،
+   مک: ~/Library/Application Support/SmartBusinessLocal،
+   لینوکس: $XDG_DATA_HOME/SmartBusinessLocal یا ~/.local/share/SmartBusinessLocal).
+   کاربری که از قبل داده دارد همیشه همین‌جا می‌ماند.
 
 همه‌ی داده‌ها (تنظیمات، دیتابیس‌ها، ``secret.key``، مدل‌ها، فاکتورها) توی همین یک پوشه‌ان و
 از «تنظیمات ← داده و ایمنی» پشتیبان گرفته می‌شه.
@@ -25,6 +26,7 @@ ENV_DATA_DIR = "SMART_BUSINESS_DATA_DIR"
 
 MODE_ENV = "env"
 MODE_SYSTEM = "system"
+MODE_INSTALL = "install"
 
 
 def app_anchor() -> Path:
@@ -45,12 +47,31 @@ def _system_default_dir() -> Path:
     return Path(base) / APP_DIR_NAME
 
 
+def _has_user_data(directory: Path) -> bool:
+    """آیا این پوشه از قبل داده‌ی کاربر دارد؟ نصبِ تازه به درایوِ محلِ نصب می‌رود، ولی کاربرِ
+    قدیمی هرگز نباید داده‌اش را در دو جا پیدا کند."""
+    try:
+        return directory.is_dir() and any(directory.iterdir())
+    except OSError:
+        return False
+
+
 def resolve_data_dir() -> tuple:
-    """``(مسیر, حالت)`` — حالت یکی از env/system."""
+    """``(مسیر, حالت)`` — حالت یکی از env/install/system.
+
+    بسته‌ی نصبیِ ویندوز وقتی پوشه‌ی استانداردِ سیستم خالی است داده را روی **همان درایوی می‌برد که
+    برنامه نصب شده** (``<درایو>:\SmartBusinessLocal``) — بیرون از پوشه‌ی نصب، تا حذفِ برنامه داده را
+    پاک نکند. اگر آنجا داده‌ی قبلی باشد، همان‌جا می‌ماند.
+    """
     override = os.environ.get(ENV_DATA_DIR, "").strip()
     if override:
         return Path(override).expanduser(), MODE_ENV
-    return _system_default_dir(), MODE_SYSTEM
+    system_dir = _system_default_dir()
+    if getattr(sys, "frozen", False) and sys.platform == "win32" and not _has_user_data(system_dir):
+        drive = app_anchor().drive
+        if drive:
+            return Path(drive + os.sep) / APP_DIR_NAME, MODE_INSTALL
+    return system_dir, MODE_SYSTEM
 
 
 def get_app_data_dir() -> Path:

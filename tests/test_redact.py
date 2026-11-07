@@ -22,3 +22,14 @@ def test_redacts_proxy_credentials():
 def test_short_or_empty_secrets_are_ignored():
     assert redact("abc", "", "a") == "abc"
     assert redact("") == ""
+
+
+def test_log_redaction_covers_card_api_key_email_and_mobile():
+    """بازبینیِ امنیت: لایه‌ی لاگ نباید از لایه‌ی بسته‌ی تشخیصی ضعیف‌تر باشد."""
+    from app.core.redact import redact
+
+    line = redact("کارت 6037-9911-2233-4455 و کلید sk-abcdefghijklmnopqrst و ali@example.com و 09121234567")
+    assert "6037" not in line and "sk-abcdefghijklmnopqrst" not in line
+    assert "ali@example.com" not in line and "09121234567" not in line
+    assert "****-****-****-****" in line and "09*********" in line
+    assert redact("هیچ داده‌ی حساسی اینجا نیست") == "هیچ داده‌ی حساسی اینجا نیست"

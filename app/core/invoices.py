@@ -249,7 +249,9 @@ class InvoiceStore:
         buyer = {"name": clean_text(order.customer_name, 80), "phone": clean_text(order.customer_phone, 30),
                  "address": clean_text(order.customer_address, 300),
                  # کدِ پیگیری/تراکنش روی فاکتور چاپ می‌شه؛ بخشی از snapshot است، نه داده‌ی هویتی
-                 "trace": clean_text(order.payment_reference, 40)}
+                 "trace": clean_text(order.payment_reference, 40),
+                 # روشِ ارسالِ انتخابیِ مشتری هم روی فاکتور می‌آید (برچسبِ غیرهویتی؛ با /forget پاک می‌شه)
+                 "shipping_method": clean_text(getattr(order, "shipping_method", ""), 60)}
         conn = self._conn()
         conn.execute("BEGIN IMMEDIATE")
         try:

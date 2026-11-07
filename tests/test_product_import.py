@@ -327,3 +327,41 @@ def test_summary_lists_at_most_five_problems():
     problems = [pi.RowProblem(row_number=2 + i, reason="بی‌نام") for i in range(9)]
     text = pi.import_summary("fa", [], problems)
     assert "9 سطر وارد نشد" in text and "4 سطرِ دیگر" in text and text.count("بی‌نام") == 5
+
+
+# ═════════════════════ بازبینیِ امنیت: ENTITY/DOCTYPE در فایلِ اکسل هرگز parse نمی‌شود ═════════════════════
+
+
+def _hostile_workbook(tmp_path):
+    """قالبِ واقعیِ برنامه را می‌گیرد و XMLِ برگه‌اش را با یک entityِ بزرگ عوض می‌کند."""
+    import io
+
+    raw = io.BytesIO(pi.template_bytes())
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(raw) as source, zipfile.ZipFile(buffer, "w") as target:
+        for item in source.infolist():
+            data = source.read(item.filename)
+            if item.filename == "xl/worksheets/sheet1.xml":
+                data = (b'<?xml version="1.0"?>'
+                        b'<!DOCTYPE x [<!ENTITY a "' + b"A" * 20000 + b'">]>'
+                        b'<worksheet><row r="1"><c r="A1"><v>1</v></c></row></worksheet>')
+            target.writestr(item, data)
+    path = tmp_path / "evil.xlsx"
+    path.write_bytes(buffer.getvalue())
+    return path
+
+
+def test_a_workbook_with_entity_declarations_is_refused_before_parsing(tmp_path):
+    """«billion laughs»: چند کیلوبایت فایل می‌توانست CPU و RAMِ فروشنده را قفل کند."""
+    path = _hostile_workbook(tmp_path)
+    with pytest.raises(ProductImportError) as caught:
+        pi.import_file(ProductStore(tmp_path / "p.db"), path)
+    assert "ENTITY" in str(caught.value) or "خطرناک" in str(caught.value)
+
+
+def test_xml_root_rejects_declarations_and_accepts_clean_xml():
+    with pytest.raises(ProductImportError):
+        pi.xml_root(b'<!DOCTYPE x [<!ENTITY a "b">]><x/>')
+    with pytest.raises(ProductImportError):
+        pi.xml_root(b'<!ENTITY a "b"><x/>')
+    assert pi.xml_root(b"<x><a>1</a></x>").tag == "x"

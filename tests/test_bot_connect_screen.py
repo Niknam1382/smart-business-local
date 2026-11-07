@@ -194,14 +194,17 @@ def test_enabled_switch_toggles_settings(tmp_path):
     cleanup()
 
 
-def test_page_is_telegram_only_no_bale_messenger_card(tmp_path):
-    """۱.۰.۰: بله پیام‌رسان نیست — نه کارتِ بله، نه فیلدِ توکن/سوییچِ آن، نه کلیدهایِ حذف‌شده."""
+def test_both_messengers_have_their_own_card_and_legacy_keys_stay_gone(tmp_path):
+    """قلم ۲۴: بله هم پیام‌رسانِ ربات شد (کارتِ خودش را دارد)، ولی کلیدهایِ قدیمی برنمی‌گردند."""
     settings, manager = make_env(tmp_path)
     control, cleanup = bot_connect.build(FakePage(), "fa", settings, lambda: None, manager)
-    assert bot_connect.PLATFORMS == ("telegram",)
-    for key in ("bale_token", "bale_test", "bale_enabled"):
-        assert find(control, key) is None, key
-    assert not hasattr(settings, "get_bale_token") and not hasattr(settings, "bale_enabled")
+    assert bot_connect.PLATFORMS == ("telegram", "bale")
+    for key in ("telegram_token", "telegram_test", "telegram_enabled", "telegram_ai",
+                "bale_token", "bale_test", "bale_enabled", "bale_ai"):
+        assert find(control, key) is not None, key
+    assert find(control, "telegram_proxy") is not None  # پروکسی فقط تلگرام (بله داخلِ ایران است)
+    for legacy in ("get_bale_token", "bale_enabled"):
+        assert not hasattr(settings, legacy), legacy
     cleanup()
 
 

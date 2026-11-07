@@ -51,6 +51,7 @@ HELP_FOR = {
     "experience": "experience-overview", "prompt": "ai-prompt", "bots": "bot-token", "chats": "support-chats", "customers": "customers-book",
     "broadcast": "marketing-broadcast", "discounts": "marketing-discounts", "finance": "finance-overview", "admins": "admins-roles",
     "search": "search-global",
+    "payment": "payments-setup-steps",
     "about": "start-updates", "support": "start-support-dev", "settings": "safety-backup",
 }
 

@@ -52,11 +52,28 @@ FONT_PATHS = {
 }
 
 
+def scrollbar_theme(dark: bool = False) -> ft.ScrollbarTheme:
+    """نوارِ اسکرولِ رنگی و همیشه‌دیده (قلم ۴ مستر‌پرامپت): اسکرولِ مخفیِ Material روی پنجره‌ی
+    ویندوزِ راست‌چین «کجا اسکرول می‌شه؟» را بی‌جواب می‌گذاشت."""
+    thumb = PRIMARY_LIGHT if dark else PRIMARY
+    track = f"{PRIMARY}22" if dark else "#EDEFF7"
+    return ft.ScrollbarTheme(
+        thickness=10,
+        radius=6,
+        thumb_color=thumb,
+        track_color=track,
+        interactive=True,
+        thumb_visibility=True,
+        track_visibility=True,
+    )
+
+
 def build_theme() -> ft.Theme:
     return ft.Theme(
         color_scheme_seed=PRIMARY,
         font_family=FONT_FAMILY,
         use_material3=True,
+        scrollbar_theme=scrollbar_theme(False),
     )
 
 
@@ -65,6 +82,7 @@ def build_dark_theme() -> ft.Theme:
         color_scheme_seed=PRIMARY_LIGHT,
         font_family=FONT_FAMILY,
         use_material3=True,
+        scrollbar_theme=scrollbar_theme(True),
     )
 
 

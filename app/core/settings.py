@@ -75,7 +75,7 @@ class AppSettings:
     # --- موتورِ مدلِ محلی (پیش‌فرض‌ها خودکار از سخت‌افزار حساب می‌شن؛ عدد > ۰ یعنی دستورِ کاربر) ---
     ai_threads: int = 0  # ۰ = خودکار (تعداد هسته‌ها)
     ai_context_tokens: int = 0  # ۰ = خودکار بر پایهٔ سایز مدل و رم
-    ai_gpu_layers: int = 0  # ۰ = فقط CPU؛ پیشرفته: اگر بیلدِ CUDA نصب باشد، تعداد لایه‌های GPU
+    ai_gpu_layers: int = 0  # ۰ = خودکار: از خودِ بیلدِ llama-cpp پرسیده می‌شه (بیلدِ رسمی CPU است ⇒ همان ۰)
 
     # --- اتصال به تلگرام (بله فقط درگاهِ پرداخت است؛ اسرار همه رمزنگاری‌شده روی دیسک) ---
     telegram_bot_token_encrypted: str = ""
@@ -102,6 +102,15 @@ class AppSettings:
     # رو توی یه کانال تلگرام پابلیک بذاره.
     card_to_card_number: str = ""
     card_to_card_holder_name: str = ""
+    # --- بله به‌عنوان پیام‌رسانِ ربات (قلم ۲۴): کاملاً مستقل از بله‌پی ---
+    # «چتِ بله» یعنی رباتِ هوشمند روی پیام‌رسانِ بله حرف می‌زند (Bot API سازگار با تلگرام).
+    # «بله‌پی» یعنی درگاهِ پرداخت. هیچ‌کدام دیگری را لازم ندارد: هر چهار ترکیب ممکن است.
+    bale_chat_enabled: bool = False
+    bale_chat_token_encrypted: str = ""
+    # --- هوش مصنوعی به تفکیکِ پیام‌رسان (قلم ۲۴: «هوشِ ربات مستقل از درگاه باشد») ---
+    telegram_ai: bool = True  # خاموش ⇒ تلگرام فقط دکمه/سفارش/متنِ آماده دارد، مدل صدا زده نمی‌شود
+    bale_chat_ai: bool = True
+
     # --- بله‌پی: رباتِ بله فقط برایِ پرداختِ است (هیچ چتی را پاسخ نمی‌دهد) ---
     # توکنِ رباتِ بله و provider_token هر دو اعتبارنامه‌ان -> رمزنگاری‌شده.
     bale_pay_bot_token_encrypted: str = ""
@@ -118,7 +127,9 @@ class AppSettings:
     alert_on_payment_claim: bool = True
     # پیامِ کوتاهِ «🚚 ارسال شد (+کد رهگیری)» به مشتری وقتی مالک سفارشِ تأییدشده را ارسال می‌زند.
     # پیش‌فرض خاموش — ربات بی‌اراده‌ی مالک پیامِ پیش‌قدم نمی‌ده؛ فقط یک سوییچِ ساده، نه راز.
-    notify_on_shipment: bool = False
+    # هر گذارِ وضعیتِ ارسال (آماده‌سازی ← ارسال شد ← تحویل شد) برای مشتری فرستاده می‌شه
+    notify_on_fulfillment: bool = True
+    notify_on_shipment: bool = False  # نامِ قدیمیِ همان کلید
 
     # روش‌هایِ ارسالِ مالک — ``[{id, name, price_irr, free_over_irr, active}]``. خالی (پیش‌فرض)
     # یعنی هیچ‌وقت از مشتری «انتخابِ ارسال» پرسیده نمی‌شه و مبلغ هیچ سفارشی عوض نمی‌شه؛ مثلِ شماره
@@ -141,6 +152,9 @@ class AppSettings:
     faq_items: list = field(default_factory=list)  # [{"q": ..., "a": ...}]
     working_hours: dict = field(default_factory=dict)  # فقط برای پیامِ مناسبِ پشتیبانی؛ working_hours.py
     handoff_timeout_hours: int = 24  # بسته‌شدنِ خودکارِ گفتگوی پشتیبانی بعد از بی‌فعالیتی
+    # شماره/متنِ تماسِ مستقیمِ پشتیبانی — در صفحه‌ی پشتیبانیِ ربات به مشتری نشان داده می‌شه
+    support_phone: str = ""
+    support_direct_note: str = ""
 
     # --- سقفِ مصرفِ AI؛ ۰ = بدونِ سقف. فقط پاسخ‌های مدل رو محدود می‌کنه، نه دکمه/پرداخت ---
     max_ai_messages_per_chat_per_day: int = 200
@@ -152,6 +166,7 @@ class AppSettings:
     ai_disclosure_enabled: bool = True  # خطِ «این ربات با هوش مصنوعی کار می‌کنه» در /start (متن: privacy.ai_disclosure)
 
     # --- به‌روزرسانی: فقط GitHub، بدونِ سرور ---
+    close_action: str = "ask"  # دکمه‌ی ✕: "ask" بپرس · "hide" در پس‌زمینه (ربات روشن می‌مونه) · "quit" خروجِ کامل
     update_check_enabled: bool = True  # بررسیِ خودکارِ نسخه‌ی تازه (هنگامِ شروع و هر ۲۴ ساعتِ اجرا)
     update_dismissed_version: str = ""  # نسخه‌ای که کاربر «بعداً» زده؛ تا نسخه‌ی بعدی بنر نمی‌آید
     update_last_check_ts: int = 0
@@ -173,7 +188,13 @@ class AppSettings:
 
     # --- بهینه‌سازیِ توکن (مدلِ محلی روی سخت‌افزارِ ضعیف حساس‌ه) ---
     token_opt_history_window: bool = True  # پنجره‌ی توکنیِ تاریخچه (نه کاراکتری)
-    token_opt_max_tokens: bool = True  # سقفِ خروجی به‌تناسبِ پرسش
+    token_opt_max_tokens: bool = True  # سقفِ خروجی به‌تناسبِ پرسش + یک تلاشِ دوبله اگر پاسخ نصفه ماند
+    ai_response_cache: bool = True  # پاسخِ تکراری چند دقیقه در حافظه می‌مونه؛ مدل دوباره صدا زده نمی‌شه
+    ai_response_cache_minutes: int = 15  # ۰ = بدونِ کش
+
+    # --- ادغامِ پیام‌هایِ پشتِ‌سرهمِ مشتری (قلم ۱۸ مستر‌پرامپت) ---
+    debounce_wait_seconds: float = 3.0  # سکوت لازم برای ارسالِ دسته به مدل؛ ۰ = هر پیام جدا
+    debounce_max_wait_seconds: float = 10.0  # حتی اگر مشتری سکوت نکرد، بیشتر از این معطل نمی‌شه
 
     # --- مالی و فاکتور — ابزارِ کمکی، نه جایگزینِ حسابدارِ رسمی ---
     invoice_seller_name: str = ""
@@ -250,6 +271,20 @@ class AppSettings:
     def bale_pay_configured(self) -> bool:
         """هر دو اعتبارنامه لازم است: توکنِ رباتِ پرداخت + توکنِ درگاه."""
         return bool(self.bale_pay_enabled and self.get_bale_pay_bot_token() and self.get_bale_pay_provider_token())
+
+    # --- اعتبارنامه‌های «چتِ بله» (قلم ۲۴) ---
+    def set_bale_chat_token(self, raw: str) -> None:
+        self.bale_chat_token_encrypted = crypto.encrypt(raw.strip()) if raw and raw.strip() else ""
+
+    def get_bale_chat_token(self) -> str:
+        return crypto.decrypt(self.bale_chat_token_encrypted) if self.bale_chat_token_encrypted else ""
+
+    def bale_chat_configured(self) -> bool:
+        return bool(self.bale_chat_enabled and self.get_bale_chat_token())
+
+    def ai_enabled_for(self, platform: str) -> bool:
+        """سوییچِ هوش مصنوعیِ همان پیام‌رسان؛ پیام‌رسانِ ناشناخته = روشن (بی‌خطرترین حدِ رفتارِ قبلی)."""
+        return {"telegram": bool(self.telegram_ai), "bale": bool(self.bale_chat_ai)}.get(platform, True)
 
     def ensure_default_prompt(self) -> None:
         if not self.system_prompt and self.business_mode:

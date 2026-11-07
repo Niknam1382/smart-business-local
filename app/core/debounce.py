@@ -14,6 +14,10 @@
 هر کلید (معمولاً (platform, chat_id)) بافر و تایمر جدای خودش رو داره، پس
 مکالمه‌های همزمانِ چند مشتری با هم تداخل نمی‌کنن.
 
+هر دو عدد از تنظیماتِ فروشنده می‌آیند (قلم ۱۸ مستر‌پرامپت): ``debounce_wait_seconds``
+و ``debounce_max_wait_seconds``. ``wait_seconds = 0`` یعنی «هیچ‌وقت ادغام نکن، به هر
+پیام فوراً جواب بده».
+
 این کلاس فقط منطق ادغامه و به تلگرام/بله/AI هیچ وابستگی‌ای نداره — برای
 همین می‌شه کاملاً جدا و بدون شبکه تستش کرد.
 """
@@ -43,8 +47,8 @@ class Debouncer:
         wait_seconds: float = 3.0,
         max_wait_seconds: float = 10.0,
     ):
-        if wait_seconds <= 0 or max_wait_seconds <= 0:
-            raise ValueError("wait_seconds و max_wait_seconds باید مثبت باشن")
+        if wait_seconds < 0 or max_wait_seconds <= 0:
+            raise ValueError("wait_seconds باید >= ۰ و max_wait_seconds باید مثبت باشد")
         if max_wait_seconds < wait_seconds:
             raise ValueError("max_wait_seconds باید >= wait_seconds باشه")
         self._on_flush = on_flush
@@ -64,6 +68,10 @@ class Debouncer:
 
         if buf.task is not None:
             buf.task.cancel()
+
+        if self._wait_seconds <= 0:  # تنظیمِ «ادغام نکن»: هر پیام فوراً و تنها پردازش می‌شه
+            buf.task = asyncio.create_task(self._flush(key))
+            return
 
         remaining_until_cap = (buf.first_message_at + self._max_wait_seconds) - now
         delay = min(self._wait_seconds, max(remaining_until_cap, 0.0))

@@ -52,6 +52,7 @@ def build(
     on_change_mode,
     on_change_ai,
     on_change_language,
+    on_change_close=None,
     on_data_changed=None,
     manager=None,
     notice: str = "",
@@ -144,6 +145,32 @@ def build(
         mode_card,
         ai_card,
     ]
+    if on_change_close is not None:  # قلم ۱۶: انتخابِ رفتارِ ✕ (هر بار بپرس / پس‌زمینه / خروجِ کامل)
+        controls.append(
+            common.card(
+                page,
+                ft.Column(
+                    spacing=8,
+                    controls=[
+                        ft.Text(t("settings.close", lang), size=14.5, weight=ft.FontWeight.W_700),
+                        ft.Text(t("settings.close.note", lang), size=12, color=theme.text_secondary(page)),
+                        ft.Row(
+                            spacing=6,
+                            wrap=True,
+                            controls=[
+                                ft.OutlinedButton(
+                                    key=f"close_{value}",
+                                    content=t(f"settings.close.{value}", lang),
+                                    style=ft.ButtonStyle(bgcolor=f"{theme.ACCENT}22" if state.close_action == value else None),
+                                    on_click=lambda e, v=value: on_change_close(v),
+                                )
+                                for value in ("ask", "hide", "quit")
+                            ],
+                        ),
+                    ],
+                ),
+            )
+        )
     if on_data_changed is not None:  # کارتِ داده‌وایمنی فقط وقتی که main.py بتونه بعدِ ریست/بازگردانی صفحه رو نو کنه
         controls.append(
             data_safety.build(page, lang, state, on_data_changed=on_data_changed, manager=manager, notice=notice)

@@ -228,3 +228,83 @@ def test_attempt_cap_stops_automatic_but_manual_resend_works(fx):
     fx.now += 10**7
     assert run(fx.svc.process_pending()) == 0 and fx.docs == []
     assert run(fx.svc.send_customer(inv.id, force=True)) == "sent" and len(fx.docs) == 1
+
+
+# ═══════════════════════ ۱۰) فاکتور: درست، دوزبانه و تمیز (باگ‌های گزارش‌شده) ═══════════════════════
+
+
+class _Width:
+    """سنجه‌ی wrap_lines: «عرض» = تعدادِ نویسه (بدونِ فونت واقعی)."""
+
+    def get_string_width(self, text: str) -> float:
+        return len(text)
+
+
+def test_wrap_lines_marks_overflow_instead_of_dropping_words():
+    """باگِ قبلی: واژه‌هایِ خطِ چهارم بی‌صدا حذف می‌شدند و هیچ علامتی نمی‌آمد."""
+    wide = _Width()
+    out = invoice_pdf.wrap_lines(wide, "آب آتش خاک بادی سنگ آهن", 7, max_lines=2)
+    assert len(out) == 2
+    assert out[-1].endswith("…"), out
+    assert out == ["آب آتش", "خاک…"], out  # خطِ آخر کامل جا نشد ⇒ علامتِ برش، نه حذفِ بی‌صدا
+    assert invoice_pdf.wrap_lines(wide, "آب آتش خاک بادی", 7, max_lines=2) == ["آب آتش", "خاک…"]
+
+
+def test_vat_is_part_of_the_total_not_an_extra_line(fx):
+    """باگِ قبلی: «مالیات (نمایشی…)» مثلِ جمعِ اضافه چاپ می‌شد، در حالی که قیمت‌ها «با مالیات»اند."""
+    fx.settings.invoice_vat_enabled, fx.settings.invoice_vat_rate_bp = True, 900
+    inv = fx.svc.issue(fx.order())
+    assert inv.tax_irr > 0 and inv.subtotal_irr - inv.discount_irr + inv.shipping_irr == inv.total_irr
+    text = "".join(p.extract_text() or "" for p in pypdf.PdfReader(str(fx.svc.path_of(inv))).pages)
+    assert "نمایشی" not in text
+    assert "که از این مبلغ، مالیات بر ارزش افزوده" in text
+    body = fx.svc.store.get(inv.id)
+    message = invoice_text(body)
+    assert message.index("مبلغ نهایی") < message.index("که از این مبلغ، مالیات")
+    assert "ارسال/سایر" not in message
+
+
+def test_shipping_method_is_frozen_into_the_invoice_and_printed(fx):
+    """باگِ قبلی: shipping_method روی سفارش بود ولی هرگز به فاکتور نمی‌رسید."""
+    pid = fx.rig.product("کتاب", 50_000, 10)
+    oid = fx.rig.confirmed([(pid, 1)], chat="77", shipping=("پست پیشتاز", 12_000))
+    inv = fx.svc.issue(fx.rig.orders.get(oid))
+    assert inv.buyer["shipping_method"] == "پست پیشتاز"
+    assert inv.shipping_irr == 12_000
+    text = "".join(p.extract_text() or "" for p in pypdf.PdfReader(str(fx.svc.path_of(inv))).pages)
+    assert "روش ارسال" in text and "پست پیشتاز" in text
+
+
+def test_english_shop_gets_an_english_invoice(fx):
+    """ستونِ lang در دیتابیس بود و هیچ‌جا خوانده نمی‌شد؛ حالا فاکتور را زبانه‌بندی می‌کند."""
+    fx.settings.language = "en"
+    inv = fx.svc.issue(fx.order(name="Mary"))
+    assert inv.lang == "en"
+    text = "".join(p.extract_text() or "" for p in pypdf.PdfReader(str(fx.svc.path_of(inv))).pages)
+    assert "Sales invoice" in text and "Items total" in text and "Final amount" in text
+    assert "فاکتور فروش" not in text
+    text_message = invoice_text(fx.svc.store.get(inv.id))
+    assert "Items total" in text_message and "Final amount" in text_message and "ریال" not in text_message
+
+
+def test_long_invoices_break_pages_before_the_footer_and_repeats_headers(fx):
+    """باگِ قبلی: کادر جمع‌ها و QR می‌توانستند پایینِ صفحه از لبه رد شوند."""
+    items = []
+    for index in range(40):
+        pid = fx.rig.product(f"کالایِ شماره {index} با نامی نسبتاً بلند", 10_000 + index, 50)
+        items.append((pid, 1))
+    inv = fx.svc.issue(fx.rig.orders.get(fx.rig.confirmed(items, chat="9")))
+    pages = pypdf.PdfReader(str(fx.svc.path_of(inv))).pages
+    assert len(pages) >= 2
+    full = "".join(p.extract_text() or "" for p in pages)
+    assert "Item" not in full and "شرح کالا" in full
+    for page in pages:
+        assert page.extract_text() and len(page.extract_text()) > 20
+    assert "فروشگاه نمونه" in full  # پابرگِ هر صفحه
+
+
+def test_physical_only_wording_is_used_everywhere(fx):
+    """«خدمات» از محصولِ دیجیتال می‌آمد؛ حالا فقط کالاست."""
+    inv = fx.svc.issue(fx.order())
+    text = "".join(p.extract_text() or "" for p in pypdf.PdfReader(str(fx.svc.path_of(inv))).pages)
+    assert "خدمات" not in text

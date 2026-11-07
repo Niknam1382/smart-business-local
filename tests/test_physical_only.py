@@ -71,12 +71,12 @@ def test_checkout_field_model_has_no_applies_to():
     assert not hasattr(cf, "APPLIES_TO")
     assert "applies_to" not in cf.CheckoutField.__dataclass_fields__
     assert not hasattr(cf, "fields_for_cart")
-    assert set(cf.templates("fa")) == {"physical", "services"}
-    assert set(cf.templates("en")) == {"physical", "services"}
+    assert set(cf.templates("fa")) == {"physical"}
+    assert set(cf.templates("en")) == {"physical"}
 
 
 def test_quick_setup_presets_and_attention_types_are_physical_only():
-    assert [p.id for p in quick_setup.PRESETS] == ["physical", "services", "consult", "support"]
+    assert [p.id for p in quick_setup.PRESETS] == ["physical", "consult"]
     assert "delivery_failed" not in ATTENTION_TYPES
 
 

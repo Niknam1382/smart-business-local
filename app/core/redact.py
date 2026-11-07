@@ -27,9 +27,19 @@ _TOKEN_SHAPE = re.compile(r"\d{6,}:[A-Za-z0-9_\-]{20,}")
 _URL_CREDENTIALS = re.compile(r"(?P<scheme>[a-zA-Z][a-zA-Z0-9+.\-]*://)[^/\s:@]+:[^/\s@]+@")
 
 
+# بازبینیِ امنیت (قلم ۲۵): لایه‌ی لاگ باید حداقلِ لایه‌ی بسته‌ی تشخیصی باشد.
+# قبلاً ``backup.scrub`` شماره کارت، کلید ``sk-…``، ایمیل و موبایل را هم پاک می‌کرد ولی
+# ``redact`` (که در bot.log و پیام‌های خطا مصرف می‌شه) نه — یعنی یک خطای کتابخانه
+# می‌تونست شماره کارتِ مشتری را در لاگِ روی دیسک بگذارد.
+_CARD = re.compile(r"\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b")
+_API_KEY = re.compile(r"\bsk-[A-Za-z0-9_\-]{16,}")
+_EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
+_MOBILE = re.compile(r"(?<!\d)(?:\+98|0098|0)?9\d{9}(?!\d)")
+
+
 def redact(text: str, *secrets: str) -> str:
-    """هر یک از ``secrets`` (اگه حداقل ۴ کاراکتر باشه) و هر الگوی شبیه توکن یا
-    ``user:pass@`` داخل آدرس رو با ``***`` عوض می‌کنه."""
+    """هر یک از ``secrets`` (اگه حداقل ۴ کاراکتر باشه) و هر الگوی شبیه توکن،
+    ``user:pass@`` داخل آدرس، شماره کارت، کلید API، ایمیل و موبایل را با ``***`` عوض می‌کنه."""
     if not text:
         return text
     for secret in secrets:
@@ -39,4 +49,7 @@ def redact(text: str, *secrets: str) -> str:
     text = _TOKEN_SHAPE.sub(_MASK, text)
     text = _UUID.sub(_MASK, text)
     text = _WALLET_TOKEN.sub(_MASK, text)
-    return text
+    text = _API_KEY.sub(_MASK, text)
+    text = _CARD.sub("****-****-****-****", text)
+    text = _EMAIL.sub("***@***", text)
+    return _MOBILE.sub("09*********", text)

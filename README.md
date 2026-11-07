@@ -42,7 +42,7 @@ runs on it too (llama.cpp, GGUF files).
 > card-to-card confirmation is always a human decision.
 
 *Screenshots of the model picker, the shop and the orders page will be added here; until then the in-app guide
-(Persian, offline, 181 articles) explains what every screen does.*
+(Persian, offline, 185 articles) explains what every screen does.*
 
 ### Highlights
 
@@ -68,7 +68,8 @@ runs on it too (llama.cpp, GGUF files).
 | 📢 **Required channel** | Customers must join your Telegram channel(s) first (menu, AI chat, or both). You and your managers are exempt; if the check ever breaks, nobody is locked out and you are told. |
 | 🔌 **Proxy pool** | Several proxies (one per line) with automatic failover, your own **subscription link** and automatic return to the fastest one — Telegram is often unreachable without it in Iran. |
 | 🛡 **Guardrails you cannot delete** | The app appends fixed rules to every prompt (limits, menu map, tone, privacy, content boundaries) and shows you exactly what the model will read. |
-| 📚 **Built-in guide** | An offline, searchable Persian guide (181 articles: 25 troubleshooting, 58 FAQ), a **?** button on every page and an automatic troubleshooter. |
+| 📊 **Excel and PDF export** | Every list you can see (customers, orders, finance report, products, conversations) becomes an RTL Excel or PDF file in the `reports` folder with two buttons. |
+| 📚 **Built-in guide** | An offline, searchable Persian guide (185 articles: 25 troubleshooting, 58 FAQ), a **?** button on every page and an automatic troubleshooter. |
 
 ### Download
 
@@ -153,7 +154,9 @@ virtual environment, install the dependencies and start the app. Architecture an
   customer can type `/pay`. A payment is auto-confirmed only after the gateway confirms it and the amount, currency,
   order payload and a transaction inquiry all match — late payments, mismatched amounts and reused transaction ids are
   never auto-approved.
-- **Bale is not a messenger.** The conversational Bale bot does not exist; Bale survives only as this payment gateway.
+- **Bale chat is optional and independent.** Bale can also carry the conversational bot (same AI, same shop, its own
+  token and its own AI switch) at `tapi.bale.ai`. Chatting on Bale and paying through Bale Pay are two separate
+  settings: Telegram only, Bale only, both, or neither — and Bale Pay alone works without any chat bot.
 - **No Zarinpal.** Card-to-card and Bale Pay are the two methods; payment settings keys from older private builds are
   ignored quietly and nothing else is touched.
 
@@ -235,11 +238,13 @@ died (let Docker restart it), `2` no bot configured, `3` data written by a newer
 
 ### Project status
 
-**This is the first public release (1.0.0)**: local-only AI, Telegram-only messaging, Bale Pay as the only gateway
+**This is the first public release (1.0.0)**: local-only AI, Telegram as the main messenger (an optional, independent Bale
+chat on top of it), Bale Pay as the only gateway
 besides card-to-card, a four-button customer menu and a central prompt studio. The version string lives in
 `app/version.py` and a release tag must match it; see [CHANGELOG](CHANGELOG.md) for what shipped and what was cut. The
-automated suite (2062 tests, 99 files) runs against fake Telegram and fake Bale-pay servers and covers the shop,
-payments, receipts, delivery, support, migrations, backups, proxies, headless mode, injection and abuse cases.
+automated suite (2205 tests in 107 files) runs against fake Telegram and fake Bale-pay servers and covers the shop,
+payments, receipts, fulfilment, support, migrations, backups, proxies, headless mode, report exports, injection and
+abuse cases.
 **Verification against real bots and a real gateway still has to be done per installation** — run one complete purchase
 with a small amount before you take real money. Bugs and ideas: Issues.
 
@@ -259,7 +264,7 @@ with a small amount before you take real money. Bugs and ideas: Issues.
 > حساب می‌کند و تأییدِ کارت‌به‌کارت همیشه کارِ یک آدم است.
 
 *اسکرین‌شاتِ صفحه‌ی انتخابِ مدل، فروشگاه و سفارش‌ها بعداً همین‌جا اضافه می‌شود؛ تا آن موقع راهنمای داخلِ برنامه (فارسی،
-آفلاین، ۱۸۱ مقاله) کارِ هر صفحه را نشان می‌دهد.*
+آفلاین، ۱۸۵ مقاله) کارِ هر صفحه را نشان می‌دهد.*
 
 ### امکانات
 
@@ -285,7 +290,8 @@ with a small amount before you take real money. Bugs and ideas: Issues.
 | 📢 **عضویتِ اجباریِ کانال** | مشتری اول باید در کانال(های) تلگرامی تو عضو باشد (منو، گفتگو، یا هر دو). خودت و مدیرها معافید؛ اگر بررسی خراب شود کسی قفل نمی‌شود و خبردار می‌شوی. |
 | 🔌 **استخرِ پروکسی** | چند پروکسی (هر خط یکی) با جابه‌جاییِ خودکار، **لینکِ اشتراکِ** خودت و بازگشتِ خودکار به سریع‌ترین‌شان — تلگرام در ایران بدونِ آن کار نمی‌کند. |
 | 🛡 **گاردریل‌های حذف‌نشدنی** | برنامه به هر پرامپت پنج قطعه‌ی ثابت اضافه می‌کند (حدودِ کار، منو، لحن، حریم، مرزها) و پیش‌نمایشِ همان چیزی را که مدل می‌خواند به تو نشان می‌دهد. |
-| 📚 **راهنمای داخلِ برنامه** | راهنمای آفلاین و قابلِ جستجو به فارسی (۱۸۱ مقاله؛ ۲۵ عیب‌یابی و ۵۸ پرسشِ متداول)، دکمه‌ی **؟** کنارِ هر صفحه و یک عیب‌یابِ خودکار. |
+| 📊 **خروجیِ اکسل و PDF** | هر فهرستی که می‌بینی (مشتریان، سفارش‌ها، کارنامه‌ی مالی، محصولات، گفتگوها) با دو دکمه به فایلِ اکسل یا PDFِ راست‌به‌چپ درپوشه‌ی `reports` درمی‌آید. |
+| 📚 **راهنمای داخلِ برنامه** | راهنمای آفلاین و قابلِ جستجو به فارسی (۱۸۵ مقاله؛ ۲۵ عیب‌یابی و ۵۸ پرسشِ متداول)، دکمه‌ی **؟** کنارِ هر صفحه و یک عیب‌یابِ خودکار. |
 
 ### دانلود
 
@@ -369,7 +375,9 @@ python -m pytest         # کلِ تست‌ها — بدونِ اینترنت و
   ساخته نشود همان صورتحساب با لینکِ رباتِ پرداخت می‌رسد و مشتری می‌تواند دستورِ `/pay` را خودش بنویسد. پرداخت **فقط بعد
   از تأییدِ خودِ درگاه** و سنجشِ مبلغ، ارز، کدِ سفارش و استعلامِ تراکنش خودکار تأیید می‌شود؛ پرداختِ دیررس، مبلغِ
   نخوانده و تراکنشِ تکراری هرگز خودکار تأیید نمی‌شوند.
-- **بله دیگر پیام‌رسان نیست.** رباتِ گفتگویِ بله وجود ندارد و بله فقط همین درگاهِ پرداخت است.
+- **چتِ بله اختیاری و مستقل است.** بله می‌تواند رباتِ گفتگو را هم داشته باشد (همان هوش مصنوعی، همان فروشگاه، توکن و
+  سوییچِ هوش مصنوعیِ جدا) روی `tapi.bale.ai`. «حرف زدنی با بله» و «پرداخت با بله‌پی» دو تنظیمِ جدا هستند: تلگرام تنها،
+  بله تنها، هر دو، یا هیچ‌کدام — و بله‌پی به‌تنهایی بدونِ هیچ رباتِ گفتگویی کار می‌کند.
 - **زرین‌پال نیست.** دو روشِ پرداخت کارت‌به‌کارت و بله‌پی‌اند؛ کلیدهایِ تنظیماتِ قدیمیِ حذف‌شده بی‌صدا رد می‌شوند و چیزِ
   دیگری دست نمی‌خورد.
 
@@ -449,11 +457,11 @@ docker compose up -d                                   # پوشه‌ی ./data ر
 
 ### وضعیتِ پروژه
 
-این **نخستین انتشارِ عمومی است (۱.۰.۰)**: هوش مصنوعی فقط محلی، تلگرام تنها پیام‌رسان، بله‌پی تنها درگاهِ علاوه بر
+این **نخستین انتشارِ عمومی است (۱.۰.۰)**: هوش مصنوعی فقط محلی، تلگرام پیام‌رسانِ اصلی (چتِ بله اختیاری و مستقل)، بله‌پی تنها درگاهِ علاوه بر
 کارت‌به‌کارت، منویِ مشتری با دقیقاً چهار دکمه و یک استودیویِ مرکزیِ پرامپت. عددِ نسخه در فایلِ `app/version.py` زندگی
 می‌کند و تگِ انتشار باید همان باشد؛ چه چیزی آمد و چه چیزی حذف شد را در [CHANGELOG](CHANGELOG.md) بخوان.
-مجموعه‌تستِ خودکار (۲۰۶۲ تست در ۹۹ فایل) روی سرورهایِ جعلیِ تلگرام و درگاهِ بله اجرا می‌شود و فروشگاه، پرداخت، رسید،
-تحویل، پشتیبانی، مهاجرت، پشتیبان، پروکسی، حالتِ بی‌پنجره، تزریقِ پرامپت و حالت‌هایِ سوءاستفاده را پوشش می‌دهد.
+مجموعه‌تستِ خودکار (۲۲۰۵ تست در ۱۰۷ فایل) روی سرورهایِ جعلیِ تلگرام و درگاهِ بله اجرا می‌شود و فروشگاه، پرداخت، رسید،
+وضعیتِ ارسال، پشتیبانی، مهاجرت، پشتیبان، پروکسی، حالتِ بی‌پنجره، خروجیِ گزارش، تزریقِ پرامپت و حالت‌هایِ سوءاستفاده را پوشش می‌دهد.
 **راستی‌آزمایی با رباتِ واقعی و درگاهِ واقعی هنوز باید برای هر نصب انجام شود** — قبل از پولِ واقعی، یک خریدِ کامل را با
 مبلغِ کم از اول تا آخر انجام بده. باگ و ایده: بخشِ Issues.
 

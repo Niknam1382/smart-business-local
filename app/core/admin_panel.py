@@ -21,6 +21,7 @@ import time
 from typing import Callable, Optional
 
 from app.core import admins as am
+from app.core.handoff import parse_ref as handoff_ref
 from app.core.admins import AdminStore
 from app.core.orders import STATUS_CONFIRMED, STATUS_PAID, STATUS_PENDING_PAYMENT
 from app.core.owner_console import _money, order_details
@@ -67,6 +68,11 @@ def _back(label: str = "◀️ منو", data: str = CB + "home") -> list:
     return [Btn(label, data)]
 
 
+def _hint(role: str) -> str:
+    """یک خطِ راهنما زیرِ منو: همه‌چیز دکمه است و کارهایِ سنگین‌تر در اپِ دسکتاپ‌اند."""
+    return "\nهمه‌چیز با همین دکمه‌ها انجام می‌شه. برای بازِکردنِ دوباره: /admin — کارهایِ سنگین‌تر در برنامه‌ی دسکتاپ است."
+
+
 class AdminPanel:
     def __init__(
         self,
@@ -91,6 +97,8 @@ class AdminPanel:
         self._finance = finance  # N19 (اختیاری)
         self._invoices = invoices  # N19 (اختیاری)
         self._get_settings = get_settings
+        # ۲۲: «حالتِ پاسخِ دکمه‌ای» — برای هر مدیر، گفتگویی که منتظرِ متنِ پاسخ است
+        self._reply_target: dict = {}
         # عمل → (قابلیتِ لازم, هندلر, تعدادِ دقیقِ آرگومان). **تنها منبعِ مجوزِ دکمه‌ها** — عملِ ناشناخته یا تعدادِ آرگومانِ
         # نادرست بی‌اثره (callbackِ دست‌ساز با آرگومانِ اضافه هم رد می‌شه).
         self._routes: dict = {
@@ -107,6 +115,9 @@ class AdminPanel:
             "tg": (am.CAP_PRODUCTS_TOGGLE, self._product_toggle, 1),
             "sts": (am.CAP_STATS_VIEW, self._stats, 0),
             "sup": (am.CAP_SUPPORT_VIEW, self._support, 0),
+            "sr": (am.CAP_SUPPORT_REPLY, self._support_open, 1),
+            "sw": (am.CAP_SUPPORT_REPLY, self._support_cancel, 0),
+            "sc": (am.CAP_SUPPORT_REPLY, self._support_close, 1),
             "dsc": (am.CAP_DISCOUNTS_TOGGLE, self._discounts_list, 0),
             "dtg": (am.CAP_DISCOUNTS_TOGGLE, self._discount_toggle, 1),
             "fin": (am.CAP_FINANCE_VIEW, self._finance_summary, 0),
@@ -139,6 +150,11 @@ class AdminPanel:
             if not rate_ok():
                 return True
             return await self._accept(invite.group(1), message, name, username, send, transport)
+
+        pending = await self.pending_reply(message)
+        if pending is not None:
+            await deliver(transport, chat_id, pending)
+            return True
 
         activated = self._admins.activate_if_pending(platform, chat_id, name, username)
         if activated is not None:
@@ -224,7 +240,8 @@ class AdminPanel:
         if self._finance is not None and self._can(role, am.CAP_FINANCE_VIEW):
             rows.append([Btn("💰 خلاصه‌ی مالی", CB + "fin")])
         head = f"🛠 پنلِ مدیریت — نقش: {am.ROLE_LABEL_FA.get(role, role)}"
-        text = (intro + "\n\n" if intro else "") + head + "\nدستورهای متنی: /orders · /stock · /handoffs · /id"
+        # قلم ۲۲: پنل با دکمه است، نه دستورِ متنی — پس دیگر /orders و /stock تبلیغ نمی‌شن.
+        text = (intro + "\n\n" if intro else "") + head + _hint(role)
         return UiMessage(text=text, rows=rows, edit=edit)
 
     async def _home(self, role, platform, chat_id, args) -> FlowResult:
@@ -429,7 +446,61 @@ class AdminPanel:
     async def _support(self, role, platform, chat_id, args) -> FlowResult:
         if self._handoff is None:
             return self._edit("پشتیبانی فعال نیست.", [_back()])
-        text = self._handoff.owner_list()
+        sessions = self._handoff.list_open()
+        if not sessions:
+            return self._edit(self._handoff.owner_list(), [_back()])
+        lines = [f"🙋 {len(sessions)} گفتگوی پشتیبانیِ باز:"]
+        rows: list = []
+        for session in sessions[:_PAGE]:
+            if am.can(role, am.CAP_SUPPORT_REPLY):
+                rows.append([Btn(f"💬 {session.customer_label[:22]}", f"{CB}sr:{session.ref}"), Btn("✕ بستن", f"{CB}sc:{session.ref}")])
+            else:
+                lines.append(f"• {session.customer_label} [{session.ref}]")
         if am.can(role, am.CAP_SUPPORT_REPLY):
-            text += "\n\nپاسخ: /reply <شناسه> متن (یا روی پیامِ فورواردشده Reply بزن)"
-        return self._edit(text, [_back()])
+            lines.append("روی نامِ مشتری بزن و بعد همان‌جا بنویس؛ پیام مستقیم به او می‌رسه.")
+        rows.append(_back())
+        return self._edit("\n".join(lines), rows)
+
+    # ------------------------------------------------- ۲۲) پاسخِ دکمه‌ای به پشتیبانی ----
+
+    async def _support_open(self, role, platform, chat_id, args) -> FlowResult:
+        target = handoff_ref(args[0])
+        if target is None or self._handoff.get(*target) is None:
+            return FlowResult(answer="این گفتگو دیگر باز نیست.", alert=True)
+        self._reply_target[(platform, chat_id)] = target
+        return self._edit(
+            f"💬 حالتِ پاسخ به «{self._label_of(target)}» روشن شد.\n\n"
+            "هر پیامی که از این لحظه بفرستی (بدونِ /) مستقیم به همین مشتری می‌رسه.\n"
+            "اگر پشیمان شدی «انصراف» را بزن.",
+            [[Btn("انصراف", CB + "sw"), Btn("◀️ گفتگوها", CB + "sup")]],
+        )
+
+    async def _support_cancel(self, role, platform, chat_id, args) -> FlowResult:
+        self._reply_target.pop((platform, chat_id), None)
+        return await self._support(role, platform, chat_id, [])
+
+    async def _support_close(self, role, platform, chat_id, args) -> FlowResult:
+        target = handoff_ref(args[0])
+        if target is None:
+            return FlowResult(answer="این گفتگو دیگر باز نیست.", alert=True)
+        self._reply_target.pop((platform, chat_id), None)
+        outcome = await self._handoff.owner_close(*target)
+        listing = await self._support(role, platform, chat_id, [])
+        listing.messages[0].text = outcome + "\n\n" + listing.messages[0].text
+        return listing
+
+    def _label_of(self, target) -> str:
+        session = self._handoff.get(*target) if self._handoff is not None else None
+        return session.customer_label if session else target[1]
+
+    async def pending_reply(self, message) -> Optional[FlowResult]:
+        """۲۲: متنِ آزادِ مدیر، وقتی حالتِ پاسخ روشن است، به همان مشتری می‌رسه — بدونِ /reply."""
+        target = self._reply_target.get((message.platform, str(message.chat_id)))
+        if target is None or self._handoff is None:
+            return None
+        text = (message.text or "").strip()
+        if not text or text.startswith("/"):
+            return None  # مدیر دارد دستورِ دیگری می‌دهد؛ حالتِ پاسخ دست‌نخورده می‌ماند
+        answer = await self._handoff.owner_reply(*target, text)
+        self._reply_target.pop((message.platform, str(message.chat_id)), None)
+        return FlowResult(messages=[UiMessage(answer + "\n\nبرای پاسخِ بعدی دوباره از «پشتیبانی» دکمه را بزن.")])

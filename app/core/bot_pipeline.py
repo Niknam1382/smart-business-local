@@ -14,12 +14,15 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 import time
 from collections import deque
 from dataclasses import dataclass, replace
 from typing import Awaitable, Callable, Hashable, Optional
 
 from app.core import ai_engine, ai_usage
+from app.core.agent_common import plain_answer
+from app.core.answer_cache import AnswerCache
 from app.core.customers import CustomerStore
 from app.core.conversations import ConversationStore
 from app.core import shop_texts
@@ -50,9 +53,31 @@ DEFAULT_ERROR_REPLY_FA = (
     "متأسفم، الان امکان پاسخ‌گویی نیست. لطفاً چند لحظه‌ی دیگر دوباره امتحان کنید."
 )
 
+# حافظه‌ی برنامه روی لپ‌تاپِ فروشنده اجرا می‌شه؛ هر گفتگو سه رکورد کوچک نگه می‌دارد (تابع ارسال،
+# ترنسپورت، قفلِ سریالی‌سازی). یک رباتِ پرمشتری می‌تواند هزاران گفتگو ببیند، پس این‌ها کران‌دار
+# می‌مونن و قدیمی‌ترین‌ها (LRU) دور ریخته می‌شن — قفلی که هنوز در دست باشد حذف نمی‌شه.
+MAX_TRACKED_CHATS = 500
+
+
+def _remember(mapping: dict, key, value, limit: int = MAX_TRACKED_CHATS) -> None:
+    mapping.pop(key, None)  # تا ترتیبِ درج، «تازگیِ» استفاده را نشان بدهد
+    mapping[key] = value
+    while len(mapping) > limit:
+        oldest = next(iter(mapping))
+        if oldest == key:
+            break
+        candidate = mapping[oldest]
+        if isinstance(candidate, asyncio.Lock) and candidate.locked():
+            break  # مکالمه‌ای که همین حالا در حالِ پاسخ‌گویی‌ست حذف نمی‌شه
+        mapping.pop(oldest, None)
+
 
 class RateLimiter:
     """پنجره‌ی لغزان: حداکثر ``max_events`` رویداد در هر ``window_seconds`` برای هر کلید."""
+
+    # رکوردها کران‌دارند: یک رباتِ پرمشتری هزاران کلید می‌بیند و اگر هیچ‌کدام آزاد نشود،
+    # حافظه‌ی برنامه تا ابد بزرگ‌تر می‌شود (بازبینیِ عملکرد، قلم ۲۵).
+    MAX_KEYS = 5000
 
     def __init__(self, max_events: int, window_seconds: float, clock=time.monotonic):
         self._max = max_events
@@ -60,15 +85,45 @@ class RateLimiter:
         self._clock = clock
         self._events: dict[Hashable, deque] = {}
 
+    def _drop_stale(self, now: float, keep: Hashable) -> None:
+        if len(self._events) <= self.MAX_KEYS:
+            return
+        for key, window in list(self._events.items()):
+            if len(self._events) <= self.MAX_KEYS:
+                break
+            if key != keep and (not window or now - window[-1] > self._window):
+                self._events.pop(key, None)
+        while len(self._events) > self.MAX_KEYS:
+            oldest = next(iter(self._events))
+            if oldest == keep:
+                break
+            self._events.pop(oldest, None)
+
     def allow(self, key: Hashable) -> bool:
         now = self._clock()
         events = self._events.setdefault(key, deque())
         while events and now - events[0] > self._window:
             events.popleft()
+        self._drop_stale(now, key)
         if len(events) >= self._max:
             return False
         events.append(now)
         return True
+
+
+def _debounce_value(settings, field: str, explicit: Optional[float], fallback: float) -> float:
+    """مقدارِ ادغامِ پیام: آرگومانِ صریح (تست‌ها) ← تنظیمِ مالک ← پیش‌فرضِ ماژول."""
+    if explicit is not None:
+        return float(explicit)
+    raw = getattr(settings, field, None)
+    return fallback if raw is None else max(0.0, float(raw))
+
+
+def _cache_seconds(settings) -> float:
+    """سقفِ کشِ پاسخ از تنظیمات؛ ``ai_response_cache=False`` یا ۰ دقیقه یعنی کشِ خاموش."""
+    if not getattr(settings, "ai_response_cache", True):
+        return 0.0
+    return max(0.0, float(getattr(settings, "ai_response_cache_minutes", 15) or 0)) * 60.0
 
 
 def _is_command(text: str, command: str) -> bool:
@@ -102,8 +157,8 @@ class ConversationPipeline:
         settings,
         store: Optional[ConversationStore] = None,
         error_reply: str = DEFAULT_ERROR_REPLY_FA,
-        debounce_wait: float = DEBOUNCE_WAIT_SECONDS,
-        debounce_max_wait: float = DEBOUNCE_MAX_WAIT_SECONDS,
+        debounce_wait: Optional[float] = None,
+        debounce_max_wait: Optional[float] = None,
         flood_max: int = FLOOD_MAX_MESSAGES,
         flood_window: float = FLOOD_WINDOW_SECONDS,
         owner_console=None,  # Optional[OwnerConsole] — فرمان‌های مالک (/confirm ...) از چتِ ثبت‌شده‌ی خودش
@@ -115,6 +170,7 @@ class ConversationPipeline:
         customers=None,  # Optional[CustomerStore] — N12 (CRM)؛ None = از همین store ساخته می‌شه
         channel_gate=None,  # Optional[ChannelGate] — N13: عضویتِ اجباریِ کانال (None = بدونِ دروازه)
         admins=None,  # Optional[AdminStore] — N13: مالک و مدیرانِ فعال از دروازه معافند
+        answer_cache=None,  # Optional[AnswerCache] — None = کشِ خودِ پایپ‌لاین بر پایه‌ی تنظیمات
     ):
         self._settings = settings
         self._store = store or ConversationStore()
@@ -129,11 +185,15 @@ class ConversationPipeline:
         self._gate = channel_gate
         self._admins = admins
         self._transports: dict[tuple, Transport] = {}
+        wait = _debounce_value(settings, "debounce_wait_seconds", debounce_wait, DEBOUNCE_WAIT_SECONDS)
+        cap = _debounce_value(settings, "debounce_max_wait_seconds", debounce_max_wait, DEBOUNCE_MAX_WAIT_SECONDS)
         self._debouncer = Debouncer(
             self._on_flush,
-            wait_seconds=debounce_wait,
-            max_wait_seconds=debounce_max_wait,
+            wait_seconds=wait,
+            max_wait_seconds=max(cap, wait),
         )
+        self._cache = answer_cache if answer_cache is not None else AnswerCache()
+        self._cache.set_ttl(_cache_seconds(settings))
         self._limiter = RateLimiter(flood_max, flood_window)
         self._send_fns: dict[tuple, SendFn] = {}
         # هر مکالمه پردازشش پشت یه قفل سریالی می‌شه: اگه مشتری وسط انتظار پاسخ
@@ -142,6 +202,9 @@ class ConversationPipeline:
         self._chat_locks: dict[tuple, asyncio.Lock] = {}
         # موتور محلی هم‌زمان‌امن نیست → کل تماس‌های AI پشت یه قفل مشترک.
         self._engine_lock = asyncio.Lock()
+        # قفلِ *ساختِ* موتور: تماس‌های AI روی تردِ جدا (asyncio.to_thread) اجرا می‌شن،
+        # پس قفلِ asyncio اینجا کافی نیست.
+        self._engine_build_lock = threading.Lock()
         self._engine = None
         self._engine_signature: Optional[tuple] = None
 
@@ -159,14 +222,23 @@ class ConversationPipeline:
             int(getattr(s, "ai_context_tokens", 0) or 0),  # پنجره‌ی زمینه / ترد / GPU ⇒ ساختارِ تازه
             int(getattr(s, "ai_threads", 0) or 0),
             int(getattr(s, "ai_gpu_layers", 0) or 0),
+            bool(getattr(s, "token_opt_max_tokens", True)),
+            bool(getattr(s, "token_opt_history_window", True)),
         )
 
     def _get_engine(self):
-        """موتور AI رو کش می‌کنه و فقط وقتی تنظیمات واقعاً عوض شده دوباره
-        می‌سازه — حیاتیه برای حالت محلی: ساختن LocalEngine جدید به‌ازای هر
-        پیام یعنی مدل چندگیگابایتی هر بار از نو لود بشه."""
+        """موتور AI را کش می‌کند و فقط وقتی تنظیمات واقعاً عوض شده دوباره می‌سازد.
+
+        حیاتیه برای حالت محلی: ساختن LocalEngine جدید به‌ازای هر پیام یعنی مدلِ
+        چندگیگابایتی هر بار از نو لود بشه. ساختِ تازه پشتِ قفلِ مخصوصش می‌نشیند،
+        وگرنه دو مکالمه‌ی هم‌زمان بعد از عوض‌شدنِ تنظیمات هر کدام یک مدل کامل در
+        رمِ ۸ گیگابایتیِ فروشنده جا می‌دهند (بازبینیِ عملکرد)."""
         sig = self._settings_signature()
-        if self._engine is None or sig != self._engine_signature:
+        if self._engine is not None and sig == self._engine_signature:
+            return self._engine
+        with self._engine_build_lock:
+            if self._engine is not None and self._engine_signature == sig:
+                return self._engine  # بینِ بررسی و قفل، دیگری موتور را ساخت
             old_engine = self._engine
             self._engine = ai_engine.build_engine_from_settings(self._settings)
             self._engine_signature = sig
@@ -251,8 +323,8 @@ class ConversationPipeline:
         if self._handoff is not None and self._handoff.is_open(message.platform, message.chat_id):
             await self._handoff.relay_customer(message)  # گفتگوی انسانی باز است: AI ساکت، پیام مستقیم به مالک
             return
-        self._send_fns[key] = send
-        self._transports[key] = transport
+        _remember(self._send_fns, key, send)
+        _remember(self._transports, key, transport)
         self._debouncer.feed(key, message.text)
 
     # ----------------------------------------------------------- N7: لغو/ازسرگیریِ پیامِ همگانی ----
@@ -371,8 +443,15 @@ class ConversationPipeline:
 
     async def _on_flush(self, key: tuple, merged_text: str) -> None:
         lock = self._chat_locks.setdefault(key, asyncio.Lock())
-        async with lock:
-            await self._process(key, merged_text)
+        _remember(self._chat_locks, key, lock)
+        try:
+            async with lock:
+                await self._process(key, merged_text)
+        finally:
+            # وقتی قفل آزاد شد دوباره تلاش می‌کنیم: در فشارِ هم‌زمان، قفل‌هایِ در دست
+            # حذف نمی‌شن و کرانِ جدول تا همین‌جا عقب می‌افته.
+            if len(self._chat_locks) > MAX_TRACKED_CHATS:
+                _remember(self._chat_locks, key, lock)
 
     async def _process(self, key: tuple, merged_text: str) -> None:
         platform, chat_id = key
@@ -408,43 +487,60 @@ class ConversationPipeline:
         self._store.add_message(platform, chat_id, "user", merged_text)
 
         outbox: list = []
-        try:
-            from app.core import prompt_kit
+        cached = ""
+        from app.core import prompt_kit
 
+        display_name = self._store.get_display_name(platform, chat_id)
+        try:
             engine = self._get_engine()
             mode = resolve_mode(self._settings, platform)
-            display_name = self._store.get_display_name(platform, chat_id)
-            # حالتِ مشاوره‌ای: پرامپتِ مالک + گاردریل‌هایِ مرکزی (بدونِ قطعه‌ی منویِ فروشگاه)
-            system_prompt = prompt_kit.build_system_prompt(
-                self._settings, store_mode=False, display_name=display_name
-            )
-            if self._qa_enabled(engine, mode):
-
-                async def call_engine(sys_prompt, hist, user_msg, specs, tool_messages):
-                    if getattr(engine, "concurrent_safe", False):
-                        return await asyncio.to_thread(engine.chat_tools, sys_prompt, hist, user_msg, specs, tool_messages)
-                    async with self._engine_lock:
-                        return await asyncio.to_thread(engine.chat_tools, sys_prompt, hist, user_msg, specs, tool_messages)
-
-                with ai_usage.bind(platform, chat_id, "qa"):  # N1: مصرف به همین چت نسبت داده می‌شه (contextvar تا داخلِ thread می‌رسه)
-                    agent_reply = await self._qa_agent.respond(
-                        call_engine, self._settings, platform, chat_id, display_name, system_prompt, history, merged_text,
-                        can_suggest=mode.cart,
-                    )
-                reply, outbox = agent_reply.text, agent_reply.outbox
-            elif getattr(engine, "concurrent_safe", False):
-                with ai_usage.bind(platform, chat_id, "chat"):
-                    reply = await asyncio.to_thread(engine.chat, system_prompt, history, merged_text)
+            qa_path = self._qa_enabled(engine, mode)
+            context_tokens = int(getattr(engine, "n_ctx", 0) or 0)
+            # یک‌بار چیدنِ پرامپت (قلم ۱۱): پیش‌تر پایپ‌لاین پرامپتِ کامل را می‌ساخت و به ایجنت
+            # می‌داد و ایجنت دوباره گاردریل/کاتالوگ/FAQ را به آن می‌چسباند — یعنی همان بخش‌ها
+            # دو بار به مدل می‌رفت و نصفِ پنجره‌ی زمینه می‌سوخت.
+            if qa_path:
+                system_prompt = self._qa_agent.system_prompt(self._settings, display_name, mode.cart, context_tokens)
             else:
-                async with self._engine_lock:
+                system_prompt = prompt_kit.build_system_prompt(
+                    self._settings, store_mode=False, display_name=display_name, context_tokens=context_tokens
+                )
+            cache_key = AnswerCache.key(getattr(engine, "model_id", ""), system_prompt, history, merged_text)
+            cached = self._cache.get(cache_key) or ""
+            if not cached:
+                if qa_path:
+
+                    async def call_engine(sys_prompt, hist, user_msg, specs, tool_messages):
+                        if getattr(engine, "concurrent_safe", False):
+                            return await asyncio.to_thread(engine.chat_tools, sys_prompt, hist, user_msg, specs, tool_messages)
+                        async with self._engine_lock:
+                            return await asyncio.to_thread(engine.chat_tools, sys_prompt, hist, user_msg, specs, tool_messages)
+
+                    with ai_usage.bind(platform, chat_id, "qa"):  # N1: مصرف به همین چت نسبت داده می‌شه (contextvar تا داخلِ thread می‌رسه)
+                        agent_reply = await self._qa_agent.respond(
+                            call_engine, platform, chat_id, system_prompt, history, merged_text, can_suggest=mode.cart,
+                        )
+                    reply, outbox = agent_reply.text, agent_reply.outbox
+                elif getattr(engine, "concurrent_safe", False):
                     with ai_usage.bind(platform, chat_id, "chat"):
                         reply = await asyncio.to_thread(engine.chat, system_prompt, history, merged_text)
+                else:
+                    async with self._engine_lock:
+                        with ai_usage.bind(platform, chat_id, "chat"):
+                            reply = await asyncio.to_thread(engine.chat, system_prompt, history, merged_text)
+            else:
+                reply = cached
         except ai_engine.AiEngineError as exc:
             logger.error("خطای AI برای %s/%s: %s", platform, chat_id, exc)
             reply = self._error_reply
         except Exception:  # noqa: BLE001 — خطای غیرمنتظره نباید کل ربات رو متوقف کنه
             logger.exception("خطای غیرمنتظره در پردازش پیام %s/%s", platform, chat_id)
             reply = self._error_reply
+        else:
+            # مارک‌داونِ مدل در چت به ستاره و # تبدیل می‌شه؛ مشتری باید متنِ تمیز ببینه (قلم ۹).
+            reply = plain_answer(reply or "")
+            if reply and not cached and not outbox:
+                self._cache.put(cache_key, reply)  # کارتِ محصول کش نمی‌شه (دکمه و شناسه‌ی زنده دارد)
 
         if self._limits is not None:
             self._limits.record_ai(platform, chat_id, (len(merged_text) + len(reply or "")) // 3)
@@ -477,6 +573,13 @@ class ConversationPipeline:
     def _qa_enabled(self, engine, mode) -> bool:
         """پرسش‌وپاسخِ فقط‌خواندنی (حالت‌های دکمه‌ای) — فقط وقتی موتور ابزار بفهمه."""
         return self._qa_agent is not None and mode.ai_qa and hasattr(engine, "chat_tools")
+
+    async def flush(self, platform: str, chat_id: str) -> None:
+        """هر پیامِ این گفتگو که در بافرِ ادغام مانده را همین‌جا پردازش می‌کنه.
+
+        پیش‌نمایشِ مشتری به این نیاز دارد: آنجا هر پیام با event loopِ جدا اجرا می‌شه و اگر
+        چیزی در بافر بماند، آن loop بسته می‌شه و پاسخ هرگز ساخته نمی‌شه."""
+        await self._debouncer.flush_now((platform, str(chat_id)))
 
     async def shutdown(self) -> None:
         await self._debouncer.cancel_all()

@@ -288,7 +288,7 @@ STRINGS: dict[str, dict[str, str]] = {
     "ai_setup.adv_ctx_label": {"fa": "توکن‌هایِ زمینه (n_ctx)", "en": "Context tokens (n_ctx)"},
     "ai_setup.adv_threads_label": {"fa": "رشته‌هایِ پردازنده (threads)", "en": "CPU threads"},
     "ai_setup.adv_gpu_label": {"fa": "لایه‌هایِ GPU", "en": "GPU layers"},
-    "ai_setup.adv_gpu_auto": {"fa": "۰ = خودکار: فقط CPU (پیش‌فرضِ بیلدِ رسمیِ برنامه)", "en": "0 = auto: CPU only (the official build default)"},
+    "ai_setup.adv_gpu_auto": {"fa": "۰ = خودکار: از خودِ موتور پرسیده می‌شه (بیلدِ رسمیِ برنامه CPU است)", "en": "0 = auto: the engine is asked (the official build is CPU-only)"},
     "ai_setup.adv_gpu_hint": {"fa": "فقط وقتی زیادش کن که خودت بیلدِ CUDA را نصب کرده باشی؛ وگرنه مدل در رم جا نمی‌شه.", "en": "Raise it only if you installed a CUDA build yourself; otherwise the model will not fit in RAM."},
     "ai_setup.adv_gpu_no_cuda": {
         "fa": "⚠️ بیلدِ نصب‌شدهی llama.cpp روی این سیستم CUDA ندارد؛ با این عددِ بالا، محاسبه همان‌جا روی CPU می‌مونه و فقط ریسکِ جا‌نشدنِ مدل در رم زیاد می‌شه. راهنما: «CUDA را فعال کنم» در صفحه‌ی هوش مصنوعی.",
@@ -320,6 +320,7 @@ STRINGS: dict[str, dict[str, str]] = {
     },
 
     # --- فاز ۳: ناوبری، اتصال ربات‌ها، گفتگوها ---
+    "home.nav.payment": {"fa": "تنظیماتِ پرداخت", "en": "Payment settings"},
     "home.nav.bots": {"fa": "ربات‌ها", "en": "Bots"},
     "home.nav.chats": {"fa": "گفتگوها", "en": "Chats"},
     "home.nav.search": {"fa": "جست‌وجو", "en": "Search"},
@@ -342,6 +343,15 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "In Bale, chat with the official “BotFather” bot (@botfather) and follow the steps — it gives you a token at the end.",
     },
     "bots.enabled": {"fa": "فعال باشه", "en": "Enabled"},
+    "bots.ai": {"fa": "در این پیام‌رسان هوش مصنوعی جواب بده", "en": "Let the AI answer on this messenger"},
+    "bots.ai.note": {
+        "fa": "خاموش کردنِ هوش مصنوعی، دکمه‌ها، سبد و پرداخت را از کار نمی‌اندازد؛ فقط پاسخِ گفتگوییِ هوشمند خاموش می‌شود.",
+        "en": "Switching the AI off does not break buttons, cart or payments; only the conversational answers stop.",
+    },
+    "bots.bale.chat_note": {
+        "fa": "چتِ بله مستقل از «بله‌پی» است: فقط چت، فقط درگاه، هر دو، یا هیچ‌کدام — هر چهار حالت کار می‌کند.",
+        "en": "Bale chat is independent of Bale Pay: chat only, gateway only, both, or neither — all four work.",
+    },
     "bots.test": {"fa": "تست اتصال", "en": "Test connection"},
     "bots.testing": {"fa": "در حال تست…", "en": "Testing…"},
     "bots.test_ok": {"fa": "اتصال برقراره — @{username}", "en": "Connection works — @{username}"},
@@ -699,6 +709,15 @@ STRINGS: dict[str, dict[str, str]] = {
         "fa": "پوشه با متغیر محیطیِ SMART_BUSINESS_DATA_DIR تعیین شده.",
         "en": "The folder is set by the SMART_BUSINESS_DATA_DIR environment variable.",
     },
+    "data.mode.install": {
+        "fa": "روی همان درایوی که برنامه نصب شده (بیرون از پوشه‌ی نصب، تا حذفِ برنامه داده‌ات را پاک نکند).",
+        "en": "On the same drive the app was installed to (outside the install folder, so uninstalling keeps your data).",
+    },
+    "pay.restart_bots": {"fa": "روشن/ری‌استارت کردنِ ربات‌ها", "en": "Start / restart the bots"},
+    "pay.restarting": {"fa": "در حال ری‌استارتِ ربات‌ها…", "en": "Restarting the bots…"},
+    "pay.restarted": {"fa": "✅ ربات‌ها ری‌استارت شدند؛ بله‌پی حالا می‌تواند لینکِ پرداخت بسازد.",
+                      "en": "✅ Bots restarted; Bale Pay can now create payment links."},
+    "pay.restart_failed": {"fa": "ری‌استارت نشد: {reason}", "en": "Restart failed: {reason}"},
     "data.working": {"fa": "در حال انجام…", "en": "Working…"},
     "data.error": {"fa": "ناموفق: {error}", "en": "Failed: {error}"},
     "data.backup.title": {"fa": "پشتیبان‌گیری", "en": "Backup"},
@@ -754,7 +773,27 @@ STRINGS: dict[str, dict[str, str]] = {
     "home.nav.about": {"fa": "درباره", "en": "About"},
     "home.nav.support": {"fa": "حمایت از سازنده", "en": "Support the creator"},
     "about.title": {"fa": "درباره", "en": "About"},
-    "about.subtitle": {"fa": "نسخه، به‌روزرسانی، سازنده و حمایتِ اختیاری", "en": "Version, updates, the creator and optional support"},
+    "about.subtitle": {"fa": "نسخه، به‌روزرسانی و سازنده", "en": "Version, updates and the creator"},
+
+    # --- بستنِ پنجره (قلم ۱۶) ---
+    "window.close.title": {"fa": "برنامه بسته بشه؟", "en": "Close the app?"},
+    "window.close.question": {
+        "fa": "ربات‌ها همین الان روشن‌اند. اگر برنامه در پس‌زمینه بماند، فروش و پاسخ‌گویی ادامه دارد؛ اگر خارج شوی، همه چیز خاموش می‌شود.",
+        "en": "The bots are running right now. Keeping the app in the background means selling and answering continue; quitting stops everything.",
+    },
+    "window.close.hide": {"fa": "در پس‌زمینه بمان", "en": "Stay in background"},
+    "window.close.quit": {"fa": "خروج کامل", "en": "Quit completely"},
+    "window.close.cancel": {"fa": "فعلاً نه", "en": "Not now"},
+    "window.close.remember": {"fa": "این انتخاب را برای دفعه‌های بعد ذخیره کن", "en": "Remember this choice for next time"},
+    "window.close.hint": {"fa": "هر وقت خواستی از «تنظیمات ← بستنِ پنجره» دوباره بپرس.", "en": "You can ask again later from Settings → Closing the window."},
+    "settings.close": {"fa": "بستنِ پنجره", "en": "Closing the window"},
+    "settings.close.ask": {"fa": "هر بار بپرس", "en": "Ask every time"},
+    "settings.close.hide": {"fa": "همیشه در پس‌زمینه", "en": "Always keep in background"},
+    "settings.close.quit": {"fa": "همیشه خارج شو", "en": "Always quit"},
+    "settings.close.note": {
+        "fa": "«پس‌زمینه» یعنی پنجره کوچک می‌شود و ربات‌ها روشن می‌مانند؛ با کلیک روی آیکونِ برنامه در نوارِ ویندوز برمی‌گردی. خروجِ کامل همه چیز را خاموش می‌کند.",
+        "en": "Background minimises the window and keeps the bots running; click the app icon in the Windows taskbar to return. Quitting stops everything.",
+    },
     "about.version": {"fa": "نسخه‌ی {version}", "en": "Version {version}"},
     "about.license": {"fa": "رایگان و متن‌باز (MIT)؛ همه‌ی امکانات بدونِ هیچ هزینه یا حمایتی کامل کار می‌کنن.", "en": "Free and open source (MIT); every feature works fully with no payment or donation."},
     "about.check": {"fa": "بررسیِ به‌روزرسانی", "en": "Check for updates"},

@@ -42,9 +42,23 @@ def test_due_campaign_launches_with_code_in_text_and_finishes(rig):
     assert rig.camps.tick(NOW) == [(cid, "running")]
     rig.drain()
     assert rig.delivered and all("🎟 SPRING" in d[2] and "تخفیفِ بهاری" in d[2] for d in rig.delivered)
+    assert ("bale", "3") in [(p, c) for p, c, *_ in rig.delivered]  # کمپین هم مثلِ پیامِ همگانی روی بله می‌شینه
     assert rig.camps.tick(NOW) == [(cid, "done")]
     st = rig.camps.stats(cid)
-    assert st.sent == 2 and st.audience == 2 and st.code_uses == 0  # ردیفِ بله (مخاطبِ نسخه‌ی ۱) ارسال نمی‌شه
+    assert st.sent == 3 and st.audience == 3 and st.code_uses == 0  # قلم ۲۴: ردیفِ بله مخاطبه و ارسال می‌شه
+
+
+def test_a_bale_only_campaign_launches_only_on_bale(rig):
+    """فیلترِ «فقط بله» در کمپین هم مثلِ پیامِ همگانی کار می‌کنه: صفِ ساخته‌شده فقط ردیفِ بله را داره
+    و آمارِ کمپین همان یک نفر را می‌شمره — یعنی وعده‌ی مخاطبِ صفحه با واقعیتِ ارسال یکی‌شه."""
+    cid = rig.camps.create("بله‌ای", "سلامِ بله", bc.Audience(platform="bale"))
+    assert rig.camps.tick(NOW) == [(cid, "running")]
+    bid = rig.camps.get(cid).broadcast_id
+    assert sorted(rig.service.store.pending(bid, 10)) == [("bale", "3", 0)]  # تلگرام اصلاً وارد صفِ کمپین نشده
+    rig.drain()
+    assert [(p, c) for p, c, *_ in rig.delivered] == [("bale", "3")]  # ارسال هم با پلتفرمِ «bale» بوده
+    st = rig.camps.stats(cid)
+    assert (st.audience, st.sent) == (1, 1) and st.code_uses == 0
 
 
 def test_future_campaign_waits_and_can_be_cancelled(rig):

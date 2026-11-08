@@ -198,7 +198,11 @@ def test_deleted_modules_are_never_imported_again():
 
 BALE_CHAT_DENIALS = ("تلگرام تنها پیام‌رسان", "بله فقط درگاهِ پرداخت است", "The Bale client never answers",
                    "The conversational Bale bot", "it never answers any chat",
-                   "فقط فاکتورِ پرداخت می‌فرستد و هیچ گفتگویی")
+                   "فقط فاکتورِ پرداخت می‌فرستد و هیچ گفتگویی",
+                   # این چهار قابلیت دو-پیام‌رسان شده‌اند؛ ادعایِ تلگرامی‌بودنشان کهنه است
+                   "پخشِ پیام در این نسخه تلگرامی", "کمپینِ تخفیف در این نسخه تلگرامی",
+                   "عضویتِ اجباریِ کانال در این نسخه تلگرامی", "افزودنِ مدیر فعلاً با شناسه‌ی تلگرام",
+                   "setting of the messenger is still telegram", "are still Telegram-scoped")
 
 
 def test_no_text_claims_bale_cannot_chat():

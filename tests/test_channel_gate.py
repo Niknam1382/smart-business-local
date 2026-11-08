@@ -33,12 +33,20 @@ def test_parse_channel_ref_accepts_public_forms(raw, expected):
     assert cg.parse_channel_ref(raw) == expected
 
 
-@pytest.mark.parametrize("raw", ["https://ble.ir/mychannel", "ble.ir/@mychannel", "https://ble.ir/join/abc"])
-def test_bale_channel_links_are_no_longer_acceptable(raw):
-    """بله پیام‌رسان نیست و عضویت در کانالِ آن را نمی‌شه بررسی کرد؛ پذیرفتنش یعنی گره‌ی
-    ابدیِ «عضو شو» که هیچ‌وقت باز نمی‌شه."""
-    with pytest.raises(ChannelError):
-        cg.parse_channel_ref(raw)
+@pytest.mark.parametrize("raw", ["https://ble.ir/mychannel", "ble.ir/@mychannel", "https://bale.ai/@My_Channel"])
+def test_bale_public_channel_links_resolve_exactly_like_telegram_ones(raw):
+    """قلم ۲۴ بله را پیام‌رسانِ گفتگو کرد؛ لینکِ عمومیِ کانالِ بله هم باید دقیقاً مثلِ تلگرام
+    به شکلِ استاندارد برسد، وگرنه «تستِ دسترسی» و دروازه روی بله بی‌معنی می‌مانند."""
+    assert cg.parse_channel_ref(raw).startswith("@")
+    assert cg.parse_channel_ref("https://ble.ir/mychannel") == "@mychannel"
+
+
+def test_bale_invite_or_garbage_links_are_still_rejected():
+    """لینکِ دعوت یا نامِ کوتاهِ بله همان خطایِ تلگرامی را می‌گیرد: گره‌یِ «عضو شو» که هیچ‌وقت
+    باز نمی‌شود نباید ساخته شود."""
+    for raw in ("https://ble.ir/join/abc", "https://ble.ir/+AbCdEfGhIj", "https://ble.ir/abcd"):
+        with pytest.raises(ChannelError):
+            cg.parse_channel_ref(raw)
 
 
 @pytest.mark.parametrize(
@@ -63,8 +71,11 @@ def test_normalize_builds_the_public_link_per_platform_and_cleans_the_title():
     tg = cg.normalize({"platform": "telegram", "channel": "mychannel", "title": "  کانال\n فروشگاه  "})
     assert tg == Channel("telegram", "@mychannel", "کانال فروشگاه", "https://t.me/mychannel")
     assert tg.link == "https://t.me/mychannel"  # لینکِ عمومی همیشه تلگرام
-    with pytest.raises(ChannelError, match="تلگرام"):
-        cg.normalize({"platform": "BALE", "channel": "@mychannel"})
+    bale = cg.normalize({"platform": "BALE", "channel": "mychannel", "title": " کانال\n بله  "})
+    assert bale == Channel("bale", "@mychannel", "کانال بله", "https://ble.ir/mychannel")
+    assert bale.ref == "bale:@mychannel"
+    with pytest.raises(ChannelError, match="تلگرام یا بله"):
+        cg.normalize({"platform": "rubika", "channel": "@mychannel"})
     assert cg.normalize({"platform": "telegram", "channel": "@mychannel", "title": "x" * 200}).title == "x" * cg.MAX_TITLE
 
 
@@ -91,10 +102,14 @@ def test_validate_list_dedupes_and_caps_and_returns_plain_dicts():
     rows = cg.validate_list([
         {"platform": "telegram", "channel": "@mychannel"},
         {"platform": "telegram", "channel": "https://t.me/mychannel", "title": "dup"},
+        {"platform": "bale", "channel": "@mychannel"},
     ])
-    assert [r["platform"] for r in rows] == ["telegram"] and all(isinstance(r, dict) for r in rows)
-    with pytest.raises(ChannelError, match="تلگرام"):  # بله دیگر پیام‌رسان نیست
-        cg.validate_list([{"platform": "bale", "channel": "@mychannel"}])
+    # همان نامِ کانال روی دو پیام‌رسان دو ردیفِ جداست (ref = platform:channel)
+    assert [(r["platform"], r["link"]) for r in rows] == [
+        ("telegram", "https://t.me/mychannel"), ("bale", "https://ble.ir/mychannel")]
+    assert all(isinstance(r, dict) for r in rows)
+    with pytest.raises(ChannelError, match="تلگرام یا بله"):
+        cg.validate_list([{"platform": "instagram", "channel": "@mychannel"}])
     too_many = [{"platform": "telegram", "channel": f"@channel{i:03d}"} for i in range(cg.MAX_CHANNELS + 1)]
     with pytest.raises(ChannelError, match="حداکثر"):
         cg.validate_list(too_many)
@@ -107,8 +122,8 @@ def test_load_skips_corrupt_rows_silently_and_never_raises():
         {"platform": "telegram", "channel": "@good_one"}, "garbage", None, {"platform": "x"}, {"platform": "bale", "channel": "@good_two"},
         {"platform": "telegram", "channel": "@good_one", "title": "dup"},
     ])
-    # ردیفِ بله‌یِ تنظیماتِ نسخه‌ی ۱ بی‌صدا حذف می‌شه: نه برنامه می‌شکند، نه مشتری تلگرامی تا ادر قفل می‌ماند
-    assert [c.ref for c in cg.load(settings)] == ["telegram:@good_one"]
+    # فقط ردیفِ خراب افت می‌کند؛ ردیفِ بله از این نسخه واقعی است و گم نمی‌شود
+    assert [c.ref for c in cg.load(settings)] == ["telegram:@good_one", "bale:@good_two"]
     assert cg.load(SimpleNamespace()) == [] and cg.load(SimpleNamespace(required_channels="oops")) == []
 
 
@@ -260,18 +275,21 @@ def test_a_broken_channel_never_hides_a_channel_the_user_is_known_to_have_left()
     assert verdict.blocked and verdict.degraded and [c.channel for c in verdict.missing] == ["@real_one"]
 
 
-def test_legacy_bale_channel_never_blocks_a_telegram_customer():
-    """تنظیماتِ باقی‌مانده از نسخه‌ی ۱ (کانالِ بله) نباید مشتریِ تلگرامی را تا ابد پشتِ
-    «اول عضو کانال شو» نگه دارد — عضویتِ بله را که نمی‌شه بررسی کرد."""
+def test_a_bale_channel_gates_bale_customers_and_no_one_else():
+    """هر کانال فقط مشتریِ همان پیام‌رسان را می‌سنجد: تماسِ checker با platformِ درست می‌رود و
+    مشتریِ تلگرامی هرگز پشتِ «اول عضو کانالِ بله شو» نمی‌ماند."""
     env = Env(channels=[{"platform": "telegram", "channel": "@tg_channel"}])
-    env.settings.required_channels = [{"platform": "bale", "channel": "@bale_channel"}, {"platform": "telegram", "channel": "@tg_channel"}]
+    env.settings.required_channels = [{"platform": "bale", "channel": "@bale_channel"},
+                                      {"platform": "telegram", "channel": "@tg_channel"}]
     env.default = "left"
     verdict = env.check(platform="telegram")
     assert [c.channel for c in verdict.missing] == ["@tg_channel"] and verdict.blocked
-    assert env.calls == [("telegram", "@tg_channel", "1")]  # تماسی برای بله نرفته
+    assert env.calls == [("telegram", "@tg_channel", "1")]  # هیچ تماسی برای بله نرفت
     env.settings.required_channels = [{"platform": "bale", "channel": "@only_bale"}]
     env.gate.clear_cache()
-    assert env.check(platform="telegram").allowed and len(env.calls) == 1  # فقط بله ⇒ هیچ گری
+    assert env.check(platform="telegram").allowed and len(env.calls) == 1  # کانالِ بله تلگرام را آزاد می‌گذارد
+    env.gate.clear_cache()
+    assert env.check(platform="bale").blocked and env.calls[-1] == ("bale", "@only_bale", "1")
 
 
 def test_disabled_or_empty_configuration_never_calls_the_checker():

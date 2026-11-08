@@ -176,3 +176,65 @@ def test_bale_conversations_are_kept_separate_from_telegram(tmp_path, monkeypatc
     assert [c.platform for c in store.list_conversations()] == ["bale"]
     assert store.get_history("bale", "55", limit=5)[0].content == "سلام"
     assert engine.calls[0][2] == "سلام"
+
+
+# ═══════════════════════ تستِ دسترسیِ کانال روی هر دو پیام‌رسان ═══════════════════════
+
+
+class _RecorderAdapter:
+    """فقط `chat_member_status` را ضبط می‌کند تا معلوم شود «تستِ دسترسی» با شناسه‌یِ کدام ربات پرسیده."""
+
+    def __init__(self):
+        self.seen = []
+
+    async def chat_member_status(self, channel, user_id):
+        self.seen.append((channel, user_id))
+        return "administrator"
+
+
+def test_channel_access_test_uses_the_token_of_its_own_messenger(tmp_path):
+    """باگِ واقعیِ قبل از این دست: `BotManager.test_channel` شناسه‌ی ربات را همیشه از
+    `get_telegram_token()` می‌ساخت؛ برای کانالِ بله یعنی شناسه‌ی رباتِ تلگرام در کانالِ بله
+    پرسیده می‌شد و نتیجه هرگز معنادار نبود."""
+    s = base_settings(telegram_enabled=True, bale_chat_enabled=True, required_channels_enabled=True)
+    s.set_telegram_token(TG_TOKEN)
+    s.set_bale_chat_token(BALE_TOKEN)
+    manager, _store = manager_for(s, tmp_path)
+    tg_rec, bale_rec = _RecorderAdapter(), _RecorderAdapter()
+    manager._adapters = {"telegram": tg_rec, "bale": bale_rec}
+    assert run(manager.test_channel("telegram", "@tg_chan")) == (True, "administrator")
+    assert run(manager.test_channel("bale", "@bale_chan")) == (True, "administrator")
+    assert tg_rec.seen == [("@tg_chan", "123")]  # پیشوندِ عددیِ توکنِ تلگرام
+    assert bale_rec.seen == [("@bale_chan", "456")]  # و نه توکنِ تلگرام روی کانالِ بله
+
+
+# ═══════════════════ آلارمِ مالی به مالک/مدیر روی هر دو پیام‌رسان ═══════════════════
+
+
+def test_payment_alarm_reaches_the_bale_owner_and_bale_manager(tmp_path, monkeypatch):
+    """باگِ درست‌شده در همین دست: `_notify_owner_and_staff` شناسه‌ها را بی‌پلتفرم در یک
+    set می‌ریخت، همه را با `telegram` می‌فرستاد و `AdminStore.list_admins()` را صدا می‌زد که
+    وجود ندارد (پس آلارم به مدیرها هرگز درست نمی‌رسید و خطا داخلِ asyncio task گم می‌شد)."""
+    s = base_settings(telegram_enabled=True, bale_chat_enabled=True, alert_on_payment_claim=True)
+    s.set_telegram_token(TG_TOKEN)
+    s.set_bale_chat_token(BALE_TOKEN)
+    s.owner_chats = {"telegram": "900", "bale": "77"}
+    manager, _store = manager_for(s, tmp_path)
+    manager.admins.add_by_id("bale", "777", "manager")
+    assert manager.admins.activate_if_pending("bale", "777", "رضا") is not None
+
+    seen = []
+
+    async def fake_deliver(platform, chat_id, text, markdown):
+        seen.append((platform, str(chat_id)))
+        return True
+
+    monkeypatch.setattr(manager, "_deliver", fake_deliver)
+    run(manager._notify_owner_and_staff("رسیدِ کارت‌به‌کارت برای #1"))
+    assert sorted(seen) == [("bale", "77"), ("bale", "777"), ("telegram", "900")]
+
+    # دو شناسه‌ی عددیِ یکسان روی دو پیام‌رسان نباید ادغام شود
+    s.owner_chats = {"telegram": "500", "bale": "500"}
+    seen.clear()
+    run(manager._notify_owner_and_staff("دوباره"))
+    assert sorted(seen) == [("bale", "500"), ("bale", "777"), ("telegram", "500")]

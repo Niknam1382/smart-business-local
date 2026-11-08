@@ -21,7 +21,7 @@ from app.core.ui import safe_url
 
 logger = logging.getLogger(__name__)
 
-PLATFORMS = ("telegram",)  # عضویتِ اجباریِ کانال فعلاً تلگرامی است (APIِ کانالِ بله در این برنامه وصل نشده)
+PLATFORMS = ("telegram", "bale")  # هر دو پیام‌رسان: adapterِ بله همان getChatMember را روی tapi.bale.ai می‌زند
 SCOPE_SHOP, SCOPE_AI, SCOPE_BOTH = "shop", "ai", "both"
 SCOPES = (SCOPE_SHOP, SCOPE_AI, SCOPE_BOTH)
 POINT_SHOP, POINT_AI = SCOPE_SHOP, SCOPE_AI  # نقطه‌ی بررسی در پایپ‌لاین
@@ -43,9 +43,10 @@ _USERNAME = re.compile(r"^[A-Za-z][A-Za-z0-9_]{4,31}$")
 _NUMERIC = re.compile(r"^-?\d{5,20}$")
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 _LINK_REF = re.compile(
-    r"^(?:https?://)?(?:www\.)?(?:t\.me|telegram\.me)/@?([A-Za-z][A-Za-z0-9_]{4,31})/?(?:\?.*)?$", re.IGNORECASE
+    r"^(?:https?://)?(?:www\.)?(?:t\.me|telegram\.me|ble\.ir|bale\.ai)/@?([A-Za-z][A-Za-z0-9_]{4,31})/?(?:\?.*)?$",
+    re.IGNORECASE,
 )
-_AUTO_LINK = {"telegram": "https://t.me/{u}"}
+_AUTO_LINK = {"telegram": "https://t.me/{u}", "bale": "https://ble.ir/{u}"}
 
 
 class ChannelError(ValueError):
@@ -99,7 +100,7 @@ def normalize(raw: dict) -> Channel:
         raise ChannelError("ورودیِ کانال معتبر نیست.")
     platform = str(raw.get("platform") or "").strip().lower()
     if platform not in PLATFORMS:
-        raise ChannelError("پیام‌رسان باید تلگرام باشد.")
+        raise ChannelError("پیام‌رسان باید تلگرام یا بله باشد.")
     channel = parse_channel_ref(raw.get("channel"))
     title = _clean(raw.get("title"), MAX_TITLE)
     link = _clean(raw.get("link"), MAX_LINK).replace(" ", "")
@@ -129,8 +130,8 @@ def validate_list(items) -> list:
 def load(settings) -> list:
     """کانال‌های ذخیره‌شده؛ ردیفِ خراب (مثلاً فایلِ دست‌کاری‌شده) بی‌صدا نادیده گرفته می‌شه — هرگز exception نمی‌ده.
 
-    ردیف‌هایِ قدیمیِ «بله» هم همین‌جا افت می‌کنند (نمی‌توان عضویتشان را بررسی کرد) و چون دروازه
-    fail-open است، مشتریِ قدیمی قفل نمی‌شود."""
+    فقط ردیفِ **خرابِ فایل** (مثلاً دست‌کاری‌شده) افت می‌کند؛ ردیف‌هایِ «بله» از این نسخه واقعی‌اند
+    و مشتریِ بله هم مثلِ مشتریِ تلگرام به عضویتِ کانالش وابسته است."""
     out, seen = [], set()
     for item in list(getattr(settings, "required_channels", None) or [])[: MAX_CHANNELS * 2]:
         try:

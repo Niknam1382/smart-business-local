@@ -31,7 +31,7 @@ from app.core.ui import safe_url
 
 logger = logging.getLogger(__name__)
 
-PLATFORMS = ("telegram",)  # پخشِ پیام فعلاً تلگرامی است (چتِ بله در BotManager پشتیبانی می‌شه؛ این فهرست در نسخه‌ی بعد)
+PLATFORMS = ("telegram", "bale")  # هر دو پیام‌رسانِ گفتگو؛ pacer و سقفِ خطا برای هرکدام جدا است
 
 STATUS_RUNNING, STATUS_PAUSED, STATUS_DONE, STATUS_CANCELLED = "running", "paused", "done", "cancelled"
 ACTIVE_STATUSES = (STATUS_RUNNING, STATUS_PAUSED)
@@ -51,8 +51,8 @@ TRANSIENT_PAUSE_AFTER = 5  # این‌قدر خطای شبکه‌ی پیاپی (
 FAILED_PAUSE_AFTER = 5  # این‌قدر «ناموفقِ دائمی»ِ پیاپی (مثلاً لینکِ دکمه/متن را پلتفرم رد می‌کنه) ← توقفِ خودکار
 RATE_LIMIT_SLOW_AFTER = 3  # این‌قدر ۴۲۹ِ پیاپی ← نرخِ آن پلتفرم نصف می‌شه
 MAX_RETRY_WAIT = 120.0
-DEFAULT_RATES = {"telegram": 20.0}
-RATE_LIMITS = {"telegram": (1, 25)}
+DEFAULT_RATES = {"telegram": 20.0, "bale": 5.0}
+RATE_LIMITS = {"telegram": (1, 25), "bale": (1, 10)}
 DAILY_CAP_RANGE = (1, 50)
 DAILY_SECONDS = 86400
 
@@ -228,8 +228,8 @@ def _language_ok(code: str, wanted: str) -> bool:
 def select_recipients(customers: CustomerStore, audience: Audience, now: Optional[float] = None) -> list:
     """مشتریانِ مجاز برای این مخاطب. هرگز: بلاک‌شده، لغوکرده (/stop)، دسترس‌ناپذیر، یا کسی که هنوز پیامی نداده.
 
-    فقط پلتفرم‌هایی که واقعاً «ارسال‌شدنی» ان (در ۱.۰.۰: تلگرام) — ردیف‌های قدیمیِ بله در دیتابیسِ
-    نسخه‌ی ۱ ممکن است بمانند، ولی شمارِ مخاطب نباید وعده‌ی ارسالِ چیزی را بدهد که هرگز نمی‌رود."""
+    فقط پلتفرم‌هایِ فهرستِ `PLATFORMS` شمرده می‌شوند؛ اگر روزی پیام‌رسانی از آن فهرست برود،
+    ردیف‌هایِ قدیمی‌اش «skipped/platform_gone» می‌شوند تا شمارِ مخاطب وعده‌ی دروغ ندهد."""
     audience = audience.normalized()
     now = time.time() if now is None else now
     out = []
@@ -405,9 +405,23 @@ class BroadcastStore:
         conn.commit()
         return cur.rowcount
 
+    def skip_disabled(self, bid: int, platforms: tuple, reason: str = "bot_disabled", now: Optional[float] = None) -> int:
+        """ردیف‌های «در انتظار» پیام‌رسان‌هایی که در این فروشگاه *روشن نیستند* (رباتِ بله خاموش،
+        مخاطبِ «هر دو پیام‌رسان»): هرگز ارسال نمی‌شن، پس باید رد بشن — وگرنه ``has_pending`` تا ابد
+        true می‌مونه، ارسال «running» می‌مونه و قفلِ «یک ارسالِ فعال» هیچ‌وقت آزاد نمی‌شه."""
+        marks = ",".join("?" for _ in platforms)
+        conn = self._conn()
+        cur = conn.execute(
+            f"UPDATE broadcast_log SET status = 'skipped', error = ?, ts = ? "  # noqa: S608
+            f"WHERE broadcast_id = ? AND status = 'pending' AND platform IN ({marks})",
+            (reason, int(time.time() if now is None else now), bid, *platforms),
+        )
+        conn.commit()
+        return cur.rowcount
+
     def skip_unsendable(self, bid: int, platforms: Optional[tuple] = None, reason: str = "platform_gone", now: Optional[float] = None) -> int:
-        """ردیف‌های «در انتظار» روی پلتفرمی که دیگر ارسال‌شدنی نیست (مثلاً گفتگوهایِ قدیمیِ بله
-        در دیتابیسِ نسخه‌ی ۱) را رد می‌کنه. بدونِ این، ``has_pending`` همیشه true می‌مونه و
+        """ردیف‌های «در انتظار» روی پلتفرمی که در `PLATFORMS` نیست (مثلاً پیام‌رسانی که از این
+        برنامه حذف شده) را رد می‌کنه. بدونِ این، ``has_pending`` همیشه true می‌مونه و
         ارسالِ همگانی هرگز تمام نمی‌شه و قفلِ «یک ارسالِ فعال» برای همیشه می‌مونه."""
         platforms = PLATFORMS if platforms is None else tuple(platforms)
         if not platforms:
@@ -497,6 +511,7 @@ class BroadcastEngine:
         send: SendFn,
         *,
         ready: Callable[[str], bool] = lambda platform: True,
+        sendable: Callable[[str], bool] = lambda platform: True,
         notify: Optional[Callable[[str], Awaitable]] = None,
         alert: Optional[Callable[[int, str], None]] = None,  # توقفِ خودکار ← «نیاز به توجه» (bid, دلیلِ کوتاه)
         resolved: Optional[Callable[[int], None]] = None,  # تمام‌شدنِ ارسال ← رفعِ هشدار
@@ -506,7 +521,8 @@ class BroadcastEngine:
         batch: int = 20,
     ):
         self._store, self._customers, self._get_settings, self._send = store, customers, get_settings, send
-        self._ready, self._notify, self._alert, self._resolved = ready, notify, alert, resolved
+        self._ready, self._sendable = ready, sendable
+        self._notify, self._alert, self._resolved = notify, alert, resolved
         self._clock, self._mono, self._sleep = clock, mono, sleep
         self._batch = max(1, int(batch))
         self._pacers: dict = {}
@@ -601,7 +617,11 @@ class BroadcastEngine:
         if not self._store.has_pending(bid):
             await self._finish(b)
             return 0
-        self._store.skip_unsendable(bid)  # ردیف‌هایِ قدیمیِ پلتفرمِ حذف‌شده نباید ارسال را تا ابد باز نگه دارند
+        self._store.skip_unsendable(bid)  # ردیف‌هایِ پلتفرمِ حذف‌شده نباید ارسال را تا ابد باز نگه دارند
+        # پیام‌رسانِ خاموش «منتظر» نمی‌مونه (هرگز ارسال نمی‌شه)؛ پیام‌رسانِ روشنِ در حالِ اتصالِ دوباره می‌مونه
+        disabled = tuple(p for p in PLATFORMS if not self._sendable(p))
+        if disabled:
+            self._store.skip_disabled(bid, disabled)
         if not self._store.has_pending(bid):
             await self._finish(self._store.get(bid))
             return 0

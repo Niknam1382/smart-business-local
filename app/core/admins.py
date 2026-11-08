@@ -69,6 +69,7 @@ _MAX_NAME = 128
 
 _DEEP_LINKS = {
     "telegram": "https://t.me/{username}?start=admin_{token}",
+    "bale": "https://ble.ir/{username}?start=admin_{token}",  # همان قالبِ دیپ‌لینکِ بله‌پی
 }
 
 

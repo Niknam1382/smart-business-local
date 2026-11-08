@@ -1,4 +1,4 @@
-"""صفحه‌ی «مدیران» (N11): لینکِ دعوت + QR، افزودن با شناسه، نقش‌ها، فعال/غیرفعال/حذف، ممیزی و جایگاه در منوی فروشگاه — تلگرام‌-only (۱.۰.۰)."""
+"""صفحه‌ی «مدیران» (N11): لینکِ دعوت + QR، افزودن با شناسه، نقش‌ها، فعال/غیرفعال/حذف، ممیزی و جایگاه در منوی فروشگاه؛ پیام‌رسانِ دعوت انتخابی است (تلگرام و بله)."""
 
 from types import SimpleNamespace
 
@@ -79,14 +79,31 @@ def test_invite_creates_a_working_link_qr_and_fallback_command(env):
     assert result.status == "ok" and result.role == "support"  # توکنِ ساخته‌شده واقعاً معتبره و نقشِ انتخابی را دارد
 
 
-def test_no_bale_picker_and_every_invite_is_telegram(env):
-    # ۱.۰.۰: تلگرام تنها پیام‌رسان — هیچ انتخابِ پیام‌رسانی نیست؛ توکنِ بله هرگز به دعوتِ مدیر تبدیل نمی‌شه.
+def test_the_messenger_picker_drives_the_invite_link(env):
+    """قلم ۲۴/۲۵: مدیر می‌تواند بله‌ای باشد. دیپ‌لینکِ دعوت باید میزبانِ همان پیام‌رسان را
+    بگیرد و توکنِ ساخته‌شده فقط روی همان پیام‌رسان پذیرفته شود."""
     root, _p = make(env)
-    assert find(root, "admins_platform") is None
+    picker = find(root, "admins_platform")
+    assert sorted(o.key for o in picker.options) == ["bale", "telegram"] and picker.value == "telegram"
     invite(root, role="viewer")
     link = find(root, "admins_invite_link").value
     assert link.startswith("https://t.me/my_shop_bot?start=admin_") and "ble.ir" not in link
     assert env.admins.accept_invite(token_from(root), "telegram", "9").role == "viewer"
+    assert env.admins.accept_invite(token_from(root), "bale", "9").status == "wrong_platform"  # توکنِ تلگرام روی بله بی‌اثر
+
+    fire(picker, "on_select", "bale")
+    invite(root, role="manager")
+    bale_link = find(root, "admins_invite_link").value
+    assert bale_link.startswith("https://ble.ir/my_bale_bot?start=admin_")
+    token = token_from(root)
+    assert env.admins.accept_invite(token, "bale", "77", "مریم").role == "manager"
+    assert env.admins.role_of("bale", "77") == "manager" and not env.admins.role_of("telegram", "77")
+    # افزودنِ مدیر با شناسه هم روی همان پیام‌رسان می‌نشیند
+    find(root, "admins_id").value, find(root, "admins_id_name").value = "555", "رضا"
+    fire(find(root, "admins_add_id"), "on_click")
+    pending = env.admins.get("bale", "555")
+    assert pending is not None and pending.platform == "bale" and pending.status == am.STATUS_PENDING
+    assert env.admins.get("telegram", "555") is None  # همان شناسه روی پیام‌رسانِ دیگر ساخته نشد
 
 
 def test_invite_without_a_running_bot_explains_and_creates_nothing(tmp_path):
@@ -215,7 +232,7 @@ def test_qr_png_is_valid_and_depends_on_the_payload():
 
 def test_invite_link_helpers():
     assert am.invite_link("telegram", "@Shop_Bot", "tok") == "https://t.me/Shop_Bot?start=admin_tok"
-    assert am.invite_link("bale", "shop", "tok") == ""  # ۱.۰.۰: بله دیگر پیام‌رسانِ ربات نیست
+    assert am.invite_link("bale", "@Shop_Bale", "tok") == "https://ble.ir/Shop_Bale?start=admin_tok"
     assert am.invite_link("signal", "shop", "tok") == "" and am.invite_link("telegram", "", "tok") == "" and am.invite_link("telegram", "  ", "t") == ""
     assert am.start_command("tok") == "/start admin_tok"
 
@@ -241,7 +258,8 @@ def test_admins_page_is_in_the_store_sidebar_and_opens():
     fire(nav, "on_click")
     view = page.controls[0].content
     assert find(view, "admins_invite") is not None and "مدیرانِ ربات" in collect_text(view)
-    assert find(view, "admins_platform") is None  # بدونِ انتخابِ پیام‌رسان
+    picker = find(view, "admins_platform")
+    assert picker is not None and sorted(o.key for o in picker.options) == ["bale", "telegram"]
 
 
 def test_admins_page_is_hidden_for_consultants():

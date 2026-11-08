@@ -200,7 +200,8 @@ class BotManager:
         )
         self._broadcast_engine = broadcast_module.BroadcastEngine(
             self._broadcast_store, self._customers, lambda: self._settings, self._send_broadcast,
-            ready=self._adapter_ready, notify=self._notify_owner_text,
+            ready=self._adapter_ready, sendable=lambda p: p in self.enabled_platforms(),
+            notify=self._notify_owner_text,
             alert=lambda bid, reason: self._attention.add("broadcast", str(bid), f"#{bid}: {reason}"[:200]),
             resolved=lambda bid: self._attention.handle_ref("broadcast", str(bid)),
         )
@@ -414,15 +415,15 @@ class BotManager:
 
         پیام فقط به چت‌هایی می‌ره که واقعاً ثبت شده‌اند؛ اگر هیچ‌کس نبود، آیتمِ «نیاز به توجه»
         در برنامه می‌مونه (همان آلارم) و چیزی گم نمی‌شه."""
-        targets = {str(cid) for cid in (self._settings.owner_chats or {}).values() if cid}
+        targets = {(str(platform), str(cid)) for platform, cid in (self._settings.owner_chats or {}).items() if cid}
         if self._admins is not None:
-            for admin in self._admins.list_admins():
-                if "orders.decide" in (admin.capabilities or []) and admin.chat_id:
-                    targets.add(str(admin.chat_id))
+            # «تصمیمِ سفارش» دقیقاً همان چیزی است که برای این آلارم لازم است؛ مالک جدا از این فهرست می‌آید
+            targets |= {(a.platform, str(a.user_id)) for a in self._admins.active_with(admins_module.CAP_ORDERS_DECIDE)
+                        if a.user_id}
         delivered = []
-        for chat_id in sorted(targets):
-            if await self._deliver("telegram", chat_id, text, False):
-                delivered.append(chat_id)
+        for platform, chat_id in sorted(targets):  # (پلتفرم، شناسه) — دو شناسه‌ی یکسان روی دو پیام‌رسان ادغام نمی‌شن
+            if await self._deliver(platform, chat_id, text, False):
+                delivered.append((platform, chat_id))
         if not delivered:
             logger.info("آلارمِ پرداخت به هیچ چتِ ثبت‌شده‌ای نرسید؛ فقط در «نیاز به توجه» ثبت شد")
 
@@ -657,7 +658,8 @@ class BotManager:
         adapter = self._adapters.get(platform)
         if adapter is None:
             return False, "ربات این پلتفرم روشن نیست؛ اول روشنش کن."
-        token = self._settings.get_telegram_token()
+        token = (self._settings.get_bale_chat_token() if platform == "bale"
+                 else self._settings.get_telegram_token())
         bot_id = str(token or "").split(":", 1)[0]
         if not bot_id.isdigit():
             return False, "توکنِ ربات معتبر نیست."

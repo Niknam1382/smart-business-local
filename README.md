@@ -63,9 +63,9 @@ runs on it too (llama.cpp, GGUF files).
 | 🔔 **Receipt alarms** | When the customer says *I paid* and sends a receipt, the app records it, compares the amount and alerts you and your managers immediately — it never approves anything for you. Next to each order there is also a read-only payment panel: method, amount due, receipt amount, trace code, any mismatch (in red) and who confirmed, with a Jalali date. |
 | 🧾 **Ledger and Persian PDF invoices** | A ledger that fills itself when you confirm orders, manual expenses, a profit dashboard, refunds you still owe, and A4/A5 Persian invoices with your logo and optional VAT. |
 | 🔎 **Search across everything** | One box for orders, products and customers — by order number, product name, customer name or phone number — and every result has a button that opens that very page. It only reads the local database and changes nothing. |
-| 📣 **Broadcast** | One message to everyone or a segment (buyers, new, inactive, tag, language) with a live recipient count, preview, a test to yourself, a daily cap and a safe speed. A *"send /stop to unsubscribe"* footer is on by default. |
+| 📣 **Broadcast** | One message to everyone or a segment (**messenger: both, Telegram or Bale** — buyers, new, inactive, tag, language) with a live recipient count, preview, a test to yourself, a daily cap and a separate safe speed per messenger. A *"send /stop to unsubscribe"* footer is on by default. |
 | ✉️ **Personal messages** | Write to one customer from the *Chats* page (with quick replies). They see "Shop: …", it stays in the history and the model knows about it. |
-| 📢 **Required channel** | Customers must join your Telegram channel(s) first (menu, AI chat, or both). You and your managers are exempt; if the check ever breaks, nobody is locked out and you are told. |
+| 📢 **Required channel** | Customers must join your Telegram or Bale channel(s) first (menu, AI chat, or both). You and your managers are exempt; if the check ever breaks, nobody is locked out and you are told. |
 | 🔌 **Proxy pool** | Several proxies (one per line) with automatic failover, your own **subscription link** and automatic return to the fastest one — Telegram is often unreachable without it in Iran. |
 | 🛡 **Guardrails you cannot delete** | The app appends fixed rules to every prompt (limits, menu map, tone, privacy, content boundaries) and shows you exactly what the model will read. |
 | 📊 **Excel and PDF export** | Every list you can see (customers, orders, finance report, products, conversations) becomes an RTL Excel or PDF file in the `reports` folder with two buttons. |
@@ -185,7 +185,7 @@ a small amount first.
   official invoice registration. Keep working with your accountant.
 - The AI is as good as the small local model you run: it can be wrong, it answers slowly on weak hardware, and it must
   never be trusted with prices that only live in its prompt.
-- One shop per installation, and Telegram only — no WhatsApp, Instagram or Eitaa.
+- One shop per installation, and Telegram or Bale only — no WhatsApp, Instagram or Eitaa.
 
 ### Documentation
 
@@ -209,11 +209,12 @@ a small amount first.
   repository link). Nothing is added to messages, orders or payments; it is previewable under *Bot experience → Bot
   profile*, your own bio text is never erased, and because this is open source you can remove it by editing the code or
   the bio in BotFather — a transparent default, not a licence requirement.
-- **Support.** Entirely optional and tucked away in *About*: you type an amount and a message, and the app opens a
-  donation page in your browser. Everything works fully without it, and the app never sends your data or takes any cut.
-- **Customers and staff.** A searchable customer book (purchases, tags, notes, CSV export) built from what Telegram
-  itself sends; staff invited by QR/link/ID with roles (manager / support / viewer) run orders and stock from a button
-  panel (`/admin`), with permission checks done in the app and an audit log.
+- **Support.** Entirely optional, on its own sidebar page (*Support the creator*, out of *About*): you type an
+  amount and a message, and the app opens a donation page in your browser. Everything works fully without it, and the app never sends your data or takes any cut.
+- **Customers and staff.** A searchable customer book (purchases, tags, notes, CSV export) built from what the
+  messengers themselves send, on Telegram and Bale alike; staff are invited per messenger (QR / deep link / numeric ID —
+  `t.me/…` or `ble.ir/…`) with roles (manager / support / viewer) and run orders and stock from the same button panel
+  (`/admin`) inside Telegram *or* Bale, with permission checks done in the app and an audit log.
 - **Discounts and campaigns.** Percent or fixed codes plus automatic discounts, with limits, windows, first-order and
   per-customer rules, product/category scope and stacking; usage is counted atomically with the order and freed on
   cancel or expiry. A campaign sends a broadcast with the code, now or scheduled.
@@ -242,7 +243,7 @@ died (let Docker restart it), `2` no bot configured, `3` data written by a newer
 chat on top of it), Bale Pay as the only gateway
 besides card-to-card, a four-button customer menu and a central prompt studio. The version string lives in
 `app/version.py` and a release tag must match it; see [CHANGELOG](CHANGELOG.md) for what shipped and what was cut. The
-automated suite (2209 tests in 107 files) runs against fake Telegram and fake Bale-pay servers and covers the shop,
+automated suite (2223 tests in 107 files) runs against fake Telegram and fake Bale-pay servers and covers the shop,
 payments, receipts, fulfilment, support, migrations, backups, proxies, headless mode, report exports, injection and
 abuse cases.
 **Verification against real bots and a real gateway still has to be done per installation** — run one complete purchase
@@ -285,9 +286,9 @@ with a small amount before you take real money. Bugs and ideas: Issues.
 | 🔔 **آلارمِ رسید** | وقتی مشتری «پرداخت کردم» را می‌زند و رسید می‌فرستد، برنامه آن را ثبت می‌کند، مبلغ را با سفارش می‌سنجد و **فوری** تو و مدیرها را باخبر می‌کند — ولی هرگز چیزی را به‌جای تو تأیید نمی‌کند. کنارِ هر سفارش، یک کارتِ فقط‌خواندنی هم هست: روش، مبلغ، مبلغِ رسید، کد پیگیری، مقدارِ اختلاف (با قرمز) و اینکه چه کسی و چه وقت تأیید کرده. |
 | 🧾 **دفتر و فاکتورِ PDFِ فارسی** | دفتری که با تأییدِ سفارش خودش پر می‌شود، هزینه‌های دستی، داشبوردِ سود، یادآوریِ پولِ پس‌دادنی و فاکتورِ فارسیِ A4/A5 با لوگوی خودت و مالیاتِ اختیاری. |
 | 🔎 **جست‌وجوی سراسری** | یک کادر برای سفارش‌ها، کالاها و مشتریان — با شمارهٔ سفارش، نامِ کالا، نام یا شمارهٔ مشتری — و کنارِ هر نتیجه دکمه‌ای که همان صفحه را باز می‌کند. فقط از دیتابیسِ همین کامپیوتر می‌خواند و هیچ‌چیز را عوض نمی‌کند. |
-| 📣 **پیامِ همگانی** | یک پیام برای همه یا بخشی از مشتری‌ها (خریدار، جدید، غیرفعال، برچسب، زبان) با شمارشِ زنده‌ی گیرنده‌ها، پیش‌نمایش، ارسالِ آزمایشی به خودت، سقفِ روزانه و سرعتِ امن. پانویسِ «برای توقف /stop» پیش‌فرض روشن است. |
+| 📣 **پیامِ همگانی** | یک پیام برای همه یا بخشی از مشتری‌ها (**پیام‌رسان: هر دو، تلگرام یا بله** — خریدار، جدید، غیرفعال، برچسب، زبان) با شمارشِ زنده‌ی گیرنده‌ها، پیش‌نمایش، ارسالِ آزمایشی به خودت، سقفِ روزانه و سرعتِ امنِ جدا به‌ازای هر پیام‌رسان. پانویسِ «برای توقف /stop» پیش‌فرض روشن است. |
 | ✉️ **پیامِ شخصی** | از صفحه‌ی «گفتگوها» به یک مشتری پیام بده (با پاسخ‌های آماده). مشتری «💬 فروشگاه: …» می‌بیند، در تاریخچه می‌ماند و مدل هم از آن خبر دار می‌شود. |
-| 📢 **عضویتِ اجباریِ کانال** | مشتری اول باید در کانال(های) تلگرامی تو عضو باشد (منو، گفتگو، یا هر دو). خودت و مدیرها معافید؛ اگر بررسی خراب شود کسی قفل نمی‌شود و خبردار می‌شوی. |
+| 📢 **عضویتِ اجباریِ کانال** | مشتری اول باید در کانال(های) تلگرام یا بله‌ات عضو باشد (منو، گفتگو، یا هر دو). خودت و مدیرها معافید؛ اگر بررسی خراب شود کسی قفل نمی‌شود و خبردار می‌شوی. |
 | 🔌 **استخرِ پروکسی** | چند پروکسی (هر خط یکی) با جابه‌جاییِ خودکار، **لینکِ اشتراکِ** خودت و بازگشتِ خودکار به سریع‌ترین‌شان — تلگرام در ایران بدونِ آن کار نمی‌کند. |
 | 🛡 **گاردریل‌های حذف‌نشدنی** | برنامه به هر پرامپت پنج قطعه‌ی ثابت اضافه می‌کند (حدودِ کار، منو، لحن، حریم، مرزها) و پیش‌نمایشِ همان چیزی را که مدل می‌خواند به تو نشان می‌دهد. |
 | 📊 **خروجیِ اکسل و PDF** | هر فهرستی که می‌بینی (مشتریان، سفارش‌ها، کارنامه‌ی مالی، محصولات، گفتگوها) با دو دکمه به فایلِ اکسل یا PDFِ راست‌به‌چپ درپوشه‌ی `reports` درمی‌آید. |
@@ -405,7 +406,7 @@ python -m pytest         # کلِ تست‌ها — بدونِ اینترنت و
   کار کن.
 - کیفیتِ پاسخ به مدلِ کوچکِ محلی محدود است: روی سیستمِ ضعیف کند جواب می‌دهد و ممکن است اشتباه کند؛ هیچ‌وقت به مدلی که
   قیمت‌ها فقط در متنِ پرامپتش نوشته شده اعتماد نکن.
-- هر نصب فقط **یک فروشگاه** دارد و فقط تلگرام (واتساپ/اینستاگرام/ایتا ندارد).
+- هر نصب فقط **یک فروشگاه** دارد و فقط تلگرام یا بله (واتساپ/اینستاگرام/ایتا ندارد).
 
 ### مستندات
 
@@ -428,10 +429,11 @@ python -m pytest         # کلِ تست‌ها — بدونِ اینترنت و
   لینکِ مخزن). چیزی به پیام‌ها، سفارش‌ها و پرداخت‌ها اضافه نمی‌شود؛ در «تجربه‌ی ربات ← پروفایلِ ربات» دیده و پیش‌نمایش
   می‌شود و متنِ خودت هرگز پاک نمی‌شود. چون متن‌باز است، با فورک‌کردنِ کد یا ویرایشِ بیو در BotFather حذف‌شدنی است —
   پیش‌فرضِ شفاف، نه الزامِ مجوز.
-- **حمایت.** کاملاً اختیاری و گوشه‌ی «درباره»: مبلغ و پیام را خودت می‌نویسی و برنامه صفحه‌ی حمایت را در مرورگرت باز
-  می‌کند. بدونِ حمایت هم همه‌چیز کامل است؛ برنامه هیچ داده‌ای نمی‌فرستد و از پرداخت‌هایت سهمی نمی‌گیرد.
-- **مشتریان و مدیران.** دفترِ مشتریِ قابلِ جستجو (خریدها، برچسب، یادداشت، خروجیِ CSV) فقط از چیزی که خودِ تلگرام
-  می‌فرستد ساخته می‌شود؛ کارمندها با QR/لینک/شناسه و با نقش (مدیر / پشتیبان / ناظر) از پنلِ دکمه‌ای (`/admin`) سفارش و
+- **حمایت.** کاملاً اختیاری و در صفحه‌یِ جداگانه‌یِ خودِ منو («حمایت از سازنده»، بیرون از «درباره»): مبلغ و پیام را
+  خودت می‌نویسی و برنامه صفحه‌ی حمایت را در مرورگرت باز می‌کند. بدونِ حمایت هم همه‌چیز کامل است؛ برنامه هیچ داده‌ای نمی‌فرستد و از پرداخت‌هایت سهمی نمی‌گیرد.
+- **مشتریان و مدیران.** دفترِ مشتریِ قابلِ جستجو (خریدها، برچسب، یادداشت، خروجیِ CSV) از چیزی که خودِ
+  پیام‌رسان‌ها می‌فرستند ساخته می‌شود — تلگرام و بله فرقی ندارند؛ کارمندها به‌ازای هر پیام‌رسان با QR/لینک/شناسه
+  (`t.me/…` یا `ble.ir/…`) و با نقش (مدیر / پشتیبان / ناظر) از همان پنلِ دکمه‌ای (`/admin`) روی تلگرام یا بله سفارش و
   موجودی را اداره می‌کنند، با بررسیِ مجوز در خودِ برنامه و دفترِ ممیزی.
 - **تخفیف و کمپین.** کدِ درصدی یا مبلغِ ثابت و تخفیفِ خودکار، با سقف، بازه‌ی زمانی، فقطِ اولین خرید، سقفِ هر مشتری،
   محدودیتِ محصول/دسته و جمع‌شدنِ چند کد؛ مصرفِ کد هم‌زمان با سفارش شمرده می‌شود و با لغو/انقضا آزاد می‌شود. کمپین یک
@@ -460,7 +462,7 @@ docker compose up -d                                   # پوشه‌ی ./data ر
 این **نخستین انتشارِ عمومی است (۱.۰.۰)**: هوش مصنوعی فقط محلی، تلگرام پیام‌رسانِ اصلی (چتِ بله اختیاری و مستقل)، بله‌پی تنها درگاهِ علاوه بر
 کارت‌به‌کارت، منویِ مشتری با دقیقاً چهار دکمه و یک استودیویِ مرکزیِ پرامپت. عددِ نسخه در فایلِ `app/version.py` زندگی
 می‌کند و تگِ انتشار باید همان باشد؛ چه چیزی آمد و چه چیزی حذف شد را در [CHANGELOG](CHANGELOG.md) بخوان.
-مجموعه‌تستِ خودکار (۲۲۰۹ تست در ۱۰۷ فایل) روی سرورهایِ جعلیِ تلگرام و درگاهِ بله اجرا می‌شود و فروشگاه، پرداخت، رسید،
+مجموعه‌تستِ خودکار (۲۲۲۳ تست در ۱۰۷ فایل) روی سرورهایِ جعلیِ تلگرام و درگاهِ بله اجرا می‌شود و فروشگاه، پرداخت، رسید،
 وضعیتِ ارسال، پشتیبانی، مهاجرت، پشتیبان، پروکسی، حالتِ بی‌پنجره، خروجیِ گزارش، تزریقِ پرامپت و حالت‌هایِ سوءاستفاده را پوشش می‌دهد.
 **راستی‌آزمایی با رباتِ واقعی و درگاهِ واقعی هنوز باید برای هر نصب انجام شود** — قبل از پولِ واقعی، یک خریدِ کامل را با
 مبلغِ کم از اول تا آخر انجام بده. باگ و ایده: بخشِ Issues.

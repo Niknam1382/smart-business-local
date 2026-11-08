@@ -2,7 +2,7 @@
 
 مالک همان حسابی است که با کدِ «تنظیماتِ ربات» ثبت شده و اینجا فقط نمایش داده می‌شه. هر مدیر از داخلِ تلگرام با ``/admin`` به
 پنلِ دکمه‌ایِ مخصوصِ نقشش می‌رسه؛ همه‌ی کنترل‌های دسترسی سمتِ سرورِ ربات انجام می‌شه (``app/core/admin_panel.py``).
-افزودنِ مدیر در این نسخه با شناسه‌ی تلگرام است؛ ردیف‌های قدیمیِ «بله» فقط نمایش داده می‌شن و مدیرِ تازه‌ای از آن‌ها ساخته نمی‌شه (پنلِ مدیریتیِ بله در نسخه‌ی بعد).
+مدیر را می‌توان روی هر دو پیام‌رسان اضافه کرد (تلگرام یا بله): همان شناسه‌ی عددی، همان دعوتِ یک‌بارمصرف،و `/admin` روی همان پیام‌رسان پنلِ دکمه‌ایِ مخصوصِ نقشش را می‌دهد.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from app.i18n import STRINGS, t
 from app.screens import common
 from app.screens.common import card, page_header, screen_frame
 
-PLATFORMS = ("telegram",)  # افزودنِ مدیر فعلاً با شناسه‌ی تلگرام (پنلِ مدیریتی روی بله در نسخه‌ی بعد)
+PLATFORMS = ("telegram", "bale")  # هر دو پیام‌رسانِ گفتگو; کلیدِ جدولِ مدیران (پلتفرم، شناسه) است
 _LEGACY_LABELS = {"telegram": "chats.platform.telegram", "bale": "chats.platform.bale"}  # برچسبِ داده‌هایِ قدیمی
 _AUDIT_ROWS = 30
 
@@ -54,6 +54,11 @@ def build(page: ft.Page, lang: str, manager, state) -> ft.Control:
 
     def on_role(e) -> None:
         ui["role"] = e.control.value if e.control.value in am.ASSIGNABLE_ROLES else am.ROLE_MANAGER
+        ui["invite"] = None
+        refresh()
+
+    def on_platform(e) -> None:
+        ui["platform"] = e.control.value if e.control.value in PLATFORMS else "telegram"
         ui["invite"] = None
         refresh()
 
@@ -101,10 +106,11 @@ def build(page: ft.Page, lang: str, manager, state) -> ft.Control:
         invite = ui["invite"]
         controls: list = [
             common.section_header(ft.Icons.PERSON_ADD_ROUNDED, t("admins.add_title", lang)),
-            ft.Text(f"{t('admins.platform', lang)}: {platform_label('telegram')}", size=12, color=secondary),
             ft.Row(
                 wrap=True, spacing=theme.SPACE_MD, run_spacing=theme.SPACE_MD,
                 controls=[
+                    dropdown("admins_platform", t("admins.platform", lang),
+                             [(p, platform_label(p)) for p in PLATFORMS], ui["platform"], on_platform, width=200),
                     dropdown("admins_role", t("admins.role", lang), [(r, t(f"admins.role.{r}", lang)) for r in am.ASSIGNABLE_ROLES], ui["role"], on_role),
                     ft.OutlinedButton(key="admins_invite", content=t("admins.invite", lang), icon=ft.Icons.QR_CODE_2_ROUNDED, on_click=on_invite),
                 ],

@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 _S = {
     "title": ("پیامِ همگانی", "Broadcast"),
-    "subtitle": ("یک پیام برای همه‌ی مشتریانِ تلگرامیِ تو (یا بخشی از آن‌ها) — با رعایتِ محدودیتِ تلگرام و حریمِ مشتری.", "One message to your Telegram customers (or a segment) — respecting Telegram's limits and customer privacy."),
+    "subtitle": ("یک پیام برای همه‌ی مشتری‌هات روی تلگرام و بله (یا بخشی از آن‌ها) — با رعایتِ محدودیتِ هر پیام‌رسان و حریمِ مشتری.", "One message to your Telegram and Bale customers (or a segment) — respecting each messenger's limits and customer privacy."),
     "bots_off": ("ربات‌ها خاموشن؛ ارسال‌های در جریان تا روشن‌شدنِ ربات‌ها منتظر می‌مونن.", "The bots are off; running broadcasts wait until you turn them on."),
     "compose": ("پیامِ تازه", "New message"),
     "text": ("متنِ پیام", "Message text"),
@@ -37,7 +37,9 @@ _S = {
     "footer": ("پانویسِ «برای توقف /stop» (پیشنهادی)", "“Send /stop to unsubscribe” footer (recommended)"),
     "audience": ("مخاطب", "Audience"),
     "platform.telegram": ("تلگرام", "Telegram"),
-    "platform.bale": ("بله", "Bale"),  # فقط برچسبِ پیام‌هایِ قدیمیِ در صف/تاریخچه
+    "platform.bale": ("بله", "Bale"),
+    "platform": ("پیام‌رسان", "Messenger"),
+    "platform.all": ("هر دو پیام‌رسان", "Both messengers"),
     "purchase": ("خرید", "Purchases"),
     "purchase.all": ("همه", "Everyone"),
     "purchase.buyers": ("فقط خریداران", "Buyers only"),
@@ -83,11 +85,12 @@ _S = {
     "settings": ("تنظیماتِ ارسال", "Sending settings"),
     "cap": ("سقفِ تعدادِ ارسال در ۲۴ ساعت", "Max broadcasts per 24 hours"),
     "rate_tg": ("سرعتِ تلگرام (پیام در ثانیه)", "Telegram speed (messages/second)"),
+    "rate_bale": ("سرعتِ بله (پیام در ثانیه)", "Bale speed (messages/second)"),
     "footer_default": ("پانویسِ /stop به‌صورتِ پیش‌فرض روشن باشه", "Footer on by default"),
     "settings_save": ("ذخیره", "Save"),
     "saved": ("ذخیره شد.", "Saved."),
     "range": ("«{label}» باید عددی بینِ {lo} و {hi} باشه.", "“{label}” must be a number between {lo} and {hi}."),
-    "settings_note": ("سرعتِ پایین‌تر امن‌تره؛ اگه تلگرام «کُند کن» گفت، موتور خودش صبر می‌کنه و آهسته‌تر می‌شه.", "Lower speed is safer; if Telegram says “slow down” the engine waits and slows itself."),
+    "settings_note": ("سرعتِ پایین‌تر امن‌تره؛ اگه پیام‌رسان «کُند کن» گفت، موتور خودش صبر می‌کنه و آهسته‌تر می‌شه — سرعتِ هر پیام‌رسان جدا تنظیم می‌شه.", "Lower speed is safer; if a messenger says “slow down” the engine waits and slows itself — each messenger has its own speed."),
     "errors_title": ("دلیلِ خطاها:", "Error reasons:"),
 }
 
@@ -129,6 +132,11 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple:
             options=[ft.DropdownOption(key=v, text=S(f"{group}.{v}", lang)) for v in values],
         )
 
+    platform_dd = ft.Dropdown(
+        key="bc_platform", label=S("platform", lang), border_radius=10, width=200, value="",
+        options=[ft.DropdownOption(key="", text=S("platform.all", lang)),
+                 *[ft.DropdownOption(key=p, text=S(f"platform.{p}", lang)) for p in bc.PLATFORMS]],
+    )
     purchase_dd = dd("bc_purchase", S("purchase", lang), "purchase", list(bc.PURCHASES), 190)
     activity_dd = dd("bc_activity", S("activity", lang), "activity", list(bc.ACTIVITIES), 230)
     language_dd = dd("bc_language", S("language", lang), "language", ["all", "fa", "en", "other"], 150)
@@ -146,10 +154,10 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple:
     # --------------------------------------------------------------- مقدارِ فرم ----
     def audience() -> bc.Audience:
         pick = lambda v: "" if v in (None, "all") else v  # noqa: E731
-        # پخشِ پیام در این نسخه تلگرامی است (PLATFORMS در app/core/broadcast.py) — مخاطب همیشه مخاطبانِ تلگرام.
+        # "" یعنی «هر دو پیام‌رسانِ فعال»؛ فهرستِ مجاز در bc.PLATFORMS است.
         return bc.Audience(
-            platform="telegram", purchase=purchase_dd.value or bc.PURCHASE_ALL, activity=activity_dd.value or bc.ACTIVITY_ALL,
-            tag=tag_tf.value or "", language=pick(language_dd.value),
+            platform=platform_dd.value or "", purchase=purchase_dd.value or bc.PURCHASE_ALL,
+            activity=activity_dd.value or bc.ACTIVITY_ALL, tag=tag_tf.value or "", language=pick(language_dd.value),
         )
 
     def content() -> bc.Content:
@@ -369,6 +377,8 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple:
     # --------------------------------------------------------------- تنظیمات ----
     cap_tf = ft.TextField(key="bc_cap", label=S("cap", lang), border_radius=10, width=300, value=str(svc.cap()))
     rate_tg_tf = ft.TextField(key="bc_rate_tg", label=S("rate_tg", lang), border_radius=10, width=300, value=str(int(getattr(settings, "broadcast_rate_telegram", 20))))
+    rate_bale_tf = ft.TextField(key="bc_rate_bale", label=S("rate_bale", lang), border_radius=10, width=300,
+                                value=str(int(getattr(settings, "broadcast_rate_bale", bc.DEFAULT_RATES["bale"]))))
     footer_default_sw = ft.Switch(key="bc_footer_default", label=S("footer_default", lang), value=bool(getattr(settings, "broadcast_footer_enabled", True)))
     settings_note = ft.Text("", key="bc_settings_note", size=12.5, visible=False)
 
@@ -383,11 +393,13 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple:
         try:
             cap = int_in(cap_tf.value, bc.DAILY_CAP_RANGE, S("cap", lang))
             rate_tg = int_in(rate_tg_tf.value, bc.RATE_LIMITS["telegram"], S("rate_tg", lang))
+            rate_bale = int_in(rate_bale_tf.value, bc.RATE_LIMITS["bale"], S("rate_bale", lang))
         except ValueError as exc:
             settings_note.value, settings_note.color, settings_note.visible = str(exc), theme.DANGER, True
             page.update()
             return
         settings.broadcast_daily_cap, settings.broadcast_rate_telegram = cap, rate_tg
+        settings.broadcast_rate_bale = rate_bale
         settings.broadcast_footer_enabled = bool(footer_default_sw.value)
         save_callback()
         settings_note.value, settings_note.color, settings_note.visible = S("saved", lang), theme.SUCCESS, True
@@ -403,7 +415,7 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple:
                     padding=ft.Padding.only(left=6, right=6, bottom=12),
                     content=ft.Column(spacing=10, controls=[
                         ft.Text(S("settings_note", lang), size=12, color=secondary),
-                        ft.Row(spacing=10, wrap=True, controls=[cap_tf, rate_tg_tf]),
+                        ft.Row(spacing=10, wrap=True, controls=[cap_tf, rate_tg_tf, rate_bale_tf]),
                         footer_default_sw,
                         ft.FilledButton(key="bc_settings_save", content=S("settings_save", lang), on_click=save_settings),
                         settings_note,
@@ -418,7 +430,7 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple:
     for control in (text_tf, btn_label_tf, btn_url_tf, tag_tf):
         control.on_change = refresh_form
     footer_sw.on_change = refresh_form
-    for control in (purchase_dd, activity_dd, language_dd):
+    for control in (platform_dd, purchase_dd, activity_dd, language_dd):
         control.on_select = refresh_form
 
     confirm_row.content = ft.Column(spacing=8, controls=[
@@ -439,7 +451,7 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple:
             ft.Row(spacing=10, wrap=True, controls=[btn_label_tf, btn_url_tf]),
             footer_sw,
             ft.Text(S("audience", lang), size=14, weight=ft.FontWeight.W_700),
-            ft.Row(spacing=10, wrap=True, controls=[purchase_dd, activity_dd, language_dd, tag_tf]),
+            ft.Row(spacing=10, wrap=True, controls=[platform_dd, purchase_dd, activity_dd, language_dd, tag_tf]),
             who_text,
             ft.Text(S("who_note", lang), size=11.5, color=secondary),
             ft.Text(S("preview", lang), size=13.5, weight=ft.FontWeight.W_600),

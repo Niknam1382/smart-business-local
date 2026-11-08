@@ -21,12 +21,13 @@ DAY = 86400
 
 
 class BaleApiError(Exception):
-    """هم‌نامِ خطایِ legacyِ پیام‌رسانِ بله — ``broadcast.classify_error`` فقط بر پایهٔ *نامِ کلاس*
-    آن را «شبکه/transient» می‌داند (app/core/broadcast.py:453).
+    """هم‌نامِ خطایِ پیام‌رسانِ بله — ``bc.classify_error`` فقط بر پایهٔ *نامِ کلاس* آن را
+    «شبکه/transient» می‌داند (تابعِ ``classify_error`` در ``app/core/broadcast.py``).
 
-    خودِ پیام‌رسانِ بله در ۱.۰.۰ حذف شده (``app.core.bale_client`` دیگر نیست)، ولی داده‌ی گفتگوهایِ
-    قدیمی و دسته‌بندیِ خطاهایشان هنوز در موتورِ پیامِ همگانی زنده است، پس این تست‌ها همان شکلِ
-    خطا را محلی می‌سازند: ``error_code`` و ``retry_after`` به‌صورت attribute."""
+    بله از قلم ۲۴ پیام‌رسانِ گفتگو است و آداپتورش همان ``TelegramAdapter`` با میزبانِ APIِ بله
+    است (``BotManager._default_factories``)، پس خطاهاش هم همان شکلِ تلگرامی را دارد:
+    ``error_code`` و ``retry_after`` به‌صورت attribute. این تست‌ها همان شکل را محلی می‌سازند تا
+    دسته‌بندیِ خطایِ مسیرِ بله بدونِ هیچ شبکه‌ی واقعی بررسی بشه."""
 
     def __init__(self, message: str, error_code=None, retry_after=None):
         super().__init__(message)
@@ -251,8 +252,10 @@ def build_crowd(rig):
 def test_recipients_never_include_blocked_opted_out_unreachable_or_never_messaged(rig):
     build_crowd(rig)
     got = bc.select_recipients(rig.customers, Audience(), now=NOW)
-    # ردیفِ بله (۳) مخاطب نیست: بله در ۱.۰.۰ پیام‌رسان نیست و وعده‌ی ارسالِ آن دروغ است
-    assert sorted((c.platform, c.user_id) for c in got) == [("telegram", "1"), ("telegram", "2")]
+    # قلم ۲۴: بله پیام‌رسانِ گفتگو است ⇒ ردیفِ بله (۳) هم شمرده می‌شه و هم مثلِ تلگرام ارسال‌شدنیه
+    assert sorted((c.platform, c.user_id) for c in got) == [("bale", "3"), ("telegram", "1"), ("telegram", "2")]
+    assert {c.platform for c in got} == {"telegram", "bale"}  # مخاطبِ «هر دو پیام‌رسان» واقعاً هر دو را می‌گیره
+    assert [c.user_id for c in got if c.platform == "bale"] == ["3"]  # فقط همان یک ردیفِ بله؛ ۴/۵/۶/۷ همچنان کنار می‌مونن
 
 
 def test_filters_platform_purchase_activity_tag_and_language(rig):
@@ -261,7 +264,7 @@ def test_filters_platform_purchase_activity_tag_and_language(rig):
     rig.add(2, language_code="en-US")
     rig.add(3, language_code="ru")
     rig.add(4, language_code="")
-    rig.add(5, platform="bale", language_code="fa")  # گفتگویِ قدیمیِ نسخه‌ی ۱ روی بله
+    rig.add(5, platform="bale", language_code="fa")  # مشتریِ بله — از قلم ۲۴ مخاطبِ تمام‌عیاره
     # خرید: ۱ و ۵ خریدار
     for chat, platform in ((1, "telegram"), (5, "bale")):
         conn = rig.orders.connection()
@@ -270,14 +273,39 @@ def test_filters_platform_purchase_activity_tag_and_language(rig):
     c.set_tags("telegram", "2", "vip")
     ids = lambda aud, now=NOW: sorted(f"{x.platform[0]}{x.user_id}" for x in bc.select_recipients(c, aud, now=now))  # noqa: E731
 
-    # بله پیام‌رسان نیست ⇒ نه می‌شه مخاطبش کرد، نه ردیف‌هایِ قدیمی‌اش را فرستاد
-    with pytest.raises(BroadcastError):
-        Audience(platform="bale").normalized()
-    assert ids(Audience()) == ["t1", "t2", "t3", "t4"] and ids(Audience(platform="telegram")) == ["t1", "t2", "t3", "t4"]
-    assert ids(Audience(purchase="buyers")) == ["t1"] and ids(Audience(purchase="no_orders")) == ["t2", "t3", "t4"]
+    # بله در ``bc.PLATFORMS`` است ⇒ هم می‌شه مخاطبش کرد، هم ردیف‌هایش فرستاده می‌شن
+    assert Audience(platform="bale").normalized() == Audience("bale")
+    assert ids(Audience()) == ["b5", "t1", "t2", "t3", "t4"]  # کلیدِ خالی = هر دو پیام‌رسان
+    assert ids(Audience(platform="")) == ["b5", "t1", "t2", "t3", "t4"]
+    assert ids(Audience(platform="telegram")) == ["t1", "t2", "t3", "t4"]  # فیلترِ پلتفرم بقیه را بیرون می‌ذاره
+    assert ids(Audience(platform="bale")) == ["b5"]  # و «فقط بله» دقیقاً همان یک ردیف را می‌ده
+    assert ids(Audience(purchase="buyers")) == ["b5", "t1"] and ids(Audience(purchase="no_orders")) == ["t2", "t3", "t4"]
     assert ids(Audience(tag="VIP")) == ["t2"]
-    assert ids(Audience(language="fa")) == ["t1"] and ids(Audience(language="en")) == ["t2"] and ids(Audience(language="other")) == ["t3", "t4"]
+    assert ids(Audience(language="fa")) == ["b5", "t1"] and ids(Audience(language="en")) == ["t2"] and ids(Audience(language="other")) == ["t3", "t4"]
     assert ids(Audience(purchase="buyers", language="fa", platform="telegram")) == ["t1"]  # ترکیبِ فیلترها = AND
+    assert ids(Audience(purchase="buyers", language="fa", platform="bale")) == ["b5"]
+    assert ids(Audience(tag="VIP", platform="bale")) == []  # برچسبِ تلگرامی روی مخاطبِ بله خالی می‌شه
+
+
+def test_a_bale_only_audience_sends_only_through_the_bale_adapter(rig):
+    """مخاطبِ «فقط بله» یعنی هیچ ردیفِ تلگرامی در صف نمی‌شینه و هر تلاشِ ارسالی پلتفرمِ ``bale`` را
+    دارد؛ کلیدِ خالی همان «هر دو پیام‌رسان» است و هر دو را در صف می‌ذاره."""
+    rig.add(1, platform="telegram")
+    rig.add(2, platform="telegram")
+    rig.add(3, platform="bale")
+    rig.add(4, platform="bale")
+    bid = rig.service.start(Content("پیشنهاد"), Audience(platform="bale"))
+    assert sorted(rig.store.pending(bid, 10)) == [("bale", "3", 0), ("bale", "4", 0)]  # تلگرام اصلاً صف نمی‌شینه
+    rig.drain()
+    assert {p for p, _c, *_ in rig.delivered} == {"bale"}  # فقط آداپتورِ بله صدا زده شد
+    assert sorted(c for _p, c, *_ in rig.delivered) == ["3", "4"]
+    b = rig.store.get(bid)
+    assert b.status == "done" and b.counts["sent"] == 2 and b.audience.platform == "bale"
+    rig.settings.broadcast_daily_cap = 9
+    bid2 = rig.service.start(Content("همه"), Audience(platform=""))  # کلیدِ خالی = «هر دو پیام‌رسان» در صفحه‌ها
+    assert rig.store.get(bid2).total == 4
+    rig.drain()
+    assert sorted({(p, c) for p, c, *_ in rig.delivered}) == [("bale", "3"), ("bale", "4"), ("telegram", "1"), ("telegram", "2")]
 
 
 def test_activity_filters_follow_last_and_first_seen(rig):
@@ -293,23 +321,29 @@ def test_activity_filters_follow_last_and_first_seen(rig):
 
 
 def test_invalid_audience_values_are_rejected_and_json_round_trips_tolerantly():
-    for bad in (Audience(platform="eitaa"), Audience(platform="bale"), Audience(purchase="x"), Audience(activity="x"), Audience(language="de")):
+    # بله پیام‌رسانِ گفتگو است ⇒ «فقط بله» مخاطبِ معتبره و خطا نمی‌ده
+    assert Audience(platform="bale").normalized().platform == "bale"
+    for bad in (Audience(platform="eitaa"), Audience(platform="instagram"), Audience(purchase="x"), Audience(activity="x"), Audience(language="de")):
         with pytest.raises(BroadcastError):
             bad.normalized()
     aud = Audience("telegram", "buyers", "active_7d", "vip", "fa")
     assert Audience.from_json(aud.to_json()) == aud
-    # پلتفرمِ ناشناخته در JSONِ قدیمی نباید بسوزد؛ به «همه» ساده می‌شه
-    for garbage in ("", "not json", "[]", '{"platform":"eitaa"}', '{"platform":"bale"}', "null", '{"purchase": 5}'):
+    bale_aud = Audience("bale", "buyers", "active_30d", "vip", "fa")
+    assert Audience.from_json(bale_aud.to_json()) == bale_aud  # مخاطبِ بله هم دورِ کاملِ JSON را سالم می‌ره (کمپین‌ها از همین راه ذخیره می‌شن)
+    # پلتفرمِ واقعاً ناشناخته در JSONِ قدیمی نباید بسوزه؛ به «همه» (= هر دو پیام‌رسانِ فعال) ساده می‌شه
+    for garbage in ("", "not json", "[]", '{"platform":"eitaa"}', "null", '{"purchase": 5}'):
         assert Audience.from_json(garbage) == Audience()
 
 
 def test_summary_counts_recipients_per_platform(rig):
     build_crowd(rig)
     s = rig.service.summary(Audience())
-    assert s.total == 2 and s.per_platform == {"telegram": 2}  # ردیفِ قدیمیِ بله شمارش نمی‌شه (هرگز ارسال نمی‌شه)
-    with pytest.raises(BroadcastError):
-        rig.service.summary(Audience(platform="bale"))
-    assert rig.service.summary(Audience(tag="none")).total == 0
+    assert s.total == 3 and s.per_platform == {"telegram": 2, "bale": 1}  # بله هم شمرده می‌شه: همان عددی که فرستاده می‌شه
+    assert list(s.per_platform) == list(bc.PLATFORMS)  # ترتیبِ پلتفرم‌ها در جزئیاتِ صفحه پایداره
+    assert rig.service.summary(Audience(platform="bale")).per_platform == {"bale": 1}  # «فقط بله» فقط بله را نشون می‌ده
+    assert rig.service.summary(Audience(platform="telegram")).per_platform == {"telegram": 2}
+    empty = rig.service.summary(Audience(tag="none"))
+    assert empty.total == 0 and empty.per_platform == {}
 
 
 # =============================================================================== سرویس ====
@@ -324,9 +358,10 @@ def test_start_snapshots_recipients_and_rejects_invalid_requests_without_side_ef
     assert rig.store.recent() == []  # هیچ ردیفی ساخته نشد
     bid = rig.start()
     b = rig.store.get(bid)
-    assert b.status == "running" and b.total == 2 and b.counts["pending"] == 2 and b.text == "سلام به همه"  # بله (۳) صف نشده
+    assert b.status == "running" and b.total == 3 and b.counts["pending"] == 3 and b.text == "سلام به همه"
+    assert sorted(rig.store.pending(bid, 10)) == [("bale", "3", 0), ("telegram", "1", 0), ("telegram", "2", 0)]  # بله هم در صفِ پایدازه
     rig.add(99)  # مشتریِ جدید بعد از شروع ← در این ارسال نیست
-    assert rig.store.get(bid).total == 2
+    assert rig.store.get(bid).total == 3
 
 
 def test_only_one_active_broadcast_at_a_time(rig):
@@ -408,26 +443,51 @@ def test_happy_path_sends_once_per_recipient_in_their_language_and_finishes_with
     rig.add(3, platform="bale", language_code="")
     bid = rig.start(Content("پیشنهاد ویژه", button_label="ببین", button_url="https://example.com/o"))
     rig.drain()
-    assert rig.chats() == ["1", "2"] and len(rig.attempts) == 2  # بله مخاطب نیست
+    assert rig.chats() == ["1", "2", "3"] and len(rig.attempts) == 3  # بله هم مخاطب است و هم ارسال می‌شه
+    assert ("bale", "3") in [(p, c) for p, c, *_ in rig.attempts]  # تلاشِ این ردیف با پلتفرمِ «bale» به آداپتور رفته
+    assert sorted({p for p, _c, *_ in rig.delivered}) == ["bale", "telegram"]  # هر دو پیام‌رسان واقعاً فرستادن
     texts = {chat: text for _p, chat, text, _ph, _b in rig.delivered}
     assert texts["1"].endswith(shop_texts.default("broadcast.footer", "fa")) and texts["2"].endswith(shop_texts.default("broadcast.footer", "en"))
+    assert texts["3"].endswith(shop_texts.default("broadcast.footer", "fa"))  # بی‌زبان ← فارسی، روی بله هم همان قاعده
     assert all(b == ("ببین", "https://example.com/o") for *_x, b in rig.delivered)
     b = rig.store.get(bid)
-    assert b.status == "done" and b.counts["sent"] == 2 and b.finished_ts == NOW
-    assert len(rig.notes) == 1 and "تموم شد" in rig.notes[0] and "2 رسید" in rig.notes[0]
-    assert run(rig.engine.run_once()) == 0 and len(rig.attempts) == 2 and len(rig.notes) == 1  # دوباره هیچ
+    assert b.status == "done" and b.counts["sent"] == 3 and b.finished_ts == NOW
+    assert len(rig.notes) == 1 and "تموم شد" in rig.notes[0] and "3 رسید" in rig.notes[0]
+    assert run(rig.engine.run_once()) == 0 and len(rig.attempts) == 3 and len(rig.notes) == 1  # دوباره هیچ
 
 
 def test_legacy_row_of_a_removed_platform_is_skipped_and_the_broadcast_still_finishes(rig):
-    """دیتابیسِ نسخه‌ی ۱ ممکن است ردیفِ «pending» روی بله داشته باشد؛ آن هرگز ارسال نمی‌شه،
-    ولی نباید ارسالِ همگانی را تا ابد باز نگه دارد (قفلِ «یک ارسالِ فعال» برای همیشه می‌مونه)."""
+    """ردیفِ «pending» روی پیام‌رسانی که در ``bc.PLATFORMS`` نیست (اینجا «اینستاگرام») هرگز ارسال نمی‌شه،
+    ولی نباید ارسالِ همگانی را تا ابد باز نگه داره (قفلِ «یک ارسالِ فعال» برای همیشه می‌مونه).
+    بله بر خلافِ گذشته ارسال می‌شه، چون از قلم ۲۴ پیام‌رسانِ گفتگو حساب می‌شه."""
     rig.add(1)
-    bid = rig.store.create(Content("سلام"), Audience(), [("telegram", "1"), ("bale", "3")], created_by="test", now=NOW)
+    rig.add(3, platform="bale")
+    bid = rig.store.create(Content("سلام"), Audience(), [("telegram", "1"), ("bale", "3"), ("instagram", "7")], created_by="test", now=NOW)
     rig.drain()
     b = rig.store.get(bid)
-    assert b.status == "done" and b.counts["sent"] == 1 and b.counts["skipped"] == 1, b.counts
-    assert rig.chats() == ["1"]
+    assert b.status == "done" and b.counts["sent"] == 2 and b.counts["skipped"] == 1, b.counts
+    assert rig.chats() == ["1", "3"]
+    assert ("bale", "3") in [(p, c) for p, c, *_ in rig.delivered]  # ردیفِ بله از آداپتورِ بله رد شده، نه کنار گذاشته
+    gone = list(rig.conv.connection().execute("SELECT platform, error FROM broadcast_log WHERE broadcast_id = ? AND status = 'skipped'", (bid,)))
+    assert [(g["platform"], g["error"]) for g in gone] == [("instagram", "platform_gone")]
     assert rig.service.start(Content("دیگه"), Audience()) > bid  # قفلِ «یک ارسالِ فعال» آزاد شده
+
+
+def test_skip_unsendable_touches_only_platforms_that_are_really_gone(rig):
+    """``skip_unsendable`` ردیف‌هایِ «در انتظار» روی تلگرام و بله را دست نمی‌زنه (هر دو ارسال‌شدنی‌ان)؛
+    فقط پلتفرمی که در ``bc.PLATFORMS`` نیست را با ``platform_gone`` کنار می‌ذاره — و اگر روزی
+    پیام‌رسانی از فهرست بره، همان ماشین‌آلات ردیف‌هایش را رد می‌کنه تا شمارِ مخاطب وعده‌ی دروغ نده."""
+    rig.add(1)
+    rig.add(2, platform="bale")
+    bid = rig.store.create(Content("سلام"), Audience(),
+                           [("telegram", "1"), ("bale", "2"), ("instagram", "9"), ("whatsapp", "8")], created_by="test", now=NOW)
+    assert rig.store.skip_unsendable(bid, now=NOW) == 2  # فقط دو پلتفرمِ واقعاً ناشناخته
+    assert sorted(rig.store.pending(bid, 10)) == [("bale", "2", 0), ("telegram", "1", 0)]  # بله همچنان در صفِ ارساله
+    assert rig.store.skip_unsendable(bid, ("telegram",), now=NOW) == 1  # صریحاً بگوییم «فقط تلگرام آماده است» ← بله رد می‌شه
+    assert rig.store.skip_unsendable(bid, (), now=NOW) == 0  # فهرستِ خالی یعنی هیچ‌چیز آماده نیست؛ هیچ ردیفی را نمی‌سوزونه
+    rig.drain()
+    b = rig.store.get(bid)
+    assert b.status == "done" and sorted(rig.chats()) == ["1"] and b.counts["skipped"] == 3, b.counts
 
 
 def test_nothing_is_sent_to_people_who_blocked_opted_out_or_vanished_after_the_snapshot(rig):
@@ -475,9 +535,9 @@ def test_blocked_by_the_user_marks_unreachable_and_the_broadcast_continues(rig):
 
 @pytest.fixture
 def two_platforms(monkeypatch):
-    """موتورِ ارسال «به‌ازای پلتفرم» پیس‌мейک/آماده‌به‌آماده می‌کنه؛ در ۱.۰.۰ فقط تلگرام
-    پیام‌رسان است، ولی همان ماشین‌آلات برایِ ردیف‌هایِ قدیمیِ بله (دیتابیسِ نسخه‌ی ۱) هم
-    اجرا می‌شه. این fixture دوم‌پلتفرمی‌کردنِ *خودِ موتور* را برایِ سنجشِ همان رفتار ممکن می‌کنه."""
+    """موتورِ ارسال «به‌ازای پلتفرم» پیس‌мейک/آماده‌به‌آماده می‌کنه. بله از قلم ۲۴ پیام‌رسانِ گفتگو است
+    و ``bc.PLATFORMS`` خودش ``("telegram", "bale")`` را دارد؛ این fixture همان فهرست را *لنگر* می‌کند،
+    تا اگر روزی یکی از فهرست رفت، تست‌هایِ دوم‌پلتفرمیِ خودِ موتور روشن بمانند و نیفتند."""
     monkeypatch.setattr(bc, "PLATFORMS", ("telegram", "bale"))
 
 
@@ -528,6 +588,52 @@ def test_the_rate_is_clamped_per_platform_and_garbage_uses_defaults(rig):
     for platform, raw, expected in (("telegram", 100, 25.0), ("telegram", 0, 1.0), ("telegram", "abc", 20.0), ("bale", 50, 10.0), ("bale", 3, 3.0), ("bale", None, 5.0)):
         setattr(rig.settings, f"broadcast_rate_{platform}", raw)
         assert rig.make_engine()._rate(platform) == expected, (platform, raw)  # noqa: SLF001
+
+
+def test_the_bale_pacer_is_built_from_the_bale_rate_and_its_own_limits(rig):
+    """پیس‌мейکِ بله از ``broadcast_rate_bale`` خونده می‌شه و به ``RATE_LIMITS["bale"]`` محدود می‌شه —
+    به نرخِ تلگرام هیچ کاری نداره؛ یعنی تنظیمِ سرعتِ تلگرام نمی‌تونه ارسالِ بله را تند/کند کنه."""
+    lo, hi = bc.RATE_LIMITS["bale"]
+    rig.settings.broadcast_rate_bale = 2
+    assert rig.make_engine()._pacer("bale").rate == 2.0  # noqa: SLF001 — همان تنظیم، همان پلتفرم
+    rig.settings.broadcast_rate_bale = hi
+    assert rig.make_engine()._pacer("bale").rate == float(hi)  # noqa: SLF001 — دقیقاً روی سقفِ بله مجاز است
+    rig.settings.broadcast_rate_bale = hi + 1
+    assert rig.make_engine()._pacer("bale").rate == float(hi)  # noqa: SLF001 — بیشتر از سقفِ بله ذخیره نمی‌شه
+    rig.settings.broadcast_rate_bale = lo - 1
+    assert rig.make_engine()._pacer("bale").rate == float(lo)  # noqa: SLF001 — و کمتر از کفِ بله هم نه
+    rig.settings.broadcast_rate_bale = "abc"
+    assert rig.make_engine()._pacer("bale").rate == bc.DEFAULT_RATES["bale"]  # noqa: SLF001 — ورودیِ خراب ← پیش‌فرضِ بله
+    rig.settings.broadcast_rate_telegram = 25
+    assert rig.make_engine()._pacer("telegram").rate == 25.0 and rig.make_engine()._pacer("bale").rate == bc.DEFAULT_RATES["bale"]  # noqa: SLF001
+
+
+def test_the_bale_pacer_keeps_the_configured_gap_between_bale_sends(rig):
+    """فاصله‌یِ واقعیِ بینِ دو ارسالِ بله از نرخِ بله میاد (نه تلگرام): با نرخِ ۲، هر ارسال ۰٫۵ ثانیه فاصله داره."""
+    rig.settings.broadcast_rate_bale = 2
+    for i in range(1, 5):
+        rig.add(i, platform="bale")
+    rig.start()
+    times = []
+    rig.after_send = lambda *_a: times.append(rig.clock.t)
+    rig.drain()
+    assert sorted({p for p, *_ in rig.attempts}) == ["bale"]  # همه‌ی فاصله‌گذاری‌ها مالِ پیس‌мейکِ بله‌ست
+    gaps = [b - a for a, b in zip(times, times[1:])]
+    assert len(times) == 4 and all(abs(g - 0.5) < 1e-9 for g in gaps), gaps
+
+
+def test_a_bale_rate_limit_slows_only_bale_and_keeps_telegram_speed(rig):
+    """سه ۴۲۹ِ پیاپی روی بله، پیس‌мейکِ بله را نصف می‌کنه و پیس‌мейکِ تلگرام را دست نمی‌زنه —
+    هر پیام‌رسان سقفِ و کندیِ جداگانه‌ی خودش را دارد."""
+    rig.add(1, platform="bale")
+    rig.add(2, platform="bale")
+    rig.add(3, platform="telegram")
+    rig.start()
+    rig.script[("bale", "1")] = [BaleApiError("x", error_code=429, retry_after=1)] * 3
+    rig.drain()
+    assert rig.engine._pacers["bale"].rate == 2.5  # noqa: SLF001 — ۵ ← ۲٫۵ بعد از ۳ بار
+    assert rig.engine._pacers["telegram"].rate == 20.0  # noqa: SLF001 — تلگرام کند نشده
+    assert sorted(rig.chats()) == ["1", "2", "3"] and rig.clock.waited() == 3.0  # هر سه رسیدن؛ سه صبرِ ۱ ثانیه‌ایِ بله
 
 
 def test_pacing_keeps_the_configured_gap_between_sends(rig):
@@ -889,3 +995,39 @@ def test_migration_5_creates_the_tables_idempotently(tmp_path):
     assert len(conversations.MIGRATIONS) >= 5  # (۶ = ai_calls، فازِ ۵)
     ConversationStore(path)  # باز کردنِ دوباره خطا نمی‌دهد
     assert store.connection().execute("SELECT COUNT(*) FROM broadcasts").fetchone()[0] == 0
+
+
+# ═══════════════ پیام‌رسانِ خاموش vs پیام‌رسانِ در حالِ اتصالِ دوباره ═══════════════
+
+
+def test_a_disabled_messenger_is_skipped_instead_of_stalling_the_broadcast(rig):
+    """«هر دو پیام‌رسان» با رباتِ بله‌یِ خاموش: ردیفِ بله هرگز ارسال نمی‌شه، پس باید
+    «رد شد» بخورد — وگرنه ارسال تا ابد running می‌مونه و قفلِ «یک ارسالِ فعال» آزاد نمی‌شه.
+    همان چیزی که تستِ e2eِ داده‌هایِ نسخه‌یِ قدیمی گرفت."""
+    rig.add("111")
+    rig.add("112")
+    rig.add("221", platform="bale")
+    rig.engine = rig.make_engine(sendable=lambda p: p != "bale")
+    bid = rig.start()
+    rig.drain(rounds=6)
+    assert rig.counts(bid) == {"pending": 0, "sent": 2, "failed": 0, "unreachable": 0, "skipped": 1}
+    assert not rig.store.running_ids()  # قفلِ «یک ارسالِ فعال» رها شد
+    assert [p for p, _c, *_ in rig.attempts] == ["telegram", "telegram"]  # هیچ تلاشی برای بله نشد
+
+
+def test_an_enabled_bale_that_is_only_reconnecting_keeps_its_rows_pending(rig):
+    """خاموش با «وصل نیست» یکی نیست: رباتِ بله روشنه ولی اتصالش در حالِ بازیابی است ⇒ ردیفِ بله
+    منتظر می‌مونه و با وصل‌شدن ارسال می‌شه؛ هیچ گیرنده‌ای بی‌صدا حذف نمی‌شه."""
+    rig.add("111")
+    rig.add("221", platform="bale")
+    rig.offline = {"bale"}
+    rig.engine = rig.make_engine()
+    bid = rig.start()
+    for _ in range(3):
+        run(rig.engine.run_once())
+    assert rig.counts(bid) == {"pending": 1, "sent": 1, "failed": 0, "unreachable": 0, "skipped": 0}
+    assert rig.store.get(bid).status == bc.STATUS_RUNNING
+    assert not [p for p, c, *_ in rig.attempts if p == "bale"]
+    rig.offline = set()
+    rig.drain()
+    assert rig.chats() == ["111", "221"] and rig.counts(bid)["skipped"] == 0

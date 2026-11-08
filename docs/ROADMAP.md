@@ -27,13 +27,12 @@ and troubleshooter · Jalali dates everywhere · the AI lost every write tool (o
 frozen per order so old invoices never change, with a “shipping charged” line in the ledger and on the finance
 dashboard) · a delivery track for confirmed orders (preparing → shipped → delivered, tracking code included, never
 touching the money) · a read-only payment-status panel on every paid order · global search across orders, products and
-customers from one box · the 11th prompt template (“store rules”) · Excel and PDF export of every list · 2209 tests.
+customers from one box · the 11th prompt template (“store rules”) · Excel and PDF export of every list · 2223 tests.
 
 **Next release candidates**
 
-- **Bale as a full messenger:** chat, orders, receipts and invoices already work on Bale, but the admin
-  panel, broadcasts, discount campaigns and the mandatory-channel gate are still Telegram-scoped
-  (`broadcast.py`, `channel_gate.py`, `custom_buttons.py`, `app/screens/admins.py`).
+- **Custom buttons on Bale:** broadcasts, campaigns, the channel gate and the admin panel follow both
+  messengers; `custom_buttons.py` is still `("telegram",)`.
 
 - **Not done on purpose (rough priority):** keep-running-in-the-background / system tray (A4), a richer home dashboard
   (A5), a full refund workflow (A8), an English version of the guide.
@@ -85,13 +84,12 @@ customers from one box · the 11th prompt template (“store rules”) · Excel 
 هر سفارش تا فاکتورهایِ قدیمی عوض نشوند، با خطِ «کرایه‌ی ارسال» در دفتر و داشبوردِ مالی) · مسیرِ «در دستِ ارسال» برای
 سفارش‌های تأییدشده (آماده‌سازی ← ارسال ← تحویل، با کد رهگیری و بدونِ دست‌زدن به پول) · کارتِ فقط‌خواندنیِ «وضعیتِ
 پرداخت» روی هر سفارشِ پرداخت‌شده · جست‌وجوی سراسری در سفارش/مشتری/محصول در یک کادر · یازدهمین قالبِ پرامپت
-(«قوانینِ فروشگاه») · خروجِ اکسل و PDF از هر فهرست · ۲۲۰۹ تست.
+(«قوانینِ فروشگاه») · خروجِ اکسل و PDF از هر فهرست · ۲۲۲۳ تست.
 
 **بعدی (کاندیدهای انتشارِ بعد)**
 
-- **بله به‌عنوانِ پیام‌رسانِ کامل:** گفتگو، سفارش، رسید و فاکتور روی بله کار می‌کنند، ولی پنلِ مدیریت،
-  پخشِ پیام، کمپینِ تخفیف و «اجبارِ عضویت در کانال» هنوز تلگرامی‌اند (`broadcast.py`، `channel_gate.py`،
-  `custom_buttons.py`، `app/screens/admins.py`).
+- **دکمه‌هایِ سفارشی روی بله:** پخشِ پیام، کمپینِ تخفیف، دروازه‌یِ کانال و پنلِ مدیریت هر دو
+  پیام‌رسان را می‌شناسند؛ `custom_buttons.py` هنوز `("telegram",)` است.
 
 - **عمداً انجام نشده (تقریباً به ترتیبِ اولویت):** ادامه‌ی کار در پس‌زمینه/سینی‌سیستم (A4)، داشبوردِ غنی‌تر (A5)،
   جریانِ کاملِ بازپرداخت (A8) و نسخه‌ی انگلیسیِ راهنما.

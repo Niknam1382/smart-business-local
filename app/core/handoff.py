@@ -20,7 +20,7 @@ from app.core.ui import Btn, FlowResult, UiMessage
 logger = logging.getLogger(__name__)
 
 RELAY_TTL_SECONDS = 7 * 24 * 3600
-_PLATFORMS = {"t": "telegram", "b": "bale"}  # «b» فقط برایِ ارجاع‌هایِ قدیمیِ ذخیره‌شده؛ ارجاعِ تازه هرگز ساخته نمی‌شه
+_PLATFORMS = {"t": "telegram", "b": "bale"}  # پیش‌شماره‌یِ ارجاع از خودِ پیام‌رسان می‌آید (ارجاعِ بله «b…» است)
 _REF = re.compile(r"^([tb])(\d{1,20})$")
 MAX_RELAY_CHARS = 3000
 

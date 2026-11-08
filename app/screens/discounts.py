@@ -97,6 +97,10 @@ _S = {
     "camp_stats": ("رسید {sent} از {n} · استفاده از کد: {uses} · فروش: {rev} تومان", "Delivered {sent} of {n} · code uses: {uses} · sales: {rev} Toman"),
     "bots_note": ("ارسالِ کمپین فقط وقتی انجام می‌شه که ربات‌ها روشن باشن.", "Campaigns are sent only while the bots are running."),
     "purchase": ("خرید", "Purchases"),
+    "campaign_platform": ("پیام‌رسانِ کمپین", "Campaign messenger"),
+    "campaign_platform.all": ("هر دو پیام‌رسان", "Both messengers"),
+    "platform.telegram": ("تلگرام", "Telegram"),
+    "platform.bale": ("بله", "Bale"),
     "purchase.all": ("همه", "Everyone"),
     "purchase.buyers": ("فقط خریداران", "Buyers only"),
     "purchase.no_orders": ("هنوز خرید نکرده‌ها", "Never bought"),
@@ -358,6 +362,11 @@ def build(page: ft.Page, lang: str, manager, product_store) -> ft.Control:
     camp_text = ft.TextField(key="cm_text", label=S("camp_text", lang), border_radius=10, multiline=True, min_lines=3, max_lines=8, max_length=bc.MAX_TEXT)
     camp_code = ft.Dropdown(key="cm_code", label=S("camp_code", lang), border_radius=10, width=260, value="0", options=[])
     camp_when = tf("cm_when", S("camp_when", lang), 330)
+    c_platform = ft.Dropdown(
+        key="cm_platform", label=S("campaign_platform", lang), border_radius=10, width=200, value="",
+        options=[ft.DropdownOption(key="", text=S("campaign_platform.all", lang)),
+                 *[ft.DropdownOption(key=p, text=S(f"platform.{p}", lang)) for p in bc.PLATFORMS]],
+    )
     c_purchase = dd("cm_purchase", S("purchase", lang), "purchase", list(bc.PURCHASES), 190)
     c_activity = dd("cm_activity", S("activity", lang), "activity", list(bc.ACTIVITIES), 230)
     camp_who = ft.Text("", key="cm_who", size=13.5, weight=ft.FontWeight.W_600)
@@ -373,8 +382,9 @@ def build(page: ft.Page, lang: str, manager, product_store) -> ft.Control:
             camp_code.value = "0"
 
     def audience() -> bc.Audience:
-        # کمپینِ تخفیف در این نسخه تلگرامی است (PLATFORMS در app/core/broadcast.py) — مخاطب همیشه مخاطبانِ تلگرام.
-        return bc.Audience(platform="telegram", purchase=c_purchase.value or bc.PURCHASE_ALL, activity=c_activity.value or bc.ACTIVITY_ALL)
+        # "" = هر دو پیام‌رسان؛ همان موتورِ پخشِ پیام (bc.PLATFORMS) مخاطب را می‌شناسد.
+        return bc.Audience(platform=c_platform.value or "", purchase=c_purchase.value or bc.PURCHASE_ALL,
+                           activity=c_activity.value or bc.ACTIVITY_ALL)
 
     def refresh_who(_e=None) -> None:
         try:
@@ -442,7 +452,7 @@ def build(page: ft.Page, lang: str, manager, product_store) -> ft.Control:
     kind_dd.on_select = refresh_kind
     scope_dd.on_select = refresh_scope
     gen_btn = ft.TextButton(key="dc_gen", content=S("gen", lang), icon=ft.Icons.AUTO_AWESOME_ROUNDED, on_click=on_gen)
-    for control in (c_purchase, c_activity):
+    for control in (c_platform, c_purchase, c_activity):
         control.on_select = refresh_who
 
     fill_products()
@@ -470,7 +480,7 @@ def build(page: ft.Page, lang: str, manager, product_store) -> ft.Control:
         ft.Text(S("camp_new", lang), size=15, weight=ft.FontWeight.W_700),
         ft.Row(spacing=10, wrap=True, controls=[camp_name, camp_code]),
         camp_text,
-        ft.Row(spacing=10, wrap=True, controls=[c_purchase, c_activity]),
+        ft.Row(spacing=10, wrap=True, controls=[c_platform, c_purchase, c_activity]),
         camp_who,
         camp_when,
         ft.Text(S("bots_note", lang), size=11.5, color=secondary),

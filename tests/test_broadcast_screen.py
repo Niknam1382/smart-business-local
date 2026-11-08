@@ -94,9 +94,12 @@ def rig(tmp_path, monkeypatch):
 
 
 def test_initial_state_shows_recipients_empty_history_and_the_bots_off_banner(rig):
-    # ۱.۰.۰: تلگرام تنها پیام‌رسان — مشتریِ قدیمیِ «بله» در فهرست نیست؛ انتخاب‌کننده‌ی پیام‌رسان حذف شده.
-    assert find(rig.control, "bc_platform") is None
-    assert "گیرندگان: 2 نفر" in rig.f("bc_who").value and "بله" not in rig.f("bc_who").value
+    # قلم ۲۴: بله پیام‌رسانِ گفتگوه ⇒ انتخاب‌کننده‌ی پیام‌رسان سرِ جایشه و پیش‌فرضش «هر دو پیام‌رسان» (کلیدِ خالی).
+    dd = find(rig.control, "bc_platform")
+    assert dd is not None and dd.value == "" and [o.key for o in dd.options] == ["", "telegram", "bale"]
+    assert [o.text for o in dd.options] == ["هر دو پیام‌رسان", "تلگرام", "بله"]  # هر سه کلید برایِ مالک نامِ خوانا دارد
+    assert "گیرندگان: 3 نفر" in rig.f("bc_who").value and "بله 1" in rig.f("bc_who").value  # شمارشِ زنده هر دو پیام‌رسان را می‌بینه
+    assert "تلگرام 2" in rig.f("bc_who").value  # جزئیاتِ هر پیام‌رسان کنارِ هم؛ مالک می‌فهمه چند تا روی بله‌ان
     assert "هنوز پیامِ همگانی نفرستاده‌ای" in rig.history_text()
     assert rig.f("bc_bots_off").visible is True and rig.f("bc_confirm_row").visible is False
     assert rig.f("bc_footer").value is True  # پیش‌فرضِ تنظیمات
@@ -118,10 +121,19 @@ def test_audience_filters_update_the_live_count(rig):
     rig.manager.store.ensure_conversation("telegram", "1")  # در برنامه‌ی واقعی هر مشتری گفتگو دارد؛ بلاک روی همان ردیف است
     rig.manager.store.set_blocked("telegram", "1", True)
     rig.type(tag="")  # بازآوریِ شمارش
-    assert "گیرندگان: 1 نفر" in rig.f("bc_who").value
+    assert "گیرندگان: 2 نفر" in rig.f("bc_who").value and "بله 1" in rig.f("bc_who").value  # تلگرام ۲ + بله ۳
+    rig.pick("platform", "bale")
+    assert rig.f("bc_who").value == "گیرندگان: 1 نفر"  # «فقط بله» ⇒ یک نفر و بدونِ جزئیاتِ تک‌پیام‌رسانی
+    rig.pick("platform", "telegram")
+    assert rig.f("bc_who").value == "گیرندگان: 1 نفر"  # «فقط تلگرام» ⇒ همان یک نفرِ باقی‌مونده
+    rig.pick("platform", "")  # برگشت به «هر دو پیام‌رسان»
+    assert "گیرندگان: 2 نفر" in rig.f("bc_who").value and rig.f("bc_who").color == theme.PRIMARY  # «هر دو» دوباره هر دو پیام‌رسان را می‌شماره
     rig.manager.customers.set_tags("telegram", "2", "vip")
     rig.type(tag="vip")
     assert rig.f("bc_who").value.startswith("گیرندگان: 1 نفر")
+    rig.pick("platform", "bale")
+    assert rig.f("bc_who").color == theme.DANGER and "هیچ مشتری" in rig.f("bc_who").value  # برچسبِ تلگرامی روی مخاطبِ بله خالی می‌شه
+    rig.pick("platform", "")
     rig.type(tag="nobody")
     assert rig.f("bc_who").color == theme.DANGER
     rig.type(tag="")
@@ -170,15 +182,29 @@ def test_start_with_nobody_to_send_to_is_refused(tmp_path, monkeypatch):
 def test_two_step_start_creates_one_running_broadcast_and_clears_the_form(rig):
     rig.type(text="تخفیفِ آخرِ هفته", button_label="ببین", button_url="https://example.com/o")
     rig.click("bc_start")
-    assert rig.f("bc_confirm_row").visible and "2 نفر" in rig.f("bc_confirm_text").value
+    assert rig.f("bc_confirm_row").visible and "3 نفر" in rig.f("bc_confirm_text").value  # وعده‌ی مالک = هر دو پیام‌رسان
     assert rig.manager.broadcasts.history() == []  # هنوز نه
     rig.click("bc_confirm")
     [b] = rig.manager.broadcasts.history()
-    assert b.status == "running" and b.total == 2 and b.text == "تخفیفِ آخرِ هفته" and b.content.button == ("ببین", "https://example.com/o") and b.footer is True
+    assert b.status == "running" and b.total == 3 and b.text == "تخفیفِ آخرِ هفته" and b.content.button == ("ببین", "https://example.com/o") and b.footer is True
+    assert sorted(rig.manager.broadcasts.store.pending(b.id, 10)) == [("bale", "3", 0), ("telegram", "1", 0), ("telegram", "2", 0)]  # ردیفِ بله هم در صفِ واقعیه
     assert rig.f("bc_confirm_row").visible is False and rig.f("bc_text").value == "" and rig.f("bc_button_label").value == rig.f("bc_button_url").value == ""
     value, color = rig.notice()
     assert f"#{b.id}" in value and "ربات‌ها خاموشن" in value and color == theme.SUCCESS
     assert "در حال ارسال" in rig.history_text() and "تخفیفِ آخرِ هفته" in rig.history_text()
+
+
+def test_the_platform_dropdown_decides_which_messengers_are_queued(rig):
+    """«فقط بله» در فهرستِ مخاطب، شمارشِ تأیید را به ۱ نفر می‌رسونه و در صفِ پایدار فقط ردیفِ بله
+    می‌شینه (با کلیدِ پلتفرمِ ``bale``، تا موتور همان آداپتور را صدا بزنه)."""
+    rig.pick("platform", "bale")
+    rig.type(text="فقط بله")
+    rig.click("bc_start")
+    assert "1 نفر" in rig.f("bc_confirm_text").value
+    rig.click("bc_confirm")
+    [b] = rig.manager.broadcasts.history()
+    assert b.total == 1 and b.audience.platform == "bale"
+    assert sorted(rig.manager.broadcasts.store.pending(b.id, 10)) == [("bale", "3", 0)]
 
 
 def test_declining_the_confirmation_sends_nothing(rig):
@@ -223,12 +249,13 @@ def test_history_shows_progress_pause_resume_and_a_two_click_cancel(rig):
     store = rig.manager.broadcasts.store
     store.mark(bid, "telegram", "1", "sent")
     store.mark(bid, "telegram", "2", "unreachable", "TelegramForbiddenError: Forbidden: bot was blocked by the user")
+    store.mark(bid, "bale", "3", "sent")  # ردیفِ بله هم در تاریخچه پردازش می‌شه (قلم ۲۴)
     rig.tick()
     text = rig.history_text()
-    assert "رسید 1" in text and "دسترس‌ناپذیر 1" in text and "دلیلِ خطاها" in text and "bot was blocked" in text
+    assert "رسید 2" in text and "دسترس‌ناپذیر 1" in text and "دلیلِ خطاها" in text and "bot was blocked" in text
     assert find(rig.f("bc_history"), f"bc_item_{bid}") is not None
     bar = [c for c in find(rig.f("bc_history"), f"bc_item_{bid}").controls if type(c).__name__ == "ProgressBar"][0]
-    assert abs(bar.value - 1.0) < 1e-9  # هر دو گیرنده (فقط تلگرام) پردازش شده‌اند
+    assert abs(bar.value - 1.0) < 1e-9  # هر سه گیرنده (تلگرام و بله) پردازش شدن
 
     rig.click(f"bc_pause_{bid}")  # بعد از تمام‌شدنِ ردیف‌ها «در حال ارسال» می‌ماند تا pause/lغو
     assert store.status_of(bid) == "paused" and "متوقف" in rig.history_text()
@@ -257,12 +284,13 @@ def test_finished_broadcasts_show_done_and_failure_reasons(rig):
     rig.click("bc_confirm")
     b = rig.manager.broadcasts.history()[0]
     store = rig.manager.broadcasts.store
+    store.mark(b.id, "bale", "3", "sent")  # ردیفِ بله هم مثلِ تلگرام در شمارشِ «رسید» دیده می‌شه
     for user, status in (("1", "sent"), ("2", "failed")):
         store.mark(b.id, "telegram", user, status, "ValueError: Bad Request: wrong file" if status == "failed" else "")
     store.set_status(b.id, "done")
     rig.tick()
     text = rig.history_text()
-    assert "تمام شد" in text and "ناموفق 1" in text and "1× ValueError: Bad Request: wrong file" in text
+    assert "تمام شد" in text and "رسید 2" in text and "ناموفق 1" in text and "1× ValueError: Bad Request: wrong file" in text
 
 
 def test_test_send_reports_success_failures_and_manager_errors(rig):
@@ -354,20 +382,37 @@ def test_invalid_photos_are_rejected_with_a_message(rig, monkeypatch):
 
 
 def test_settings_validate_persist_and_accept_persian_digits(rig):
-    rig.type(cap="۵", rate_tg="25")
+    rate_bale_field = find(rig.control, "bc_rate_bale")
+    assert rate_bale_field is not None and rate_bale_field.value == "5"  # قلم ۲۴: بله پیام‌رسانه، پس سرعتِ ارسالِ خودش را داره
+    rig.type(cap="۵", rate_tg="25", rate_bale="۸")
     rig.f("bc_footer_default").value = False
     rig.click("bc_settings_save")
     assert (rig.settings.broadcast_daily_cap, rig.settings.broadcast_rate_telegram) == (5, 25)
-    assert find(rig.control, "bc_rate_bale") is None  # ۱.۰.۰: بله دیگر پیام‌رسان نیست؛ سرعتِ ارسالِ بله هم نداریم
-    assert not hasattr(rig.settings, "broadcast_rate_bale")  # فیلدِ حذف‌شده هرگز نوشته نمی‌شه
+    assert hasattr(rig.settings, "broadcast_rate_bale") and rig.settings.broadcast_rate_bale == 8  # عددِ فارسیِ بله هم ذخیره می‌شه
     assert rig.settings.broadcast_footer_enabled is False and rig.saves == 1 and rig.f("bc_settings_note").value == "ذخیره شد."
-    for field, bad in (("cap", "0"), ("cap", "51"), ("cap", "abc"), ("rate_tg", "26"), ("rate_tg", "0")):
+    for field, bad in (("cap", "0"), ("cap", "51"), ("cap", "abc"), ("rate_tg", "26"), ("rate_tg", "0"), ("rate_bale", "11"), ("rate_bale", "0")):
         before, saves = rig.settings.broadcast_daily_cap, rig.saves
+        before_bale = rig.settings.broadcast_rate_bale
         rig.type(**{field: bad})
         rig.click("bc_settings_save")
         assert "باید عددی بینِ" in rig.f("bc_settings_note").value and rig.f("bc_settings_note").color == theme.DANGER
-        assert rig.settings.broadcast_daily_cap == before and rig.saves == saves  # چیزی ذخیره نشد
-        rig.type(cap="5", rate_tg="25")
+        assert rig.settings.broadcast_daily_cap == before and rig.settings.broadcast_rate_bale == before_bale and rig.saves == saves  # چیزی ذخیره نشد
+        rig.type(cap="5", rate_tg="25", rate_bale="9")
+
+
+def test_the_bale_rate_field_is_validated_against_the_bale_limits(rig):
+    """سرعتِ بله با سقفِ *خودش* (``bc.RATE_LIMITS["bale"]``) سنجیده می‌شه؛ عددی که روی تلگرام مجازِه
+    روی بله رد می‌شه و پیامِ خطا نامِ همان فیلد را می‌گه، تا مالک بدونه کدام کادر را پر کنه."""
+    lo, hi = bc.RATE_LIMITS["bale"]
+    assert (lo, hi) == (1, 10) and hi < bc.RATE_LIMITS["telegram"][1]  # سقفِ بله آگاهانه پایین‌تر از تلگرامه
+    rig.type(rate_bale=str(hi))
+    rig.click("bc_settings_save")
+    assert rig.settings.broadcast_rate_bale == hi and rig.f("bc_settings_note").value == "ذخیره شد."
+    rig.type(rate_bale=str(bc.RATE_LIMITS["telegram"][1]))  # ۲۵ برای تلگرام سالمه، برای بله نه
+    rig.click("bc_settings_save")
+    note = rig.f("bc_settings_note").value
+    assert "سرعتِ بله" in note and str(hi) in note and rig.f("bc_settings_note").color == theme.DANGER
+    assert rig.settings.broadcast_rate_bale == hi and rig.saves == 1  # رد شد و چیزی ذخیره نشد
 
 
 def test_the_settings_flow_into_the_service(rig):
@@ -386,10 +431,12 @@ def test_the_settings_flow_into_the_service(rig):
 
 def test_english_ui(tmp_path, monkeypatch):
     r = Rig(tmp_path, monkeypatch, lang="en")
-    assert "Recipients: 2" in r.f("bc_who").value and "Broadcast" in collect_text(r.control) and r.f("bc_start").content == "Start sending…"
+    assert "Recipients: 3 (Telegram 2 · Bale 1)" in r.f("bc_who").value and "Broadcast" in collect_text(r.control) and r.f("bc_start").content == "Start sending…"
+    assert [o.key for o in r.f("bc_platform").options] == ["", "telegram", "bale"]  # انتخاب‌کننده‌ی پیام‌رسان در انگلیسی هم هست
+    assert [o.text for o in r.f("bc_platform").options] == ["Both messengers", "Telegram", "Bale"]  # برچسبِ هر کلید به زبانِ خودِ UI
     r.type(text="Hello")
     r.click("bc_start")
-    assert "2 people" in r.f("bc_confirm_text").value
+    assert "3 people" in r.f("bc_confirm_text").value
     r.click("bc_confirm")
     assert "Sending" in r.history_text() and "started" in r.notice()[0]
     r.cleanup()

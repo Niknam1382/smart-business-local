@@ -1,4 +1,4 @@
-"""N13 — کارتِ تنظیماتِ «عضویتِ اجباریِ کانال» (UI با Page جعلی) و جایگیری‌اش در تبِ «پیشرفته» — تلگرام‌-only (۱.۰.۰)."""
+"""N13 — کارتِ تنظیماتِ «عضویتِ اجباریِ کانال» (UI با Page جعلی) و جایگیری‌اش در تبِ «پیشرفته»؛ پیام‌رسانِ هر کانال انتخاب می‌شه (تلگرام و بله)."""
 
 import pytest
 from fake_page import FakePage, collect_text, find, fire
@@ -36,8 +36,10 @@ class Rig:
     def f(self, key):
         return find(self.card, key)
 
-    def add(self, channel, title="", link=""):
+    def add(self, channel, title="", link="", platform=None):
         self.f("rc_channel").value, self.f("rc_title").value, self.f("rc_link").value = channel, title, link
+        if platform is not None:
+            self.f("rc_platform").value = platform
         fire(self.f("rc_add"), "on_click")
 
     def note(self):
@@ -49,7 +51,8 @@ def test_defaults_are_off_with_an_empty_list_and_everywhere_scope():
     r = Rig()
     assert r.f("rc_enabled").value is False and r.f("rc_scope").value == "both" and "هنوز کانالی اضافه نشده" in collect_text(r.f("rc_list"))
     assert sorted(o.key for o in r.f("rc_scope").options) == ["ai", "both", "shop"]
-    assert r.f("rc_platform") is None  # ۱.۰.۰: تلگرام تنها پیام‌رسان — دیگر انتخابِ پیام‌رسان وجود ندارد
+    picker = r.f("rc_platform")
+    assert sorted(o.key for o in picker.options) == ["bale", "telegram"] and picker.value == "telegram"
 
 
 def test_adding_a_channel_normalizes_it_saves_and_shows_it():
@@ -60,8 +63,24 @@ def test_adding_a_channel_normalizes_it_saves_and_shows_it():
     assert "@MyShopChannel" in collect_text(r.f("rc_list")) and "کانالِ فروشگاه" in collect_text(r.f("rc_list"))
     assert r.f("rc_channel").value == r.f("rc_title").value == r.f("rc_link").value == ""  # فرم خالی شد
     r.add("second_channel")
-    assert [c["platform"] for c in r.settings.required_channels] == ["telegram", "telegram"]  # ردیفِ تازه‌ی «بله» ساخته نمی‌شه
+    assert [c["platform"] for c in r.settings.required_channels] == ["telegram", "telegram"]
     assert r.settings.required_channels[1]["link"] == "https://t.me/second_channel"
+    r.add("https://ble.ir/MyBaleChannel", platform="bale")
+    bale = r.settings.required_channels[2]
+    assert bale == {"platform": "bale", "channel": "@MyBaleChannel", "title": "", "link": "https://ble.ir/MyBaleChannel"}
+    assert "بله · @MyBaleChannel" in collect_text(r.f("rc_list"))  # برچسبِ ردیفِ بله
+
+
+def test_a_bale_row_can_be_tested_and_removed_without_touching_telegram_rows():
+    r = Rig(required_channels_enabled=True,
+            required_channels=[{"platform": "bale", "channel": "@bale_chan", "link": "https://ble.ir/bale_chan"},
+                               {"platform": "telegram", "channel": "@tg_chan", "link": "https://t.me/tg_chan"}])
+    assert find(r.card, "rc_test_bale_@bale_chan") is not None and find(r.card, "rc_del_bale_@bale_chan") is not None
+    fire(find(r.card, "rc_test_bale_@bale_chan"), "on_click")
+    assert r.manager.calls == [("bale", "@bale_chan")]  # دسترسی با پیام‌رسانِ درست سنجیده می‌شه
+    fire(find(r.card, "rc_del_bale_@bale_chan"), "on_click")
+    assert [c["platform"] for c in r.settings.required_channels] == ["telegram"]
+    assert r.saves == 1  # «تستِ دسترسی» چیزی ذخیره نمی‌کنه؛ فقط حذف ذخیره می‌کنه
 
 
 @pytest.mark.parametrize("channel, link, pattern", [
@@ -115,14 +134,15 @@ def test_toggle_and_scope_persist_immediately():
 
 
 def test_stored_state_is_shown_and_corrupt_rows_never_crash_the_card():
-    # ۱.۰.۰: ردیف «بله» و ورودی‌های خراب در تنظیماتِ قدیمی بی‌صدا کنار گذاشته می‌شن — صفحه نمی‌ترکه.
+    # فقط ورودیِ *خراب* کنار می‌ره؛ ردیفِ «بله» ذخیره‌یِ درستِ نسخه‌یِ فعلی است و در فهرست می‌ماند.
     r = Rig(
         required_channels_enabled=True, required_channels_scope="shop",
         required_channels=[{"platform": "bale", "channel": "@bale_chan", "title": "بله", "link": "https://ble.ir/bale_chan"}, "garbage", None, {"platform": "x"}],
     )
-    assert r.f("rc_enabled").value is True and r.f("rc_scope").value == "shop" and "هنوز کانالی اضافه نشده" in collect_text(r.f("rc_list"))
+    assert r.f("rc_enabled").value is True and r.f("rc_scope").value == "shop"
+    assert "@bale_chan" in collect_text(r.f("rc_list")) and "بله" in collect_text(r.f("rc_list"))
     r.add("@other_chan")
-    assert [c["channel"] for c in r.settings.required_channels] == ["@other_chan"]
+    assert [c["channel"] for c in r.settings.required_channels] == ["@bale_chan", "@other_chan"]
     assert Rig(required_channels_scope="weird").f("rc_scope").value == "both"
 
 

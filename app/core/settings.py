@@ -185,6 +185,7 @@ class AppSettings:
     broadcast_footer_enabled: bool = True  # پانویسِ «برای توقف /stop» (پیش‌فرض روشن)
     broadcast_daily_cap: int = 3  # حداکثرِ تعدادِ ارسالِ همگانی در هر ۲۴ ساعت
     broadcast_rate_telegram: int = 20  # پیام در ثانیه (امن)
+    broadcast_rate_bale: int = 5  # پیام در ثانیه روی بله (محافظه‌کارانه؛ tapi.bale.ai حدِ مستندی ندارد)
 
     # --- بهینه‌سازیِ توکن (مدلِ محلی روی سخت‌افزارِ ضعیف حساس‌ه) ---
     token_opt_history_window: bool = True  # پنجره‌ی توکنیِ تاریخچه (نه کاراکتری)

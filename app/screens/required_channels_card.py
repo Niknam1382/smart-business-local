@@ -32,6 +32,8 @@ _S = {
     "scope.shop": ("فقط منو/سبد/سفارش", "Menu, cart and orders only"),
     "scope.ai": ("فقط گفتگو با هوش مصنوعی", "AI chat only"),
     "platform.telegram": ("تلگرام", "Telegram"),
+    "platform.bale": ("بله", "Bale"),
+    "platform": ("پیام‌رسان", "Messenger"),
     "channel": ("کانال", "Channel"),
     "channel_hint": ("@mychannel یا لینکِ عمومی یا شناسه‌ی عددی", "@mychannel, a public link, or a numeric id"),
     "title_label": ("عنوانِ دکمه (اختیاری)", "Button title (optional)"),
@@ -97,7 +99,7 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager=None) -> ft
                     wrap=True,
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     controls=[
-                        ft.Text(f"{S('platform.telegram', lang)} · {ch.label} ({ch.channel})", size=13, weight=ft.FontWeight.W_600),
+                        ft.Text(f"{S(f'platform.{ch.platform}', lang)} · {ch.label} ({ch.channel})", size=13, weight=ft.FontWeight.W_600),
                         ft.Text(ch.link, size=11.5, color=secondary, selectable=True),
                         ft.OutlinedButton(key=f"rc_test_{ch.platform}_{ch.channel}", content=S("test", lang), on_click=on_test),
                         ft.TextButton(key=f"rc_del_{ch.platform}_{ch.channel}", content=S("delete", lang), on_click=on_delete),
@@ -150,14 +152,19 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager=None) -> ft
     )
 
     # ---------------------------------------------------------- افزودنِ کانال ----
-    # عضویتِ اجباریِ کانال در این نسخه تلگرامی است (APIِ کانالِ بله وصل نیست)؛ ردیف‌های «بله»ی قدیمی فقط نمایش داده/حذف می‌شن.
+    # پیام‌رسانِ کانال همین‌جا انتخاب می‌شه؛ ردیف‌هایِ قدیمیِ بدونِ پیام‌رسانِ معتبر در load() افت می‌کنن.
+    platform_dd = ft.Dropdown(
+        key="rc_platform", label=S("platform", lang), border_radius=10, width=150, value="telegram",
+        options=[ft.DropdownOption(key=p, text=S(f"platform.{p}", lang)) for p in cg.PLATFORMS],
+    )
     channel_tf = ft.TextField(key="rc_channel", label=S("channel", lang), hint_text=S("channel_hint", lang), border_radius=10, width=250)
     title_tf = ft.TextField(key="rc_title", label=S("title_label", lang), border_radius=10, width=200, max_length=cg.MAX_TITLE)
     link_tf = ft.TextField(key="rc_link", label=S("link", lang), hint_text=S("link_hint", lang), border_radius=10, width=280)
 
     def on_add(_e=None) -> None:
         try:
-            ch = cg.normalize({"platform": "telegram", "channel": channel_tf.value, "title": title_tf.value, "link": link_tf.value})
+            ch = cg.normalize({"platform": platform_dd.value or "telegram", "channel": channel_tf.value,
+                               "title": title_tf.value, "link": link_tf.value})
             existing = current()
             if any(c.ref == ch.ref for c in existing):
                 raise cg.ChannelError(S("dup", lang))
@@ -182,7 +189,7 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager=None) -> ft
                 ft.Text(S("intro", lang), size=12.5, color=secondary),
                 ft.Row(spacing=16, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER, controls=[enabled, scope]),
                 list_col,
-                ft.Row(spacing=10, wrap=True, vertical_alignment=ft.CrossAxisAlignment.START, controls=[channel_tf, title_tf, link_tf]),
+                ft.Row(spacing=10, wrap=True, vertical_alignment=ft.CrossAxisAlignment.START, controls=[platform_dd, channel_tf, title_tf, link_tf]),
                 ft.FilledButton(key="rc_add", content=S("add", lang), icon=ft.Icons.ADD_ROUNDED, on_click=on_add),
                 note,
             ],

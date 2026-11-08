@@ -211,7 +211,9 @@ python scripts/make_signing_key.py --passphrase   # writes the private key OUTSI
 Per release (≈ 30 s), after the workflow published the Release:
 
 ```
-python scripts/sign_release.py v1.0.0 --passphrase   # downloads SHA256SUMS.txt, signs it, writes SHA256SUMS.txt.sig
+python scripts/sign_release.py v1.0.0   # downloads SHA256SUMS.txt, signs it, writes SHA256SUMS.txt.sig
+# add --passphrase ONLY if the key file itself is encrypted; this project's key is not, and
+# passing the flag then makes signing fail with "کلید خوانده نشد (رمز اشتباه است یا فایل خراب)".
 # GitHub → Releases → v1.0.0 → Edit → attach SHA256SUMS.txt.sig → Update release
 ```
 
@@ -299,6 +301,8 @@ Rules that keep users safe:
 Releaseِ بی‌امضا فقط صفحه‌ی دانلود را باز می‌کنه.
 یک‌بار (فقط یک‌بار): `python scripts/make_signing_key.py --passphrase` (کلیدِ خصوصی بیرون از مخزن
 ساخته می‌شه؛ کلیدِ عمومی چاپ می‌شه) ← آن خط را در `app/branding.py` بگذار و commit کن ← بعد از هر Release:
-`python scripts/sign_release.py v1.0.0 --passphrase` ← فایلِ `SHA256SUMS.txt.sig` را به Release پیوست کن.
+`python scripts/sign_release.py v1.0.0` (کلیدِ این ماشین بی‌رمز است؛ اگر بعداً کلیدِ رمزدار ساختی
+فقط همان‌وقت `--passphrase` اضافه کن، وگرنه امضا با «کلید خوانده نشد» می‌شکنه) ← فایلِ
+`SHA256SUMS.txt.sig` را به Release پیوست کن.
 کلیدِ خصوصی را هرگز در گیت/زیپ/چت/ایمیل نذار و چند پشتیبانِ آفلاین ازش داشته باش؛ لو رفت ⇒ کلیدِ تازه +
 انتشارِ دستیِ نسخه‌ی بعد. فراموش‌کردنِ امضا بی‌خطره: همان نسخه فقط «دانلودِ دستی» می‌مونه.

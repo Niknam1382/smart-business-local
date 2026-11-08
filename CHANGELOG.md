@@ -44,6 +44,13 @@ All notable changes. Format based on [Keep a Changelog](https://keepachangelog.c
   *پیوست* می‌کرد، پس ۱۱ بار force-pushِ همان تگِ v1.0.0 صفحه‌یِ انتشار را با ۱۱ خطِ تکراریِ
   «Full Changelog» پر کرد. حالا بدنه یک متنِ ثابت در خودِ workflow است (با نامِ هر سه دانلود) و هر
   ساختِ دوباره همان را می‌نویسه. صفحه‌یِ v1.0.0 هم از راهِ API به همین متنِ یکسان اصلاح شد.
+- **دستورِ امضا در مستندات از `--passphrase` پاک شد**: کلیدِ امضایِ این ماشین بی‌رمز است، پس همان
+  پرچمِ اضافه ساختِ امضا را با «کلید خوانده نشد (رمز اشتباه است یا فایل خراب)» می‌شکست. راهنما حالا
+  دستورِ درست را می‌نویسه و می‌گوید پرچم *فقط* برایِ کلیدِ رمزدار لازم است.
+- **هشدارِ کامپایلِ مسیرِ ویندوزی در docstring**: مسیرِ ``<درایو>:\SmartBusinessLocal`` بدونِ پیشوندِ
+  raw یعنی «فرارِ ناشناخته» و Python هنگامِ import یک SyntaxWarning چاپ می‌کرد؛ دو docstringِ
+  `app/core/paths.py` raw شد و یک تستِ نگهبان هر SyntaxWarning/DeprecationWarning در کدِ عرضه‌شده را
+  رد می‌کنه.
 
 ### Added
 - **رباتِ گفتگو روی بله، مستقل از بله‌پی** (`app/core/telegram_adapter.py` با `platform`/`api_base`،
@@ -102,7 +109,7 @@ All notable changes. Format based on [Keep a Changelog](https://keepachangelog.c
   `SHA256SUMS.txt.sig` همراهش باشد داخلِ برنامه با یک کلیک نصب می‌شود (راستی‌آزماییِ امضا و SHA-256 ←
   پشتیبانِ خودکارِ داده ← بالا آمدن با نسخه‌ی تازه ← بازگشتِ خودکار اگر برنامه بالا نیاید). فایلِ بی‌امضا
   هرگز خودکار نصب نمی‌شود؛ فقط صفحه‌ی دانلود باز می‌شود. امضاکردن در دو دستور است (بعد از سبزشدنِ
-  `Release builds`): `python scripts/sign_release.py v1.0.0 --passphrase` ← then Releases → Edit → attach
+  `Release builds`): `python scripts/sign_release.py v1.0.0` ← then Releases → Edit → attach
   `SHA256SUMS.txt.sig`.
 - **روش‌هایِ ارسال با هزینه** (`settings.shipping_methods`، کارتِ «🚚 روش‌هایِ ارسال» در پایینِ صفحه‌ی
   «سفارش‌ها»، مهاجرتِ ۸: `shipping_method` + `shipping_irr` در جدولِ سفارش‌ها). **پیش‌فرض کاملاً خاموش** است:

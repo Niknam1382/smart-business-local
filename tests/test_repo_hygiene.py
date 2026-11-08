@@ -196,6 +196,27 @@ def test_deleted_modules_are_never_imported_again():
     assert not stale, f"استثنایِ منقضی‌شده را حذف کن: {stale}"
 
 
+def test_shipped_python_compiles_without_syntax_warnings():
+    """یک مسیرِ ویندوزیِ ساده‌تا داخلِ docstring بدونِ پیشوندِ raw یعنی «فرارِ ناشناخته» و Python
+    هنگامِ import یک SyntaxWarning چاپ می‌کند — در باینریِ PyInstaller همان هشدار ته‌ی لاگ کاربر
+    می‌ماند. راه‌درست همان raw string است، نه خاموش‌کردنِ هشدارها."""
+    import warnings
+
+    offenders = []
+    for root in (ROOT / "app", ROOT / "scripts") + tuple(ROOT.glob("*.py")):
+        files = [root] if root.is_file() else list(root.rglob("*.py"))
+        for path in files:
+            if path.suffix != ".py" or "__pycache__" in path.parts:
+                continue
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                compile(path.read_text(encoding="utf-8"), str(path), "exec")
+            for item in caught:
+                if issubclass(item.category, (SyntaxWarning, DeprecationWarning)):
+                    offenders.append(f"{path.relative_to(ROOT).as_posix()}:{item.lineno} → {item.message}")
+    assert not offenders, "کدِ عرضه‌شده هشدارِ کامپایل می‌دهد:\n" + "\n".join(sorted(offenders))
+
+
 def test_no_bale_messenger_or_remote_ai_or_portable_keys_remain_in_shipped_code():
     """نه «حالتِ قابل‌حمل»، نه «APIِ هوش مصنوعی»، نه «رباتِ گفتگویِ بله» — این نام‌ها نباید در
     کدِ عرضه‌شده (برنامه/اسکریپت‌ها/نصب‌کننده) زنده باشند (جلوگیری از بازگشتِ تصادفیِ رفتارِ حذف‌شده)."""

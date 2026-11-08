@@ -4,6 +4,7 @@ import base64
 import importlib.util
 import json
 import os
+import re
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -367,6 +368,18 @@ def test_signing_finishes_on_a_windows_console(tmp_path, keygen, signer, monkeyp
 def test_release_workflow_publishes_checksums_and_marks_prereleases():
     workflow = (Path(__file__).resolve().parents[1] / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
     assert "SHA256SUMS.txt" in workflow and "prerelease:" in workflow
+
+
+def test_release_workflow_writes_its_notes_instead_of_appending_them():
+    """incidentِ v1.0.0: همان تگ ۱۱ بار force-push شد و گزینه‌یِ «تولیدِ خودکارِ یادداشت» رویِ
+    Releaseِ موجود *پیوست* می‌کنه، پس صفحه‌یِ انتشار با ۱۱ خطِ تکراریِ «Full Changelog» پر شد.
+    بدنه باید متنِ ثابتِ خودِ workflow باشه و هر سه دانلود را نام ببره."""
+    workflow = (Path(__file__).resolve().parents[1] / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    assert not re.search(r"^\s+generate_release_notes:", workflow, re.M), "یادداشت‌ها دوباره خودکار تولید و پیوست می‌شن"
+    assert "body: |" in workflow
+    notes = workflow.split("body: |", 1)[1]
+    for artifact in ("windows-setup.exe", "windows.exe", "linux.tar.gz"):
+        assert artifact in notes, f"دانلودِ {artifact} در بدنه‌یِ Release نیست"
 
 
 def test_release_workflow_cannot_be_locked_by_a_lost_runner():

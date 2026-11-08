@@ -329,6 +329,26 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           files: release/*
-          generate_release_notes: true
-          # تگ‌هایی مثلِ v1.0.0-alpha.1 «پیش‌انتشار» حساب می‌شن و به کاربران خبرِ به‌روزرسانی نمی‌دن (updater آن‌ها را نادیده می‌گیرد)
+          # بدنه‌یِ Release عمداً متنِ ثابتِ خودِ همونِ فایلِ workflow است، نه
+          # `generate_release_notes: true`. آن گزینه رویِ یک Releaseِ موجود *پیوست* می‌کنه، پس هر
+          # force-pushِ همان تگ (۱۱ بار در v1.0.0) یک خطِ «Full Changelog»ِ دیگر به بدنه اضافه کرد و
+          # صفحه‌یِ انتشارِ واقعی با ۱۱ خطِ تکراری پر شد. با `body` هر ساختِ دوباره دقیقاً همین متن را
+          # می‌نویسه و بدنه هرگز انباشته نمی‌شه.
           prerelease: ${{ contains(github.ref_name, '-') }}
+          body: |
+            🛍 کسب‌وکار هوشمند محلی — دستیارِ هوش مصنوعیِ آفلاین برایِ فروشگاه و مشاور
+            Smart Business Local — an offline AI assistant for shops and consultants
+
+            تازه در این نسخه / new in this release:
+            - هوش مصنوعیِ کاملاً آفلاین رویِ ماشینِ خودت؛ هیچ سرویسِ خارجی‌ای نمی‌شناسد
+            - رباتِ گفتگو رویِ تلگرام و بله، هرکدام با سوییچِ هوش مصنوعیِ جدا
+            - فاکتورِ PDFِ راست‌به‌چپ + خروجِ اکسل و PDF از فهرست‌ها
+            - پنلِ مدیریتِ دکمه‌ای داخلِ پیام‌رسان (بدونِ دستورِ اسلش)
+
+            دانلودها / downloads:
+            - ویندوز: SmartBusinessLocal-1.0.0-windows-setup.exe (نصب‌کننده) و SmartBusinessLocal-1.0.0-windows.exe (تک‌فایل)
+            - لینوکس: SmartBusinessLocal-1.0.0-linux.tar.gz
+            - macOS: باینری منتشر نمی‌شه (دلیلش در docs/RELEASING.md) — از سورس اجرا کن: scripts/run-from-source.sh
+
+            راستی‌آزمایی / verify: SHA256SUMS.txt به‌همراه امضایِ SHA256SUMS.txt.sig؛ خودِ برنامه هم پیش ازِ نصب چک می‌کنه.
+            توضیحاتِ کامل / full notes: CHANGELOG.md و README.md — https://github.com/Niknam1382/smart-business-local/commits/v1.0.0

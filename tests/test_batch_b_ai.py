@@ -215,12 +215,23 @@ def test_gpu_layers_are_asked_from_the_engine_not_guessed(monkeypatch):
     assert ai_engine.auto_gpu_layers(HardwareInfo(gpu_vram_gb=None), 2 * 1024**3) == 0
 
 
-def test_settings_value_beats_the_auto_choice(tmp_path, monkeypatch):
+def engine_settings_env(tmp_path, monkeypatch, *, offload: bool, vram: float):
+    """محیطِ ساختِ موتور: GGUFِ جعلی + سخت‌افزارِ ساختگی + «llama هست».
+
+    سطرِ آخر لازم است: `build_engine_from_settings` اول موجودیِ llama-cpp را می‌پرسد و در CIِ
+    سالم (که llama-cpp-python نصب نیست) پیش از هر چیزی AiEngineError می‌دهد."""
     path = tmp_path / "models" / "m.gguf"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(b"GGUF" + b"\0" * 1024)
-    monkeypatch.setattr(ai_engine, "gpu_offload_available", lambda force=False: True)
-    monkeypatch.setattr("app.core.hardware.detect", lambda *a, **k: HardwareInfo(ram_gb=16, cpu_cores=8, gpu_model="RTX", gpu_vram_gb=8.0))
+    monkeypatch.setattr(ai_engine, "_llama_available", lambda: True)
+    monkeypatch.setattr(ai_engine, "gpu_offload_available", lambda force=False: offload)
+    monkeypatch.setattr("app.core.hardware.detect",
+                        lambda *a, **k: HardwareInfo(ram_gb=16, cpu_cores=8, gpu_model="RTX" if vram else "", gpu_vram_gb=vram))
+    return path
+
+
+def test_settings_value_beats_the_auto_choice(tmp_path, monkeypatch):
+    path = engine_settings_env(tmp_path, monkeypatch, offload=True, vram=8.0)
     base = dict(model_storage_path=str(tmp_path / "models"), model_file_path=str(path))
 
     assert ai_engine.build_engine_from_settings(AppSettings(**base)).n_gpu_layers == -1  # ۰ = خودکار
@@ -282,11 +293,7 @@ def test_pipeline_answers_a_repeated_question_without_the_model(tmp_path, one_en
 
 def test_token_switches_reach_the_engine(tmp_path, monkeypatch):
     """۱۴: کلیدهایِ خاموش‌شدنیِ «بهینه‌سازیِ توکن» واقعاً به موتور می‌رسند (پیش‌تر مرده بودند)."""
-    path = tmp_path / "models" / "m.gguf"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(b"GGUF" + b"\0" * 1024)
-    monkeypatch.setattr(ai_engine, "gpu_offload_available", lambda force=False: False)
-    monkeypatch.setattr("app.core.hardware.detect", lambda *a, **k: HardwareInfo(ram_gb=16, cpu_cores=8))
+    path = engine_settings_env(tmp_path, monkeypatch, offload=False, vram=0.0)
     s = AppSettings(model_storage_path=str(tmp_path / "models"), model_file_path=str(path))
     assert s.token_opt_max_tokens is True and s.token_opt_history_window is True
     engine = ai_engine.build_engine_from_settings(s)

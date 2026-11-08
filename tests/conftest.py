@@ -18,7 +18,8 @@ from fake_servers import FakeBotApiServer
 def bale(monkeypatch):
     """سرورِ جعلیِ *پرداختِ* بله + وصل‌کردنِ BalePayClientِ واقعی به آن (بدونِ شبکه).
 
-    رباتِ بله در نسخه‌ی ۱.۰.۰ گفتگو نمی‌کند؛ تنها چیزی که از آن می‌آید رویدادِ پرداخت و
+    این fixture مخصوصِ «پرداختِ» بله است (رویدادِ پرداخت و فرمانِ /pay)؛ گفتگویِ بله
+    آداپتورِ مستقلِ خودش را دارد و به این fixture کاری ندارد. رویدادِ پرداخت و
     فرمانِ /pay است. این fixture در conftest نشسته چون چند ماژول تست به آن نیاز دارند و
     importِ نامِ fixture از یک فایلِ تست دیگر، با ruff (F811) می‌جنگد."""
     srv = FakeBotApiServer(username="bale_pay_bot").start()

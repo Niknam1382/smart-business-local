@@ -4,7 +4,14 @@
 import sys
 from pathlib import Path
 
+import pytest
+
 from app.core import paths
+
+windows_only = pytest.mark.skipif(
+    sys.platform != "win32",
+    reason="«درایوِ محلِ نصب» فقط روی ویندوز وجود دارد؛ روی لینوکس شاخه‌ی ویندوزیِ paths اجرا نمی‌شه",
+)
 
 
 def win_install(monkeypatch, tmp_path):
@@ -16,6 +23,7 @@ def win_install(monkeypatch, tmp_path):
     return tmp_path
 
 
+@windows_only
 def test_fresh_windows_install_puts_data_on_the_install_drive(monkeypatch, tmp_path):
     win_install(monkeypatch, tmp_path)
     directory, mode = paths.resolve_data_dir()
@@ -59,6 +67,7 @@ def test_linux_install_has_no_drive_letter_and_stays_system(monkeypatch, tmp_pat
     assert mode == paths.MODE_SYSTEM and directory == tmp_path / "xdg" / paths.APP_DIR_NAME
 
 
+@windows_only
 def test_get_app_data_dir_creates_the_install_drive_folder(monkeypatch, tmp_path):
     win_install(monkeypatch, tmp_path)
     directory = paths.get_app_data_dir()

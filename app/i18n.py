@@ -327,8 +327,8 @@ STRINGS: dict[str, dict[str, str]] = {
 
     "bots.title": {"fa": "اتصال ربات‌ها", "en": "Connect your bots"},
     "bots.subtitle": {
-        "fa": "توکنِ رباتِ تلگرامت را اینجا بذار تا مشتری‌هات مستقیم با هوش مصنوعیِ خودت حرف بزنن. (بله فقط درگاهِ پرداخت است؛ توکنش در «تنظیماتِ پرداخت» وارد می‌شه.)",
-        "en": "Paste your Telegram bot token here so your customers can chat with your own AI. (Bale is only a payment gateway; its tokens live in “Payment settings”.)",
+        "fa": "توکنِ رباتِ هر پیام‌رسان را همین‌جا بذار تا مشتری‌هات مستقیم با هوش مصنوعیِ خودت حرف بزنن. تلگرام اصلی است؛ بله اختیاری است و «بله‌پی» (درگاهِ پرداخت) تنظیماتِ جدا خودش را دارد.",
+        "en": "Paste each messenger's bot token here so your customers can chat with your own AI. Telegram is the main one; Bale chat is optional, and Bale Pay (the gateway) has its own settings.",
     },
     "bots.telegram": {"fa": "تلگرام", "en": "Telegram"},
     "bots.bale": {"fa": "بله", "en": "Bale"},
@@ -1061,7 +1061,7 @@ STRINGS: dict[str, dict[str, str]] = {
     "data.open_folder": {"fa": "بازکردنِ پوشه‌ی داده", "en": "Open data folder"},
     "data.open_folder_failed": {"fa": "نتونستم پوشه رو باز کنم؛ مسیرِ بالا رو دستی باز کن.", "en": "Couldn't open the folder; open the path above manually."},
 
-    # --- ۱.۰.۰: تلگرام تنها پیام‌رسان؛ بله فقط درگاهِ «بله‌پی»؛ رسیدِ کارت‌به‌کارت ---
+    # --- ۱.۰.۰: تلگرام پیام‌رسانِ اصلی، چتِ بله اختیاری و مستقل از درگاهِ «بله‌پی» ---
     "bots.balepay.pointer": {
         "fa": "🔑 بله‌پی روشن است ولی هنوز کامل نشده (توکنِ رباتِ پرداخت و توکنِ کیف‌پول لازم است). این‌ها در «تنظیماتِ پرداخت» (صفحه‌ی سفارش‌ها) وارد می‌شن؛ در این صفحه فقط رباتِ تلگرام وصل می‌شه.",
         "en": "🔑 Bale Pay is switched on but not fully set up yet (it needs the payment-bot token and the wallet token). Enter them under “Payment settings” on the Orders page; this page only connects your Telegram bot.",

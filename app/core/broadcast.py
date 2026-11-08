@@ -31,7 +31,7 @@ from app.core.ui import safe_url
 
 logger = logging.getLogger(__name__)
 
-PLATFORMS = ("telegram",)  # تنها پیام‌رسانِ گفتگو؛ ردیف‌های قدیمیِ «bale» در نمایش برچسب می‌مانند
+PLATFORMS = ("telegram",)  # پخشِ پیام فعلاً تلگرامی است (چتِ بله در BotManager پشتیبانی می‌شه؛ این فهرست در نسخه‌ی بعد)
 
 STATUS_RUNNING, STATUS_PAUSED, STATUS_DONE, STATUS_CANCELLED = "running", "paused", "done", "cancelled"
 ACTIVE_STATUSES = (STATUS_RUNNING, STATUS_PAUSED)

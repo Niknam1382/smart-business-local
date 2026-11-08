@@ -127,7 +127,7 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager=None) -> ft
 
     def refresh_status() -> None:
         found = reports()
-        tg = found.get("telegram")  # تلگرام تنها پیام‌رسان (۱.۰.۰)
+        tg = found.get("telegram")  # کارتِ وضعیت فعلاً وضعیتِ تلگرام را می‌نویسه (چتِ بله در «ربات‌ها»)
         st_tg.value = f"{S('st.telegram', lang)}: {describe(tg)}"
         waiting = tg is not None and tg.status == bot_profile.STATUS_NEEDS_CONFIRM
         confirm_box.visible = bool(waiting) and not getattr(settings, "bot_bio_confirmed", False)

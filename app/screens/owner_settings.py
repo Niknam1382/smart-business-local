@@ -2,7 +2,7 @@
 و فرمان‌های /confirm و /reject — بدونِ اینکه مجبور باشی اپ رو باز کنی.
 
 جریان: «ساخت کد اتصال» ← کدِ ۱۰ دقیقه‌ایِ یک‌بارمصرف ← از چتِ شخصی‌ات به رباتِ خودت می‌فرستی:
-``/owner <کد>``. (ربات باید روشن باشد.) تلگرام تنها پیام‌رسانِ نسخه‌ی ۱.۰.۰ است.
+``/owner <کد>``. (ربات باید روشن باشد.) ثبتِ مالک در این نسخه از تلگرام انجام می‌شه.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from app import theme
 from app.i18n import t
 from app.screens.common import card, section_header
 
-PLATFORMS = ("telegram",)  # تلگرام تنها پیام‌رسان (۱.۰.۰)
+PLATFORMS = ("telegram",)  # همان محدودیتِ صفحه‌ی «مدیران»: تنظیمِ پیام‌رسانِ مدیریت فعلاً تلگرام
 
 
 def _mask(chat_id: str) -> str:

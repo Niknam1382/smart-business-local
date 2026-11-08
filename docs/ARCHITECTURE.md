@@ -10,7 +10,7 @@ describes how the pieces fit and — most importantly — the invariants that ke
 | Cut during development — **not in this code** | What the code does instead |
 |---|---|
 | AI provider/API mode: `ai_providers`, failover chain, API keys, USD pricing tables, monthly cost budget, token cache | `hardware.py` + `model_catalog.py` (specs, ranking, fit badges), `downloader.py` (resumable download + SHA-256), `prompt_kit.py` (persona + fixed guardrails + live preview) |
-| The conversational Bale bot (menu, AI answers, per-platform buttons) | `bale_pay.py` — a **payment-only** Bale client (`sendInvoice`, `createInvoiceLink`, pre-checkout, successful payment, transaction inquiry) |
+| A separate codebase per messenger | one adapter serves both messengers: `telegram_adapter.py` takes `platform` + `api_base`, so Bale chat runs on `tapi.bale.ai` with the same menus, buttons and AI path. `bale_pay.py` stays the **payment-only** Bale client (`sendInvoice`, `createInvoiceLink`, pre-checkout, successful payment, transaction inquiry) |
 | Zarinpal gateway | Card-to-card with receipt capture + instant alarms (`receipts.py`, `owner_console.build_payment_claim_alert`) |
 | Portable / USB data folder (`portable.flag`, `SmartBusinessData/`) | Model storage folder is configurable (still under the user profile by default); the data folder is env → OS default only |
 | Modes `faq_support`, `lead_capture`, `shop_ai` | Exactly two modes (`advisor`, `shop_buttons`) and a fixed **four-button** customer menu |
@@ -48,7 +48,7 @@ Data folder: `SMART_BUSINESS_DATA_DIR` override → OS default folder (`paths.py
 | `payments.py` | `PaymentService`: available methods (card-to-card needs only a card number; Bale Pay needs both tokens *and* a running bot), payment instructions, `createInvoiceLink` → deep-link fallback, pre-checkout / successful-payment guards, transaction-id idempotency, auto-confirm, diagnostics. |
 | `owner_console.py` | One-time-code owner registration, `/confirm` `/reject` `/orders` …, owner alerts, `build_payment_claim_alert()` (the receipt alarm text). |
 | `bot_manager.py` | Lifecycle, adapters, maintenance loop, log redaction, `_on_payment_claim` (attention item + instant message to the owner and order-deciding admins). |
-| `telegram_adapter.py`, `bale_pay.py`, `adapter_common.py` | Telegram I/O (URL-button messages, media-as-note, attachment download with allow-list/size cap/app-invented file name) and the **payment-only** Bale client (`getUpdates` filtered to payment events, `sendInvoice`, `createInvoiceLink`, `answerPreCheckoutQuery`, `inquireTransaction`). The Bale client never answers ordinary chat. |
+| `telegram_adapter.py`, `bale_pay.py`, `adapter_common.py` | Telegram I/O (URL-button messages, media-as-note, attachment download with allow-list/size cap/app-invented file name) and the **payment-only** Bale client (`getUpdates` filtered to payment events, `sendInvoice`, `createInvoiceLink`, `answerPreCheckoutQuery`, `inquireTransaction`). `bale_pay.py` itself never answers chat — ordinary Bale chat is served by `telegram_adapter.py` with `platform="bale"`, and today only the *owner/admin panel, broadcasts, custom buttons and channel gate* are still Telegram-scoped. |
 | `proxy_pool.py` | Telegram proxy list: parsing (`socks5/socks4/http`, `host:port`, `user:pass@host:port`), health probes, ranking, cool-down and **automatic failover** (the Telegram adapter swaps its `Bot` after consecutive network errors). |
 | `paths.py` | Data-folder resolution: `SMART_BUSINESS_DATA_DIR` → OS default. There is no portable mode. |
 | `backup.py` | Backup / restore / factory reset / diagnostics (settings + `secret.key` + the three databases; model files are not in the zip). Databases are copied with SQLite's online-backup API and **reset/restore happen in place** (stores keep per-thread connections open, so files are never deleted or swapped). |
@@ -213,13 +213,17 @@ BotManager maintenance loop: reservation expiry · inventory saga recovery · ha
      *Usage* page derives averages, per-1000-token time and today's CPU minutes from `ai_calls` rows, never from separate
      counters. Daily caps and the kill switch throttle replies only — `usage_limits` cannot block buttons, cart, orders or
      payments, and a throttled customer still gets a plain Persian explanation.
-13. **There is no answer cache.** The old exact-match cache (and the engine-level one before it) was removed: keyed on part
-     of a request, it could serve a stale or another customer's answer. Every reply is computed fresh from the current
-     persona + guardrails + live catalog, so prices and stock shown by the model come from the same transaction that the
-     buttons use.
+13. **The answer cache cannot serve a stale or another customer's answer.** The *API-era* cache was removed because it was
+     keyed on part of a request. The local cache that came back with the offline model (`app/core/answer_cache.py`) keys on
+     **model + the whole system prompt (persona, guardrails, live catalog and this customer's display name) + the
+     conversation history + the customer's own text**, lives only in RAM, expires (default 15 minutes) and never stores a
+     reply that carries a product card — so a price/stock change, another customer or a different chat always misses. On a
+     miss the reply is computed fresh from the current persona + guardrails + live catalog, so prices and stock shown by the
+     model come from the same transaction that the buttons use.
 14. **The system prompt is assembled in exactly one place** (`prompt_kit.build_system_prompt`): persona → the five fixed
-     guardrail segments → read-only catalog (≤ 40 products) → FAQ (≤ 20 items) → the sanitised display name, marked
-     untrusted. The preview in the UI is the same function's output, so what the owner sees is what the model gets; the
+     guardrail segments → read-only catalog (≤ 30 lines) → FAQ (≤ 12 items) → the sanitised display name, marked
+     untrusted; both lists shrink to the model's real context window (`prompt_kit.SYSTEM_SHARE`, floors 6 lines / 3 FAQs).
+     The preview in the UI is the same function's output, so what the owner sees is what the model gets; the
      guardrails have no toggle, and the app gives the model no write tools to be talked into.
 15. **A model file is only ever loaded after it is verified:** pinned SHA-256 for catalog downloads, GGUF magic + size
      sanity for an already-present file, and extension/size/header checks for an imported file. `.part` files are never

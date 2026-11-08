@@ -272,7 +272,7 @@ def build(page: ft.Page, lang: str, manager, product_store) -> ft.Control:
             0, code_tf.value or "", kind_dd.value, value, max_discount_irr=max_irr if kind_dd.value == dc.KIND_PERCENT else 0,
             min_subtotal_irr=min_irr, applies=scope_dd.value, targets=targets, first_order_only=bool(first_sw.value), min_prev_orders=prev,
             per_customer_limit=per, total_limit=total, starts_ts=starts, ends_ts=ends,
-            platforms=[],  # تلگرام تنها پیام‌رسان (۱.۰.۰): خالی = همه
+            platforms=[],  # خالی = همه‌ی پیام‌رسان‌ها
             stackable=bool(stack_sw.value), auto_apply=bool(auto_sw.value), note=note_tf.value or "",
         )
         try:
@@ -373,7 +373,7 @@ def build(page: ft.Page, lang: str, manager, product_store) -> ft.Control:
             camp_code.value = "0"
 
     def audience() -> bc.Audience:
-        # تلگرام تنها پیام‌رسان (۱.۰.۰) — مخاطبِ کمپین همیشه مخاطبانیِ تلگرام است.
+        # کمپینِ تخفیف در این نسخه تلگرامی است (PLATFORMS در app/core/broadcast.py) — مخاطب همیشه مخاطبانِ تلگرام.
         return bc.Audience(platform="telegram", purchase=c_purchase.value or bc.PURCHASE_ALL, activity=c_activity.value or bc.ACTIVITY_ALL)
 
     def refresh_who(_e=None) -> None:

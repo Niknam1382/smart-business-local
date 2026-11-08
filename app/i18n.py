@@ -1077,8 +1077,8 @@ STRINGS: dict[str, dict[str, str]] = {
     "pay.bale.bot_label": {"fa": "توکنِ رباتِ پرداختِ بله", "en": "Bale payment-bot token"},
     "pay.bale.bot_hint": {"fa": "مثلاً 123456789:AAH…", "en": "e.g. 123456789:AAH…"},
     "pay.bale.bot_help": {
-        "fa": "از رباتِ رسمیِ بله @balebotfather با دستور /newbot می‌گیری. این ربات فقط فاکتورِ پرداخت می‌فرستد و هیچ گفتگویی را پاسخ نمی‌دهد.",
-        "en": "Get it from Bale's official @balebotfather with /newbot. This bot only sends payment invoices — it never answers any chat.",
+        "fa": "از رباتِ رسمیِ بله @balebotfather با دستور /newbot می‌گیری. این توکن مالِ رباتِ *پرداخت* است و فقط فاکتور می‌فرستد؛ رباتِ گفتگو روی بله توکنِ جدا خودش را در «ربات‌ها» می‌خواهد.",
+        "en": "Get it from Bale's official @balebotfather with /newbot. This token is for the *payment* bot and only sends invoices; a Bale chat bot has its own separate token under “Bots”.",
     },
     "pay.bale.provider_label": {"fa": "توکنِ کیف‌پول/درگاه (provider token)", "en": "Wallet / gateway token (provider token)"},
     "pay.bale.provider_hint": {"fa": "توکنِ کیف‌پولِ فروشنده در بله یا شماره کارتِ ۱۶ رقمی", "en": "Your Bale seller-wallet token or a 16-digit card number"},

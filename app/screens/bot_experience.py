@@ -394,7 +394,7 @@ def build(page: ft.Page, lang: str, settings, save_callback, product_store, orde
         config = {_VALUE_KEY[action]: (b_value.value or "").strip()} if action in _VALUE_KEY else {}
         taken_b = {b["id"] for b in ui_b["buttons"]}
         auto_b = next(f"b{n}" for n in range(1, 100) if f"b{n}" not in taken_b)
-        # شکلِ قدیمیِ «platforms» نگه داشته می‌شه (رکوردهایِ قبلی بار می‌شن) ولی تلگرام تنها پیام‌رسانِ ممکن است.
+        # شکلِ قدیمیِ «platforms» نگه داشته می‌شه (رکوردهایِ قبلی بار می‌شن) ولی این فهرست فعلاً تلگرامی است.
         item = {"id": (b_id.value or "").strip() or auto_b, "label": (b_label.value or "").strip(), "emoji": (b_emoji.value or "").strip(), "action": action,
                 "config": config, "platforms": ["telegram"]}
         items = list(ui_b["buttons"])

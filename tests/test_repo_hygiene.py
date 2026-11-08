@@ -196,6 +196,29 @@ def test_deleted_modules_are_never_imported_again():
     assert not stale, f"استثنایِ منقضی‌شده را حذف کن: {stale}"
 
 
+BALE_CHAT_DENIALS = ("تلگرام تنها پیام‌رسان", "بله فقط درگاهِ پرداخت است", "The Bale client never answers",
+                   "The conversational Bale bot", "it never answers any chat",
+                   "فقط فاکتورِ پرداخت می‌فرستد و هیچ گفتگویی")
+
+
+def test_no_text_claims_bale_cannot_chat():
+    """قلم ۲۴ بله را پیام‌رسانِ گفتگو کرد؛ اگر روزی این جمله‌ها برگشتند، یا کدِ آن دستِ کار رفته
+    یا مستند/متنِ برنامه کهنه شده — و هر دو برایِ مالک گمراه‌کننده‌اند (او همین را در دستورِ کاری خواست).
+    «payment-only Bale client» برایِ خودِ `bale_pay.py` هنوز درست است، پس در فهرست نیست."""
+    roots = [ROOT / "README.md", ROOT / "CHANGELOG.md"]
+    roots += list((ROOT / "docs").rglob("*.md")) + list((ROOT / "assets" / "guide").rglob("*.md"))
+    roots += list((ROOT / "app").rglob("*.py")) + list((ROOT / "scripts").rglob("*.py")) + [ROOT / "run.py"]
+    offenders = []
+    for path in roots:
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        for phrase in BALE_CHAT_DENIALS:
+            if phrase in text:
+                offenders.append(f"{path.relative_to(ROOT).as_posix()} → {phrase}")
+    assert not offenders, "ادعایِ کهنه‌ی «بله چت ندارد» برگشته:\n" + "\n".join(sorted(offenders))
+
+
 def test_shipped_python_compiles_without_syntax_warnings():
     """یک مسیرِ ویندوزیِ ساده‌تا داخلِ docstring بدونِ پیشوندِ raw یعنی «فرارِ ناشناخته» و Python
     هنگامِ import یک SyntaxWarning چاپ می‌کند — در باینریِ PyInstaller همان هشدار ته‌ی لاگ کاربر

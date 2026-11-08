@@ -76,7 +76,7 @@ async def run(
     server_time = server_time or http_server_time
     out: list = []
 
-    # تلگرام تنها پیام‌رسانِ گفتگو است؛ بله فقط درگاهِ پرداخت (بله‌پی) و چت ندارد.
+    # تلگرام و بله هر دو پیام‌رسانِ گفتگویند (قلم ۲۴)؛ «بله‌پی» درگاهِ پرداختِ جداست.
     tg_token = settings.get_telegram_token()
     wants_tg = bool(settings.telegram_enabled and tg_token)
     if not wants_tg:

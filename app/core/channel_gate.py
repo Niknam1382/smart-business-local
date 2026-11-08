@@ -21,7 +21,7 @@ from app.core.ui import safe_url
 
 logger = logging.getLogger(__name__)
 
-PLATFORMS = ("telegram",)  # بله فقط درگاهِ پرداخت است؛ عضویتِ اجباری فقط روی تلگرام معنا دارد
+PLATFORMS = ("telegram",)  # عضویتِ اجباریِ کانال فعلاً تلگرامی است (APIِ کانالِ بله در این برنامه وصل نشده)
 SCOPE_SHOP, SCOPE_AI, SCOPE_BOTH = "shop", "ai", "both"
 SCOPES = (SCOPE_SHOP, SCOPE_AI, SCOPE_BOTH)
 POINT_SHOP, POINT_AI = SCOPE_SHOP, SCOPE_AI  # نقطه‌ی بررسی در پایپ‌لاین

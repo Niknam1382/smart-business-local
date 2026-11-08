@@ -12,7 +12,7 @@ and troubleshooter · Jalali dates everywhere · the AI lost every write tool (o
 - **Local-only AI**: hardware probe, six pinned GGUF models with quality/speed stars and fit badges, one-click
   download with progress / cancel / resume / SHA-256 verification, mirror sources, import-your-own-file, an advanced
   panel (model folder, context tokens, threads, GPU layers, reply caps, kill switch) and a *Test model* button.
-- **Central prompt studio**: persona editor + 12 ready-made templates + five non-removable guardrail segments + a live
+- **Central prompt studio**: persona editor + 11 ready-made templates + five non-removable guardrail segments + a live
   preview of the exact text the model receives + warnings (prompt length, hardcoded prices, injection bait).
 - **Telegram is the main messenger**; the Bale chat bot is an optional, independent second messenger (own token at
   `tapi.bale.ai`, own AI switch), and **Bale Pay** remains a separate gateway (`createInvoiceLink` first, payment-bot
@@ -20,15 +20,20 @@ and troubleshooter · Jalali dates everywhere · the AI lost every write tool (o
 - **Two payment methods**: card-to-card with receipt capture and an instant alarm (confirmation is always manual), and
   Bale Pay with gateway-verified auto-confirmation. Zarinpal is gone.
 - **Exactly two modes** (advisor / shop) and a **four-button** customer menu; guide + FAQ live under *Contact support*.
-- Removed: portable/USB mode, API providers and cost budgets, the answer cache.
+- Removed: portable/USB mode, API providers and cost budgets, and the *API-era* answer cache
+  (a local response cache for the offline model arrived later in this same release).
 
 - **Shipping, delivery, payment status and search** — shipping methods with a cost, **off by default** (`total = items − discount + shipping`,
 frozen per order so old invoices never change, with a “shipping charged” line in the ledger and on the finance
 dashboard) · a delivery track for confirmed orders (preparing → shipped → delivered, tracking code included, never
 touching the money) · a read-only payment-status panel on every paid order · global search across orders, products and
-customers from one box · the 11th prompt template (“store rules”) · Excel and PDF export of every list · 2208 tests.
+customers from one box · the 11th prompt template (“store rules”) · Excel and PDF export of every list · 2209 tests.
 
 **Next release candidates**
+
+- **Bale as a full messenger:** chat, orders, receipts and invoices already work on Bale, but the admin
+  panel, broadcasts, discount campaigns and the mandatory-channel gate are still Telegram-scoped
+  (`broadcast.py`, `channel_gate.py`, `custom_buttons.py`, `app/screens/admins.py`).
 
 - **Not done on purpose (rough priority):** keep-running-in-the-background / system tray (A4), a richer home dashboard
   (A5), a full refund workflow (A8), an English version of the guide.
@@ -73,15 +78,20 @@ customers from one box · the 11th prompt template (“store rules”) · Excel 
   پرداختِ تأییدشده‌ی درگاه. زرین‌پال حذف شد.
 - **دقیقاً دو حالت** (مشاوره‌ای / فروشگاهی) و منویِ **چهار دکمه‌ایِ** مشتری؛ راهنما و سؤالات متداول زیرِ «ارتباط با
   پشتیبانی»اند.
-- حذف‌شده‌ها: حالتِ قابل‌حمل (فلش)، ارائه‌دهنده‌های API و بودجه‌ی هزینه، کشِ پاسخ.
+- حذف‌شده‌ها: حالتِ قابل‌حمل (فلش)، ارائه‌دهنده‌های API و بودجه‌ی هزینه و **کشِ پاسخِ دورانِ API**
+  (کشِ پاسخِ محلی برایِ مدلِ آفلاین در همین نسخه از نو اضافه شد).
 
 - **ارسال، تحویل، وضعیتِ پرداخت و جست‌وجو** — روش‌هایِ ارسال با هزینه، **پیش‌فرضِ خاموش** (`مبلغ = جمعِ اقلام − تخفیف + کرایه`، منجمد روی
 هر سفارش تا فاکتورهایِ قدیمی عوض نشوند، با خطِ «کرایه‌ی ارسال» در دفتر و داشبوردِ مالی) · مسیرِ «در دستِ ارسال» برای
 سفارش‌های تأییدشده (آماده‌سازی ← ارسال ← تحویل، با کد رهگیری و بدونِ دست‌زدن به پول) · کارتِ فقط‌خواندنیِ «وضعیتِ
-پرداخت» روی هر سفارشِ پرداخت‌شده · جست‌وجوی سراسری در سفارش/مشتری/محصول در یک کادر · دوازدهمین قالبِ پرامپت
-(«قوانینِ فروشگاه») · خروجِ اکسل و PDF از هر فهرست · ۲۲۰۸ تست.
+پرداخت» روی هر سفارشِ پرداخت‌شده · جست‌وجوی سراسری در سفارش/مشتری/محصول در یک کادر · یازدهمین قالبِ پرامپت
+(«قوانینِ فروشگاه») · خروجِ اکسل و PDF از هر فهرست · ۲۲۰۹ تست.
 
 **بعدی (کاندیدهای انتشارِ بعد)**
+
+- **بله به‌عنوانِ پیام‌رسانِ کامل:** گفتگو، سفارش، رسید و فاکتور روی بله کار می‌کنند، ولی پنلِ مدیریت،
+  پخشِ پیام، کمپینِ تخفیف و «اجبارِ عضویت در کانال» هنوز تلگرامی‌اند (`broadcast.py`، `channel_gate.py`،
+  `custom_buttons.py`، `app/screens/admins.py`).
 
 - **عمداً انجام نشده (تقریباً به ترتیبِ اولویت):** ادامه‌ی کار در پس‌زمینه/سینی‌سیستم (A4)، داشبوردِ غنی‌تر (A5)،
   جریانِ کاملِ بازپرداخت (A8) و نسخه‌ی انگلیسیِ راهنما.

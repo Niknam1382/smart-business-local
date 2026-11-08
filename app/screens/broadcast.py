@@ -146,7 +146,7 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple:
     # --------------------------------------------------------------- مقدارِ فرم ----
     def audience() -> bc.Audience:
         pick = lambda v: "" if v in (None, "all") else v  # noqa: E731
-        # تلگرام تنها پیام‌رسانِ گفتگو (۱.۰.۰) — مخاطب همیشه مخاطبانیِ تلگرام است.
+        # پخشِ پیام در این نسخه تلگرامی است (PLATFORMS در app/core/broadcast.py) — مخاطب همیشه مخاطبانِ تلگرام.
         return bc.Audience(
             platform="telegram", purchase=purchase_dd.value or bc.PURCHASE_ALL, activity=activity_dd.value or bc.ACTIVITY_ALL,
             tag=tag_tf.value or "", language=pick(language_dd.value),

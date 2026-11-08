@@ -150,7 +150,7 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager=None) -> ft
     )
 
     # ---------------------------------------------------------- افزودنِ کانال ----
-    # تلگرام تنها پیام‌رسانِ ربات (۱.۰.۰)؛ ردیف‌های «بله»ی قدیمی فقط نمایش داده/حذف می‌شن.
+    # عضویتِ اجباریِ کانال در این نسخه تلگرامی است (APIِ کانالِ بله وصل نیست)؛ ردیف‌های «بله»ی قدیمی فقط نمایش داده/حذف می‌شن.
     channel_tf = ft.TextField(key="rc_channel", label=S("channel", lang), hint_text=S("channel_hint", lang), border_radius=10, width=250)
     title_tf = ft.TextField(key="rc_title", label=S("title_label", lang), border_radius=10, width=200, max_length=cg.MAX_TITLE)
     link_tf = ft.TextField(key="rc_link", label=S("link", lang), hint_text=S("link_hint", lang), border_radius=10, width=280)

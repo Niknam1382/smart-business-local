@@ -197,6 +197,14 @@ class AppSettings:
     debounce_wait_seconds: float = 3.0  # سکوت لازم برای ارسالِ دسته به مدل؛ ۰ = هر پیام جدا
     debounce_max_wait_seconds: float = 10.0  # حتی اگر مشتری سکوت نکرد، بیشتر از این معطل نمی‌شه
 
+    # --- قلم ۲: شتابِ گرافیکی در همان یک نصب (بستهٔ CUDA جدا در Release نیست) ---
+    gpu_pack_enabled: bool = True  # اگر کارتِ NVIDIA باشد، بستهٔ شتاب خودش نصب/فعال می‌شه
+    gpu_pack_cuda: str = "cu12.4"  # از فهرستِ GPU_PACKS در app/core/gpu_pack.py
+    gpu_pack_urls: str = ""  # پیشرفته: آدرسِ جایگزین (هر خط یکی) با هشِ خودت
+
+    # --- قلم ۳: دسترسیِ «مدیر» به تنظیماتِ عملیاتی از پنلِ دکمه‌ای ---
+    managers_can_edit_settings: bool = False
+
     # --- مالی و فاکتور — ابزارِ کمکی، نه جایگزینِ حسابدارِ رسمی ---
     invoice_seller_name: str = ""
     invoice_seller_legal_name: str = ""
@@ -212,6 +220,10 @@ class AppSettings:
     invoice_number_start: int = 1
     invoice_number_use_year: bool = True
     invoice_paper: str = "A4"  # A4 | A5
+    # قلم ۸: متن‌هایِ فاکتور برایِ فروشنده قابلِ شخصی‌سازی است (خالی = متنِ پیش‌فرضِ خودِ برنامه)
+    invoice_disclaimer: str = ""
+    invoice_thanks: str = ""
+    invoice_seller_fallback: str = ""  # اگر «نامِ فروشگاه» خالی بود، همین نوشته می‌شه
     invoice_digits: str = "fa"  # fa | en
     invoice_auto_send: str = "after_confirm"  # off | after_confirm (پیش‌فرض: فاکتورِ PDF بعد از تأییدِ سفارش برای مشتری می‌رود)
     invoice_send_owner_copy: bool = False

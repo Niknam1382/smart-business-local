@@ -609,6 +609,19 @@ class BotManager:
     def send_to_customer_sync(self, platform: str, chat_id: str, text: str, timeout: float = 20.0) -> None:
         self._run_in_loop(lambda: self.send_to_customer(platform, chat_id, text), timeout)
 
+    async def send_file_to_customer(self, platform: str, chat_id: str, path: str, caption: str = "") -> str:
+        """قلم ۵: ارسالِ فایل/عکس به مشتریِ یک سفارش (کد رهگیری، بارنامه، تصویرِ کالا…).
+        از همان مسیرِ سختِ فاکتور می‌رود: خطا **پنهان نمی‌شود** تا ادمین بداند چیزی نرفته است،
+        و در گفتگو ثبت می‌شود که پشتیبانیِ همان مشتری کامل دیده شود."""
+        await self._send_invoice_doc(platform, chat_id, path, caption or "")
+        note = (caption or "").strip()
+        self._store.add_message(platform, chat_id, "owner", f"📎 {Path(path).name}" + (f" — {note}" if note else ""))
+        return "sent"
+
+    def send_file_to_customer_sync(self, platform: str, chat_id: str, path: str, caption: str = "",
+                                   timeout: float = 45.0) -> str:
+        return self._run_in_loop(lambda: self.send_file_to_customer(platform, chat_id, path, caption), timeout)
+
     async def broadcast_test(self, content) -> list:
         """ارسالِ آزمایشیِ همان پیام به چتِ مالک (روی هر پلتفرمی که مالک ثبت کرده) — بدونِ ثبت در صفِ ارسال. ``[(platform, ok, detail)]``."""
         content = broadcast_module.validate_content(content, self._settings)

@@ -45,16 +45,19 @@ CAP_DISCOUNTS_TOGGLE = "discounts.toggle"  # N8: فعال/غیرفعال‌کر�
 CAP_FINANCE_VIEW = "finance.view"  # N19: خلاصه‌ی مالی (پیش‌فرض فقط مالک؛ مالک می‌تونه به «مدیر» بده: finance_manager_access)
 CAP_FINANCE_EDIT = "finance.edit"  # N19: ثبت/اصلاحِ دفتر (فقط مالک؛ در برنامه‌ی دسکتاپ)
 CAP_INVOICE_RESEND = "invoice.resend"  # N19: ارسالِ مجددِ فاکتور برای مشتری (مالک/مدیر)
+CAP_SETTINGS_VIEW = "settings.view"  # قلم ۳: دیدنِ تنظیماتِ عملیاتی از پنلِ دکمه‌ای
+CAP_SETTINGS_EDIT = "settings.edit"  # قلم ۳: عوض‌کردنِ تنظیماتِ عملیاتی از پنلِ دکمه‌ای (پیش‌فرض فقط مالک)
 
 CAPABILITIES = {
     ROLE_OWNER: frozenset({
         CAP_PANEL, CAP_ORDERS_VIEW, CAP_ORDERS_DECIDE, CAP_STOCK_VIEW, CAP_STOCK_EDIT, CAP_PRODUCTS_TOGGLE,
         CAP_STATS_VIEW, CAP_SUPPORT_VIEW, CAP_SUPPORT_REPLY, CAP_ADMINS_MANAGE, CAP_OWNER_UNLINK, CAP_DISCOUNTS_TOGGLE,
-        CAP_FINANCE_VIEW, CAP_FINANCE_EDIT, CAP_INVOICE_RESEND,
+        CAP_FINANCE_VIEW, CAP_FINANCE_EDIT, CAP_INVOICE_RESEND, CAP_SETTINGS_VIEW, CAP_SETTINGS_EDIT,
     }),
     ROLE_MANAGER: frozenset({
         CAP_PANEL, CAP_ORDERS_VIEW, CAP_ORDERS_DECIDE, CAP_STOCK_VIEW, CAP_STOCK_EDIT, CAP_PRODUCTS_TOGGLE,
         CAP_STATS_VIEW, CAP_SUPPORT_VIEW, CAP_SUPPORT_REPLY, CAP_DISCOUNTS_TOGGLE, CAP_INVOICE_RESEND,
+        CAP_SETTINGS_VIEW,
     }),
     ROLE_SUPPORT: frozenset({CAP_PANEL, CAP_SUPPORT_VIEW, CAP_SUPPORT_REPLY}),
     ROLE_VIEWER: frozenset({CAP_PANEL, CAP_ORDERS_VIEW, CAP_STOCK_VIEW, CAP_STATS_VIEW, CAP_SUPPORT_VIEW}),
@@ -90,14 +93,23 @@ def can(role: str, capability: str) -> bool:
 
 
 # مالک می‌تونه این قابلیت‌ها را (با تنظیم) به نقشِ «مدیر» هم بده؛ به هیچ نقشِ دیگری هرگز.
-MANAGER_GRANTABLE = frozenset({CAP_FINANCE_VIEW})
+MANAGER_GRANTABLE = frozenset({CAP_FINANCE_VIEW, CAP_SETTINGS_EDIT})
 
 
-def can_effective(role: str, capability: str, manager_finance_access: bool = False) -> bool:
-    """``can`` + اعطای اختیاریِ مالک (``finance_manager_access``) به «مدیر»."""
+def can_effective(role: str, capability: str, manager_finance_access: bool = False,
+                  manager_settings_access: bool = False) -> bool:
+    """``can`` + اعطایِ اختیاریِ مالک به «مدیر»: ``finance_manager_access`` (دیدنِ مالی) و
+    ``managers_can_edit_settings`` (عوض‌کردنِ تنظیماتِ عملیاتی). هر دو پیش‌فرض خاموش‌اند، پس
+    نقشِ «مدیر» بدونِ اجازهٔ صریحِ مالک هیچ‌وقت گشاده‌تر نمی‌شود."""
     if can(role, capability):
         return True
-    return role == ROLE_MANAGER and manager_finance_access and capability in MANAGER_GRANTABLE
+    if role != ROLE_MANAGER:
+        return False
+    if capability == CAP_FINANCE_VIEW:
+        return bool(manager_finance_access)
+    if capability == CAP_SETTINGS_EDIT:
+        return bool(manager_settings_access)
+    return False
 
 
 def _hash(token: str) -> str:

@@ -53,6 +53,7 @@ STATUS_CONFIRMED = "confirmed"
 STATUS_REJECTED = "rejected"
 STATUS_CANCELLED = "cancelled"
 STATUS_EXPIRED = "expired"
+STATUS_CLOSED = "closed"  # قلم ۵: «تحویل/ارسالِ آخرین پیام تمام شد» — از لیستِ کاریِ ادمین بیرون می‌رود، داده پاک نمی‌شود
 
 # وضعیتِ «ارسال» — عمداً جدا از وضعیتِ پول: «تأییدشده» یعنی تسویه حساب شده، نه اینکه
 # کالا آماده/پست/تحویل شده باشد. خالی «''» = شروع‌نشده (سفارش‌های قدیمی هم همین را می‌گیرن).
@@ -246,7 +247,7 @@ MIGRATIONS = [_m1_baseline, _m2_shop_schema, _m3_confirmed_by, _m4_discounts, _m
 _VALID_TRANSITIONS = {
     STATUS_PENDING_PAYMENT: {STATUS_PAID, STATUS_CANCELLED, STATUS_EXPIRED},
     STATUS_PAID: {STATUS_CONFIRMED, STATUS_REJECTED},
-    STATUS_CONFIRMED: set(),
+    STATUS_CONFIRMED: {STATUS_CLOSED},
     STATUS_REJECTED: set(),
     # پولِ واقعی هیچ‌وقت نباید «گم» بشه: پرداختِ تاییدشده‌ی درگاه/کارت که بعد از
     # لغو یا انقضا می‌رسه روی سفارش ثبت می‌شه (paid_late) تا صاحب فروشگاه
@@ -639,6 +640,14 @@ class OrderStore:
         logger.info("وضعیتِ ارسالِ سفارش %s → «%s» (توسط %s)", order_id, state or "-", by[:96] or "-")
         return self.get(order_id)
 
+    def close(self, order_id: int, by: str = "") -> None:
+        """قلم ۵: بستنِ سفارشِ تأییدشده.
+
+        فقط «تأییدشده» بسته می‌شه؛ هیچ پول و موجودیِ تازه‌ای دست نمی‌خورد (موجودی موقعِ تأیید
+        کم شده) و هیچ داده‌ای پاک نمی‌شه — فقط از لیستِ کاریِ ادمین بیرون می‌رود و به
+        «بسته‌شده» می‌ره، جایی که نگه‌داریِ محدود هم می‌تواند مشخصاتش را پاک کند. ``by`` فعلاً فقط برایِ لاگِ ممیزیِ پنل استفاده می‌شه (ستونِ تازه لازم ندارد)."""
+        self._transition(order_id, STATUS_CLOSED)
+
     def confirmed_by(self, order_id: int) -> str:
         row = self._connection().execute("SELECT confirmed_by FROM orders WHERE id = ?", (int(order_id),)).fetchone()
         return row["confirmed_by"] if row else ""
@@ -809,7 +818,7 @@ class OrderStore:
         )
         conn.commit()
 
-    _CLOSED = (STATUS_CONFIRMED, STATUS_REJECTED, STATUS_CANCELLED, STATUS_EXPIRED)
+    _CLOSED = (STATUS_CONFIRMED, STATUS_CLOSED, STATUS_REJECTED, STATUS_CANCELLED, STATUS_EXPIRED)
     _PII_PRESENT = "(customer_name != '' OR customer_phone != '' OR customer_address != '' OR customer_info != '' OR note != '')"
 
     def anonymize_closed(self, days: int) -> int:

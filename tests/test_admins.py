@@ -133,8 +133,18 @@ def test_capability_matrix_is_exactly_what_was_designed():
     """اگه کسی بی‌خبر دسترسی اضافه کنه (escalation) این تست قرمز می‌شه."""
     assert am.CAPABILITIES[am.ROLE_SUPPORT] == {am.CAP_PANEL, am.CAP_SUPPORT_VIEW, am.CAP_SUPPORT_REPLY}
     assert am.CAPABILITIES[am.ROLE_VIEWER] == {am.CAP_PANEL, am.CAP_ORDERS_VIEW, am.CAP_STOCK_VIEW, am.CAP_STATS_VIEW, am.CAP_SUPPORT_VIEW}
-    # N19: مدیر = مالک − (مدیریتِ مدیران، قطعِ مالک، مالی). «ارسالِ مجددِ فاکتور» را دارد؛ دیدنِ مالی فقط با اعطای مالک
-    assert am.CAPABILITIES[am.ROLE_MANAGER] == am.CAPABILITIES[am.ROLE_OWNER] - {am.CAP_ADMINS_MANAGE, am.CAP_OWNER_UNLINK, am.CAP_FINANCE_VIEW, am.CAP_FINANCE_EDIT}
+    # N19: مدیر = مالک − (مدیریتِ مدیران، قطعِ مالک، مالی، ویرایشِ تنظیمات). «ارسالِ مجددِ فاکتور» را دارد؛
+    # دیدنِ مالی و **عوض‌کردنِ تنظیماتِ عملیاتی** فقط با اعطایِ صریحِ مالک (قلم ۳)
+    assert am.CAPABILITIES[am.ROLE_MANAGER] == am.CAPABILITIES[am.ROLE_OWNER] - {
+        am.CAP_ADMINS_MANAGE, am.CAP_OWNER_UNLINK, am.CAP_FINANCE_VIEW, am.CAP_FINANCE_EDIT, am.CAP_SETTINGS_EDIT}
+    assert am.CAP_SETTINGS_VIEW in am.CAPABILITIES[am.ROLE_OWNER] and am.CAP_SETTINGS_VIEW in am.CAPABILITIES[am.ROLE_MANAGER]
+    assert am.CAP_SETTINGS_EDIT in am.CAPABILITIES[am.ROLE_OWNER] and am.CAP_SETTINGS_EDIT not in am.CAPABILITIES[am.ROLE_MANAGER]
+    # اعطای «ویرایشِ تنظیمات» فقط برایِ مدیر است و برایِ پشتیبان/ناظر هرگز
+    assert not am.can_effective(am.ROLE_MANAGER, am.CAP_SETTINGS_EDIT)
+    assert am.can_effective(am.ROLE_MANAGER, am.CAP_SETTINGS_EDIT, False, True)
+    for role in (am.ROLE_SUPPORT, am.ROLE_VIEWER):
+        assert not am.can_effective(role, am.CAP_SETTINGS_EDIT, True, True)
+        assert not am.can_effective(role, am.CAP_SETTINGS_VIEW, True, True)
     assert am.CAP_INVOICE_RESEND in am.CAPABILITIES[am.ROLE_MANAGER] and am.CAP_FINANCE_VIEW in am.CAPABILITIES[am.ROLE_OWNER]
     for role in (am.ROLE_SUPPORT, am.ROLE_VIEWER):
         assert not any(am.can_effective(role, cap, True) for cap in (am.CAP_FINANCE_VIEW, am.CAP_FINANCE_EDIT, am.CAP_INVOICE_RESEND))

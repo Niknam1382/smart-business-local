@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import inspect
 from typing import Callable, Optional
 
 import flet as ft
@@ -60,22 +61,42 @@ def _hide(page: ft.Page) -> None:
 
 
 def _quit(page: ft.Page) -> None:
-    """خروجِ واقعی؛ اگر پنجره‌ی بسته‌شدنی نبود (وب/تست) بی‌خطا برمی‌گرده."""
+    """خروجِ واقعی.
+
+    در Flet 1.0 ``Window.close()``/``destroy()`` تابعِ **async** هستند: صدا زدنِ هم‌زمانِ آن‌ها
+    فقط یک coroutine می‌سازد که دور ریخته می‌شه و پنجره باز می‌مونه (باگِ گزارش‌شده). پس از
+    ``page.run_task`` استفاده می‌شه؛ اگر runner نبود (وب/تست با fakeِ sync) همان‌جا صدا زده می‌شه و
+    اگر با این‌همه چیزی بیرون نیامد، بی‌خطا برمی‌گرديم (نباید برنامه در حالتِ وب بشکنه)."""
     for name in ("close", "destroy"):
         closer = getattr(page.window, name, None)
-        if callable(closer):
+        if not callable(closer):
+            continue
+        runner = getattr(page, "run_task", None)
+        if callable(runner):
             try:
-                closer()
+                runner(closer)  # خودِ تابعِ async را می‌دهیم؛ run_task آن را در loop اجرا می‌کنه
                 return
-            except Exception:  # noqa: BLE001
+            except TypeError:
+                pass  # fakeِ تست: تابعِ معمولی است → مسیرِ sync
+            except Exception:  # noqa: BLE001 — loopِ نبود/بسته‌شدنِ صفحه
                 continue
+        try:
+            result = closer()
+        except Exception:  # noqa: BLE001
+            continue
+        if inspect.iscoroutine(result):  # هیچ loopی نیست: coroutine را باز می‌کنیم تا هشدار ندهد
+            result.close()
+            continue
+        return
 
 
 def _close_dialog(page: ft.Page, dialog: ft.Control) -> None:
-    closer = getattr(page, "close", None)
-    if callable(closer):
+    """بستنِ دایالوگ با همان API که Flet 1.0 باز می‌کند (pop_dialog). مسیرِ overlay فقط
+    برایِ fakeهای تست است — در Flet واقعی صفحه متدِ close(dialog) ندارد."""
+    popper = getattr(page, "pop_dialog", None)
+    if callable(popper):
         try:
-            closer(dialog)
+            popper()
             return
         except Exception:  # noqa: BLE001
             pass
@@ -126,10 +147,13 @@ def _ask(page: ft.Page, state, save) -> None:
         ],
         actions_alignment=ft.MainAxisAlignment.END,
     )
-    opener = getattr(page, "open", None)
-    if callable(opener):
-        opener(dialog)
-        return
+    show = getattr(page, "show_dialog", None)
+    if callable(show):
+        try:
+            show(dialog)
+            return
+        except Exception:  # noqa: BLE001 — باز هم نشد: حداقل در overlay می‌گذاریمش
+            pass
     overlay = getattr(page, "overlay", None)
     if isinstance(overlay, list):
         overlay.append(dialog)

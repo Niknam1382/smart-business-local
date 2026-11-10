@@ -71,7 +71,7 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager=None) -> ft
         prefix_icon=ft.Icons.PERSON_OUTLINE_ROUNDED, border_radius=10,
     )
     card_error = ft.Text("", key="card_error", size=12, color=theme.DANGER, visible=False)
-    card_manual_note = ft.Text(t("pay.card.manual_note", lang), size=12, color=theme.ACCENT_DARK)
+    card_manual_note = ft.Text(t("pay.card.manual_note", lang), size=12, color=theme.WARNING)
     diag_card_text = ft.Text("", key="diag_card_result", size=12, visible=False)
 
     # ---------------------------------------------------- رسیدِ کارت‌به‌کارت
@@ -172,9 +172,9 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager=None) -> ft
             bale_test_warning.value = t("pay.bale.test_token_warning", lang) if test_only else ""
 
         if not settings.get_bale_pay_bot_token() or not provider:
-            bale_note.value, bale_note.color = t("pay.bale.both_required", lang), theme.ACCENT_DARK
+            bale_note.value, bale_note.color = t("pay.bale.both_required", lang), theme.WARNING
         elif manager is not None and not bale_running():
-            bale_note.value, bale_note.color = t("pay.bale.needs_bots_on", lang), theme.ACCENT_DARK
+            bale_note.value, bale_note.color = t("pay.bale.needs_bots_on", lang), theme.WARNING
         else:
             bale_note.value, bale_note.color = t("pay.bale.flow_note", lang), theme.text_secondary(page)
 

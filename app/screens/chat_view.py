@@ -24,7 +24,7 @@ from app.core import report_pdf, report_xlsx
 from app.core.bot_manager import BotManagerError
 from app.core.conversations import ConversationSummary
 from app.i18n import STRINGS, t
-from app.screens.common import card, open_folder, page_header
+from app.screens.common import card, open_folder, page_header, screen_frame
 from app.screens.live import LiveRefresher
 
 _PLATFORM_ICON = {"telegram": ft.Icons.SEND_ROUNDED, "bale": ft.Icons.CHAT_BUBBLE_OUTLINE_ROUNDED}
@@ -157,7 +157,7 @@ def build(
             return
         reason = personal_block_reason()
         personal_note.value = reason or tp("note", lang)
-        personal_note.color = theme.ACCENT_DARK if reason else theme.text_secondary(page)
+        personal_note.color = theme.WARNING if reason else theme.text_secondary(page)
         personal_input.disabled = personal_send.disabled = personal_template.disabled = bool(reason)
 
     def on_template(e=None) -> None:
@@ -694,8 +694,8 @@ def build(
             ft.Row(
                 spacing=8,
                 controls=[
-                    ft.Icon(ft.Icons.INFO_OUTLINE_ROUNDED, color=theme.ACCENT_DARK, size=18),
-                    ft.Text(t("chats.bots_off", lang), size=13, color=theme.ACCENT_DARK),
+                    ft.Icon(ft.Icons.INFO_OUTLINE_ROUNDED, color=theme.WARNING, size=18),
+                    ft.Text(t("chats.bots_off", lang), size=13, color=theme.WARNING),
                 ],
             ),
             ft.TextButton(t("chats.open_bots", lang), on_click=lambda e: on_open_bots()),
@@ -731,16 +731,11 @@ def build(
     # ولی حاشیه‌ها همان ۲۸/۲۰ و فاصله‌ها از توکن‌هایِ تم است.
     control = ft.Container(
         expand=True,
-        padding=ft.Padding.symmetric(horizontal=28, vertical=20),
-        content=ft.Column(
-            expand=True,
-            spacing=theme.SPACE_MD,
-            controls=[
-                page_header(page, ft.Icons.FORUM_OUTLINED, t("chats.title", lang), t("chats.subtitle", lang)),
-                bots_off_banner,
-                export_row,
-                body,
-            ],
+        content=screen_frame(
+            page,
+            page_header(page, ft.Icons.FORUM_OUTLINED, t("chats.title", lang), t("chats.subtitle", lang)),
+            [bots_off_banner, export_row, body],
+            key="chats_page",
         ),
     )
     return control, refresher.stop

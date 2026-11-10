@@ -44,7 +44,7 @@ from app.core.orders import (
 )
 from app.i18n import t
 from app.screens import owner_settings, payment_settings
-from app.screens.common import card, get_or_create_file_picker, open_folder, page_header
+from app.screens.common import card, get_or_create_file_picker, open_folder, page_header, screen_frame
 
 logger = logging.getLogger(__name__)
 
@@ -223,14 +223,14 @@ def _updated_jalali(order: Order) -> str:
 
 def _status_color(status: str) -> str:
     return {
-        STATUS_PENDING_PAYMENT: theme.ACCENT_DARK,
+        STATUS_PENDING_PAYMENT: theme.WARNING,
         STATUS_PAID: theme.ACCENT,
         STATUS_CONFIRMED: theme.SUCCESS,
         STATUS_REJECTED: theme.DANGER,
         STATUS_CANCELLED: theme.DANGER,
         STATUS_EXPIRED: theme.TEXT_SECONDARY_LIGHT,
         STATUS_CLOSED: theme.TEXT_SECONDARY_LIGHT,
-    }.get(status, theme.ACCENT)
+    }.get(status, theme.INFO)
 
 
 def _format_price(amount: int, lang: str) -> str:
@@ -627,7 +627,7 @@ def build(
                             ft.Text(
                                 _s("desk.close_arm", lang) if armed else _s("desk.close_hint", lang),
                                 key=f"desk_close_hint_{order.id}", size=11.5,
-                                color=theme.ACCENT_DARK if armed else theme.text_secondary(page),
+                                color=theme.DANGER if armed else theme.text_secondary(page),
                             ),
                         ],
                     ),
@@ -695,7 +695,7 @@ def build(
             when = _updated_jalali(order)
             if when:
                 decision += _s("paystat.when", lang, when=when)
-            lines.append(ft.Text(decision, key=f"paystat_decision_{order.id}", size=12, color=theme.ACCENT_DARK))
+            lines.append(ft.Text(decision, key=f"paystat_decision_{order.id}", size=12, color=theme.INFO))
 
         if order.payment_method == METHOD_BALE_PAY:
             if order.paid_late:
@@ -783,7 +783,7 @@ def build(
                     content=ft.Column(spacing=6, controls=inner),
                 )
             )
-        rows.append(ft.Text(t("orders.receipts.manual_note", lang), size=11.5, color=theme.ACCENT_DARK))
+        rows.append(ft.Text(t("orders.receipts.manual_note", lang), size=11.5, color=theme.WARNING))
         return ft.Container(
             key=f"receipts_{order.id}",
             padding=ft.Padding.symmetric(horizontal=14, vertical=12),
@@ -1088,15 +1088,10 @@ def build(
 
     render_list()
 
-    return ft.Container(
-        expand=True,
-        padding=ft.Padding.symmetric(horizontal=32, vertical=24),
-        content=ft.Column(
-            expand=True,
-            scroll=ft.ScrollMode.AUTO,
-            spacing=18,
-            controls=[
-                page_header(page, ft.Icons.RECEIPT_LONG_ROUNDED, t("orders.title", lang), t("orders.subtitle", lang)),
+    return screen_frame(
+        page,
+        page_header(page, ft.Icons.RECEIPT_LONG_ROUNDED, t("orders.title", lang), t("orders.subtitle", lang)),
+        [
                 *(
                     [
                         owner_settings.build(page, lang, settings, manager),
@@ -1112,6 +1107,6 @@ def build(
                 error_text,
                 notice_text,
                 list_column,
-            ],
-        ),
+        ],
+        key="orders_page",
     )

@@ -35,7 +35,7 @@ _JOBS_LOCK = threading.Lock()
 _STATE_COLOR = {
     "recommended": theme.SUCCESS,
     "ok": theme.PRIMARY,
-    "tight": theme.ACCENT_DARK,
+    "tight": theme.WARNING,
     "no": theme.DANGER,
 }
 
@@ -123,7 +123,7 @@ def build_hardware_card(page: ft.Page, lang: str, hw=None, free_gb: float | None
                 common.section_header(ft.Icons.MEMORY_ROUNDED, t("ai_setup.local.hw_title", lang)),
                 block,
                 ft.Text(t("ai.local.hw_why", lang), size=12, color=theme.text_secondary(page)),
-                ft.Text(t(model_catalog.gpu_acceleration_note(hw, ai_engine.gpu_offload_available()), lang), size=12, color=theme.ACCENT_DARK, italic=True),
+                ft.Text(t(model_catalog.gpu_acceleration_note(hw, ai_engine.gpu_offload_available()), lang), size=12, color=theme.INFO, italic=True),
                 *extra,
             ],
         ),
@@ -372,7 +372,7 @@ class ModelHub:
         if state == "no":
             body.append(ft.Text(t("ai.local.no_warn", lang), size=12, color=theme.DANGER))
         elif state == "tight":
-            body.append(ft.Text(t("ai.local.tight_warn", lang), size=12, color=theme.ACCENT_DARK))
+            body.append(ft.Text(t("ai.local.tight_warn", lang), size=12, color=theme.WARNING))
 
         selectable = state != "no"
         can_download = state in ("recommended", "ok", "tight")
@@ -430,7 +430,7 @@ class ModelHub:
             ]))
         elif status == "partial":
             done_mb = downloader.partial_bytes(dest) / MB
-            body.append(ft.Text(t("ai.local.partial_note", lang, mb=f"{done_mb:.0f}"), size=12, color=theme.ACCENT_DARK))
+            body.append(ft.Text(t("ai.local.partial_note", lang, mb=f"{done_mb:.0f}"), size=12, color=theme.WARNING))
             label = t("ai.local.btn_resume", lang) if can_download else t("ai.local.btn_download_disabled", lang)
             resume_btn = common.primary_button(label, lambda e, en=entry: self.start_download(en),
                                                icon=ft.Icons.PLAY_ARROW_ROUNDED, disabled=not can_download)
@@ -548,7 +548,7 @@ class ModelHub:
                 controls=[
                     common.section_header(ft.Icons.DESCRIPTION_ROUNDED, t("ai.local.imported_title", lang)),
                     ft.Text(str(path), size=12.5, weight=ft.FontWeight.W_500, selectable=True),
-                    ft.Text(t(reason_key, lang), size=12, color=theme.SUCCESS if ready else theme.ACCENT_DARK),
+                    ft.Text(t(reason_key, lang), size=12, color=theme.SUCCESS if ready else theme.WARNING),
                     ft.Row(spacing=8, wrap=True, controls=[
                         ft.TextButton(key="catalog_back_btn", content=t("ai.local.imported_back", lang),
                                       icon=ft.Icons.ARROW_BACK_ROUNDED, icon_color=theme.PRIMARY,

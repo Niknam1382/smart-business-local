@@ -37,7 +37,9 @@
 ### Release steps
 
 1. Put the final code on `main` and make sure **Actions → CI** is green.
-2. Set the version in `app/version.py` (e.g. `1.1.0`) and add a `## [1.1.0]` section to `CHANGELOG.md`. The workflow's first
+2. Set the version in `app/version.py` (e.g. `1.1.0`) and add a `## [1.1.0]` section to `CHANGELOG.md`. Then append the
+   **previous** number to `RELEASED_VERSIONS` in `tests/test_version_consistency.py` — that list is what lets the docs keep
+   citing real history (runners check out no tags, so git alone is not enough there). The workflow's first
    step refuses a tag that does not match `app/version.py`, so bump **before** tagging.
 3. Tag and push (the tag must be exactly `v` + that version):
 
@@ -254,7 +256,9 @@ Rules that keep users safe:
 ### مراحل انتشار
 
 ۱. کدِ نهایی روی `main` و **Actions ← CI** سبز.
-۲. نسخه را در `app/version.py` بنویس (مثلاً `1.1.0`) و به `CHANGELOG.md` بخشِ `## [1.1.0]` اضافه کن — **قبل از تگ**، چون
+۲. نسخه را در `app/version.py` بنویس (مثلاً `1.1.0`) و به `CHANGELOG.md` بخشِ `## [1.1.0]` اضافه کن؛ بعد **شماره‌یِ قبلی**
+   را به `RELEASED_VERSIONS` در `tests/test_version_consistency.py` اضافه کن (مستندات باید بتوانند تاریخچه‌یِ واقعی را
+   نقل کنند؛ رانرهایِ CI هیچ تگی checkout نمی‌کنند، پس git به‌تنهایی کافی نیست) — **قبل از تگ**، چون
    اولین گامِ ورک‌فلو تگ را با `app/version.py` مقایسه می‌کنه و نخواندنش را رد می‌کنه.
 ۳. `git tag -a v1.1.0 -m "v1.1.0" && git push origin v1.1.0`.
 ۴. **Actions ← Release builds** روی هر سه سیستم‌عامل: دروازه‌ی وابستگی ← `flet pack` ← Inno Setup

@@ -128,16 +128,25 @@ def test_shipped_code_never_claims_another_version():
     assert not offenders, "عددِ نسخه‌ی غیرمنتشرشده در کدِ منتشرشده:\n" + "\n".join(sorted(offenders))
 
 
-def released_versions() -> set:
-    """نسخه‌هایی که واقعاً منتشر شده‌اند: تگِ ``vX.Y.Z`` که رویِ تاریخچه‌یِ همین شاخه نشسته باشد.
+# نسخه‌هایی که واقعاً منتشر و تگ شده‌اند. این فهرست، نه `git tag`، مرجعِ تست است:
+# incidentِ خودِ همین انتشار — رویِ رانرِ GitHub هیچ تگی checkout نمی‌شود، پس نگهبانی که فقط
+# به git نگاه می‌کرد، «۱.۰.۰» را ساختگی حساب می‌کرد و CI را قرمز می‌کرد (محلی سبز بود).
+# قاعده: موقعِ هر انتشارِ تازه، شماره‌یِ قبلی به همین فهرست اضافه می‌شه؛ عددِ تازه‌یِ بدونِ
+# انتشار همچنان قرمز می‌شه، و اگر تگِ واقعیِ همین تاریخچه هم پیدا شود، شمرده می‌شه.
+RELEASED_VERSIONS = {"1.0.0"}
 
-    تگ‌هایِ یتیم (بازمانده از تاریخچه‌یِ بازنویسی‌شده) شمرده نمی‌شن، پس سِرجُلفه‌یِ ساختگی در
-    CHANGELOG همچنان قرمز می‌شه؛ ولی «۱.۰.۰» بعد ازِ انتشارِ ۱.۱.۰ یک سوابقِ واقعی است."""
+
+def released_versions() -> set:
+    """سوابقِ انتشار: فهرستِ صریحِ بالا + هر تگِ ``vX.Y.Z`` که رویِ تاریخچه‌یِ همین شاخه باشد.
+
+    تگ‌هایِ یتیم (بازمانده از تاریخچه‌یِ بازنویسی‌شده) شمرده نمی‌شن؛ پس «۱.۲.۰» در CHANGELOG
+    تا وقتی واقعاً منتشر نشده، قرمز می‌مونه."""
+    out = set(RELEASED_VERSIONS)
     try:
         listed = subprocess.run(("git", "tag", "--list", "v[0-9]*"), cwd=str(ROOT), capture_output=True, text=True, check=True)
     except (OSError, subprocess.CalledProcessError):
-        return set()
-    out = set()
+        return out
+    # (تگ‌ها به out افزوده می‌شن؛ فهرستِ صریح هرگز حذف نمی‌شه)
     for line in listed.stdout.splitlines():
         tag = line.strip()
         if not tag:

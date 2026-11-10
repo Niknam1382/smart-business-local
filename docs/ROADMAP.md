@@ -2,6 +2,13 @@
 
 ## English
 
+**Shipped in v1.1.0** — NVIDIA acceleration inside the same single build (verified pack download + automatic rollback to
+CPU when the frozen build rejects a GPU), an operational-settings control panel in the button admin panel (no typed
+commands for the owner), an order workspace (message the customer, send them a file, close the order), per-customer AI
+limits with a top-consumers view, editable invoice texts with a sample invoice, a card-to-card step that asks only for the
+receipt, a ✕ that finally obeys the owner's choice, and a visual-consistency pass (button scale, semantic colours, neutral
+scrollbar, home layout no longer overflows).
+
 **Shipped in v1.0.0 (the first public release)** — Button shop (catalog, cart, configurable checkout form, tracking) · bulk Excel import
 through a template the app itself builds · custom buttons & FAQ · human support hand-off with working hours · editable
 bilingual bot texts · crash-safe order confirmation · versioned migrations · privacy tools (`/forget`, `/stop`,
@@ -27,7 +34,7 @@ and troubleshooter · Jalali dates everywhere · the AI lost every write tool (o
 frozen per order so old invoices never change, with a “shipping charged” line in the ledger and on the finance
 dashboard) · a delivery track for confirmed orders (preparing → shipped → delivered, tracking code included, never
 touching the money) · a read-only payment-status panel on every paid order · global search across orders, products and
-customers from one box · the 11th prompt template (“store rules”) · Excel and PDF export of every list · 2223 tests.
+customers from one box · the 11th prompt template (“store rules”) · Excel and PDF export of every list · 2326 tests.
 
 **Next release candidates**
 
@@ -59,6 +66,12 @@ customers from one box · the 11th prompt template (“store rules”) · Excel 
 
 ## فارسی
 
+**انجام‌شده در ۱.۱.۰** — شتابِ کارتِ گرافیکی در همان یک نصب (دانلودِ بستهٔ راستی‌آزمایی‌شده + برگشتِ خودکار به CPU
+اگر بیلد GPU را نپذیرفت)، کنترل‌پنلِ تنظیماتِ عملیاتی داخلِ پنلِ دکمه‌ای (مالک دیگر فرمان تایپ نمی‌کند)، میزِ کارِ
+سفارش (پیام به مشتری، فرستادنِ فایل، بستنِ سفارش)، سقفِ هوش مصنوعی برای هر مشتری با نمایِ پرمصرف‌ها، متن‌هایِ
+قابل‌ویرایشِ فاکتور به‌همراه فاکتورِ نمونه، مرحلهٔ کارت‌به‌کارت که جز رسید چیزی نمی‌خواهد، ✕ای که انتخابِ مالک را
+احترام می‌گذارد، و یک دستِ نظمِ ظاهری (مقیاسِ دکمه‌ها، رنگ‌هایِ معنایی، اسکرولِ خنثی، رفعِ بیرون‌زدگیِ صفحهٔ اصلی).
+
 **انجام‌شده در ۱.۰.۰ (نخستین انتشارِ عمومی)** — فروشگاهِ دکمه‌ای (کاتالوگ، سبد، فرمِ سفارشِ قابل‌تنظیم، پیگیری) · وارداتِ دسته‌ایِ اکسل با
 قالبی که خودِ برنامه می‌سازد · دکمه‌های سفارشی و سؤالات متداول · پشتیبانیِ انسانی با ساعتِ کاری · متن‌های دوزبانه‌ی
 قابلِ ویرایش · تأییدِ سفارشِ ضدِ کرش · مهاجرتِ نسخه‌دار · ابزارهای حریمِ خصوصی (`/forget`، `/stop`، نگه‌داریِ داده) ·
@@ -84,7 +97,7 @@ customers from one box · the 11th prompt template (“store rules”) · Excel 
 هر سفارش تا فاکتورهایِ قدیمی عوض نشوند، با خطِ «کرایه‌ی ارسال» در دفتر و داشبوردِ مالی) · مسیرِ «در دستِ ارسال» برای
 سفارش‌های تأییدشده (آماده‌سازی ← ارسال ← تحویل، با کد رهگیری و بدونِ دست‌زدن به پول) · کارتِ فقط‌خواندنیِ «وضعیتِ
 پرداخت» روی هر سفارشِ پرداخت‌شده · جست‌وجوی سراسری در سفارش/مشتری/محصول در یک کادر · یازدهمین قالبِ پرامپت
-(«قوانینِ فروشگاه») · خروجِ اکسل و PDF از هر فهرست · ۲۲۲۳ تست.
+(«قوانینِ فروشگاه») · خروجِ اکسل و PDF از هر فهرست · ۲۳۲۶ تست.
 
 **بعدی (کاندیدهای انتشارِ بعد)**
 

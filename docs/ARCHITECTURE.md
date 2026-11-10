@@ -5,7 +5,7 @@ Smart Business Local is a single-process desktop app (Flet UI) that runs a Teleg
 account. Bale is **not** a messenger any more — it survives only as the **Bale Pay** payment gateway. This document
 describes how the pieces fit and — most importantly — the invariants that keep money and stock safe.
 
-## What this release is (1.0.0)
+## What this release is (1.1.0)
 
 | Cut during development — **not in this code** | What the code does instead |
 |---|---|
@@ -151,6 +151,34 @@ Concurrency invariants are tested with threads. What cannot be tested offline �
 behaviour, and real model quality on real hardware — has to be checked on each installation by walking through one
 real purchase with a small amount (owner guide: `docs/SHOP_SETUP.fa.md`).
 
+
+## v1.1.0 additions
+
+```
+Owner ──► admin panel ──► settings_fields.FIELDS ──► validator ──► AppSettings ──► audit log
+Order workspace (screens/orders.py) ──► send_to_customer / send_file_to_customer (strict path)
+                                   └─► OrderStore.close()  →  status "closed" (terminal; no new money path)
+GPU pack (gpu_pack.py) ──► downloader (pinned URL + SHA-256, resume) ──► data/gpu/*.dll
+        └─► probe the frozen build itself ──► activate | roll back to CPU ──► ai_engine.auto_gpu_layers
+UsageLimiter ──► conversations.daily_ai_limit (per customer; NULL = global, 0 = no AI) ──► chat view
+Invoice ──► seller-name chain (invoice_seller_name → user_name → invoice_seller_fallback → "فروشگاه")
+        └─► owner label overrides + invoice_disclaimer/invoice_thanks ──► preview_invoice() sample PDF
+```
+
+Four things worth knowing when reading this code:
+
+- **The window API is async.** `Window.close()`/`destroy()` are coroutine functions in Flet 1.0, so anything that
+  wants to quit must go through `page.run_task(...)`; dialogs use `show_dialog`/`pop_dialog`, not `page.overlay`.
+  `tests/test_window_close.py` builds a page with that real shape precisely because a duck-typed fake let the bug ship.
+- **The GPU pack is optional at runtime, never at build time.** CI has no GPU and cannot produce a CUDA wheel, so the
+  pack is downloaded and verified on the owner's machine and *the frozen build is asked* whether a GPU is usable.
+  A refused probe rolls the pack back — the app never leaves a broken engine selected.
+- **Panel settings are a table, not code.** `app/core/settings_fields.py` declares type, range, labels and capability per
+  field; the panel renders and writes through that table, so a forged callback can only ever hit a declared field and
+  a declared range. `settings.edit` is owner-only unless the owner grants it.
+- **`closed` is a terminal order status.** It removes the order from the working list and marks it eligible for the
+  retention sweep; it deliberately has no outgoing transition, because re-opening a settled order would need money
+  and stock rules that this release does not define.
 
 ## v1.0.0 additions
 

@@ -17,7 +17,7 @@ The AI is a local model, so there is no server to rent, no API bill, and no cust
 ![Runs from source on macOS](https://img.shields.io/badge/macOS-from%20source-orange)
 ![AI](https://img.shields.io/badge/AI-local%20GGUF%20only-green)
 ![Messenger](https://img.shields.io/badge/messenger-Telegram-2CA5E0)
-![Version](https://img.shields.io/badge/version-1.0.0-informational)
+![Version](https://img.shields.io/badge/version-1.1.0-informational)
 
 [English](#english) · [فارسی](#فارسی) · [Download](#download) · [Changelog](CHANGELOG.md) · [Roadmap](docs/ROADMAP.md) · [License](LICENSE)
 
@@ -54,8 +54,8 @@ runs on it too (llama.cpp, GGUF files).
 | 📝 **Your checkout form** | Choose which fields to ask (name, phone, address, postal code, e-mail, choices, custom) — required or optional, per your shop. |
 | 📥 **Bulk Excel import** | The app builds a real `.xlsx` template (name, price, stock, category, description, cost); fill it in Excel and import it back. Bad rows are reported by row number, good ones are saved in one transaction. CSV works too. |
 | 🔘 **Guide & FAQ inside support** | Help and your FAQ live under the *Contact support* button, next to your custom buttons (link, text reply, contact card). |
-| 🙋 **Human support** | A customer taps *talk to a human* and their messages reach you from then on; you answer by *Reply* in Telegram. Working hours and auto-close included. |
-| 🌐 **Persian & English** | All 213 bot messages are editable and bilingual; the reply language can follow the customer; every date is Jalali. |
+| 🙋 **Human support** | A customer taps *talk to a human* and their messages reach you from then on; you answer with the *Reply* button on Telegram or Bale. Working hours and auto-close included. |
+| 🌐 **Persian & English** | All 218 bot messages are editable and bilingual; the reply language can follow the customer; every date is Jalali. |
 | ⏳ **Stock reservation** | An order awaiting payment holds its quantity (15 minutes by default); two customers can never reserve the last item. |
 | 📦 **Delivery status** | A confirmed order gets its own track — preparing → shipped → delivered — with an optional tracking code, completely separate from the money. The customer sees it under *My orders*, and if you switch it on, a short "it has been sent" message goes out with the code. |
 | 💳 **Two payment methods — both to *your* accounts** | Card-to-card (manual confirmation) and **Bale Pay** (a payment gateway). No money flows through the app and it takes no cut. |
@@ -70,6 +70,7 @@ runs on it too (llama.cpp, GGUF files).
 | 🛡 **Guardrails you cannot delete** | The app appends fixed rules to every prompt (limits, menu map, tone, privacy, content boundaries) and shows you exactly what the model will read. |
 | 📊 **Excel and PDF export** | Every list you can see (customers, orders, finance report, products, conversations) becomes an RTL Excel or PDF file in the `reports` folder with two buttons. |
 | 📚 **Built-in guide** | An offline, searchable Persian guide (185 articles: 25 troubleshooting, 58 FAQ), a **?** button on every page and an automatic troubleshooter. |
+| 🚀 **What 1.1.0 added** | One build that can compute on your NVIDIA card (a SHA-256-verified accelerator pack it downloads itself, with an automatic rollback to CPU), a button-driven control panel for operational settings, an order workspace to message a customer, send them a file and close the order, per-customer AI limits with a top-consumers view, editable invoice texts plus a sample invoice, a card-to-card step that asks only for the receipt, and a ✕ that finally does what you chose. |
 
 ### Download
 
@@ -131,9 +132,11 @@ virtual environment, install the dependencies and start the app. Architecture an
   A finished file is checked against a pinned SHA-256; a corrupt or substituted file is refused, never loaded.
 - **Your own file.** If every source is blocked, take the GGUF from a friend or a manual download and use *Import a
   model file*; the app validates that it really is a GGUF (extension, size, magic header) before accepting it.
-- **CPU by default.** The official build computes on the CPU, so an NVIDIA GPU does not speed it up unless you install
-  a CUDA build yourself and raise the GPU-layers setting in the advanced panel. The app asks the installed runtime
-  instead of guessing from the card name, and the built-in guide has the step-by-step CUDA setup.
+- **CPU unless you accept the accelerator pack.** The shipped engine computes on the CPU. When an NVIDIA card is
+  detected, the *GPU acceleration* card offers the CUDA pack from the official llama.cpp release: pinned URL and
+  SHA-256 for every file, a resumable download, activation, and then the app asks the runtime itself whether a GPU is
+  really usable — if it is not, it rolls straight back to CPU and says so. Proof on real hardware is yours to make: the
+  CI runners have no GPU, so that part stays NOT RUN here.
 - **Advanced panel.** Model folder, context tokens, thread count, GPU layers, per-customer and daily reply caps and an
   emergency kill switch. Caps slow the AI down; buttons, carts, orders and payments are never blocked by them.
 - **No cost, but there is time.** A local model costs electricity and CPU seconds, so the *Usage* page reports tokens,
@@ -239,11 +242,11 @@ died (let Docker restart it), `2` no bot configured, `3` data written by a newer
 
 ### Project status
 
-**This is the first public release (1.0.0)**: local-only AI, Telegram as the main messenger (an optional, independent Bale
+**The current release is 1.1.0** (the first public line was 1.0.0): local-only AI, Telegram and Bale as chat messengers (an optional, independent Bale
 chat on top of it), Bale Pay as the only gateway
 besides card-to-card, a four-button customer menu and a central prompt studio. The version string lives in
 `app/version.py` and a release tag must match it; see [CHANGELOG](CHANGELOG.md) for what shipped and what was cut. The
-automated suite (2223 tests in 107 files) runs against fake Telegram and fake Bale-pay servers and covers the shop,
+automated suite (2326 tests in 111 files) runs against fake Telegram and fake Bale-pay servers and covers the shop,
 payments, receipts, fulfilment, support, migrations, backups, proxies, headless mode, report exports, injection and
 abuse cases.
 **Verification against real bots and a real gateway still has to be done per installation** — run one complete purchase
@@ -277,8 +280,8 @@ with a small amount before you take real money. Bugs and ideas: Issues.
 | 📝 **فرمِ سفارشِ خودت** | انتخاب کن چه چیزهایی پرسیده شود (نام، موبایل، آدرس، کدپستی، ایمیل، گزینه‌ای، دلخواه) و هرکدام اجباری باشد یا اختیاری. |
 | 📥 **وارداتِ دسته‌ایِ اکسل** | برنامه یک قالبِ `.xlsx` واقعی می‌سازد (نام، قیمت، موجودی، دسته، توضیحات، بهای تمام‌شده)؛ در اکسل پرش کن و همان فایل را وارد کن. سطرِ خراب با شماره‌ی سطر گزارش می‌شه و سطرهایِ سالم در یک تراکنش ذخیره می‌شن. CSV هم می‌شه. |
 | 🔘 **راهنما و سؤالات متداول زیرِ پشتیبانی** | راهنما و پرسش‌هایِ پرتکرار مشتری زیرِ دکمه‌ی «ارتباط با پشتیبانی» می‌مانند، کنارِ دکمه‌هایِ سفارشیِ خودت (لینک، پاسخ متنی، کارتِ تماس). |
-| 🙋 **پشتیبانیِ انسانی** | مشتری «حرف زدن با پشتیبان» را می‌زند و از آن لحظه پیام‌هایش به تو می‌رسد؛ با Reply در تلگرام جواب می‌دهی؛ ساعتِ کاری و بسته‌شدنِ خودکار هم دارد. |
-| 🌐 **فارسی و انگلیسی** | هر ۲۱۳ پیامِ ربات قابلِ ویرایش و دوزبانه است؛ زبانِ پاسخ می‌تواند از پیامِ مشتری انتخاب شود و همه‌ی تاریخ‌ها جلالی است. |
+| 🙋 **پشتیبانیِ انسانی** | مشتری «حرف زدن با پشتیبان» را می‌زند و از آن لحظه پیام‌هایش به تو می‌رسد؛ با دکمهٔ Reply در تلگرام یا بله جواب می‌دهی؛ ساعتِ کاری و بسته‌شدنِ خودکار هم دارد. |
+| 🌐 **فارسی و انگلیسی** | هر ۲۱۸ پیامِ ربات قابلِ ویرایش و دوزبانه است؛ زبانِ پاسخ می‌تواند از پیامِ مشتری انتخاب شود و همه‌ی تاریخ‌ها جلالی است. |
 | ⏳ **رزروِ موجودی** | سفارشِ منتظرِ پرداخت تعدادش را (پیش‌فرض ۱۵ دقیقه) نگه می‌دارد؛ دو مشتری هیچ‌وقت آخرین کالا را هم‌زمان رزرو نمی‌کنند. |
 | 📦 **وضعیتِ ارسالِ کالا** | سفارشِ تأییدشده مسیرِ جدایی دارد: آماده‌سازی ← ارسال شد ← تحویل داده شد، با کد رهگیریِ اختیاری و هیچ ارتباطی با پول. مشتری همین را در «سفارش‌های من» می‌بیند و اگر روشنش کنی، پیامِ کوتاهِ «ارسال شد» همراه کد برایش می‌رود. |
 | 💳 **دو روشِ پرداخت — هر دو به حسابِ خودت** | کارت‌به‌کارت (تأییدِ دستی) و **بله‌پی** (درگاهِ پرداخت)؛ هیچ پولی از برنامه عبور نمی‌کند و سهمی هم نمی‌گیرد. |
@@ -293,6 +296,7 @@ with a small amount before you take real money. Bugs and ideas: Issues.
 | 🛡 **گاردریل‌های حذف‌نشدنی** | برنامه به هر پرامپت پنج قطعه‌ی ثابت اضافه می‌کند (حدودِ کار، منو، لحن، حریم، مرزها) و پیش‌نمایشِ همان چیزی را که مدل می‌خواند به تو نشان می‌دهد. |
 | 📊 **خروجیِ اکسل و PDF** | هر فهرستی که می‌بینی (مشتریان، سفارش‌ها، کارنامه‌ی مالی، محصولات، گفتگوها) با دو دکمه به فایلِ اکسل یا PDFِ راست‌به‌چپ درپوشه‌ی `reports` درمی‌آید. |
 | 📚 **راهنمای داخلِ برنامه** | راهنمای آفلاین و قابلِ جستجو به فارسی (۱۸۵ مقاله؛ ۲۵ عیب‌یابی و ۵۸ پرسشِ متداول)، دکمه‌ی **؟** کنارِ هر صفحه و یک عیب‌یابِ خودکار. |
+| 🚀 **۱.۱.۰ چه اضافه کرد** | یک نصب که می‌تواند روی کارتِ NVIDIA حساب کند (بستهٔ شتاب با راستی‌آزماییِ SHA-256 که خودش دانلود می‌کند و اگر بیلد نپذیرفت خودکار به CPU برمی‌گردد)، کنترل‌پنلِ دکمه‌ایِ تنظیماتِ عملیاتی، میزِ کارِ سفارش برای پیام دادن به مشتری، فرستادنِ فایل و بستنِ سفارش، سقفِ هوش مصنوعی برای هر مشتری با نمایِ پرمصرف‌ها، متن‌هایِ قابل‌ویرایشِ فاکتور به‌همراه فاکتورِ نمونه، مرحلهٔ کارت‌به‌کارت که جز رسید چیزی نمی‌خواهد، و ✕ای که سرانجام همان کاری را می‌کند که خودت انتخاب کرده‌ای. |
 
 ### دانلود
 
@@ -354,9 +358,10 @@ python -m pytest         # کلِ تست‌ها — بدونِ اینترنت و
   تمام‌شده با اثرانگشتِ SHA-256ِ ثبت‌شده سنجیده می‌شود و فایلِ خراب یا دستکاری‌شده هرگز بارگذاری نمی‌شود.
 - **فایلِ خودت.** اگر هیچ منبعی باز نشد، فایل را از دوستت یا دانلودِ دستی بگیر و با «وارد کردن فایلِ مدل» به برنامه
   نشان بده؛ برنامه اول می‌سنجد که واقعاً یک فایلِ GGUF باشد.
-- **پیش‌فرض روی پردازنده.** بیلدِ رسمی محاسبه را روی CPU انجام می‌دهد، پس کارتِ گرافیکیِ NVIDIA بدونِ نصبِ نسخه‌ی CUDA
-  سرعت را زیاد نمی‌کند و برنامه این را صادقانه می‌نویسد: به‌جای حدس‌زدن از نامِ کارت، از خودِ موتور می‌پرسه و راهنمایِ
-  داخلِ برنامه هم قدم‌به‌قدم فعال‌کردن CUDA را توضیح می‌دهد.
+- **CPU مگر بستهٔ شتاب را بخواهی.** موتورِ این نصب روی CPU حساب می‌کند. اگر کارتِ NVIDIA پیدا شود، کارتِ «شتابِ
+  گرافیکی» بستهٔ CUDA را از انتشارِ رسمیِ llama.cpp پیشنهاد می‌کند: آدرس و SHA-256ِ پیون‌شده برای هر فایل، دانلودِ
+  قابلِ ادامه و فعال‌سازی — و بعد برنامه از خودِ موتور می‌پرسد که گرافیک واقعاً در دسترس است؛ اگر نبود، بی‌درنگ به CPU
+  برمی‌گردد و همین را می‌نویسد. اثباتِ نهایی روی سخت‌افزارِ خودت است: رانرهایِ CI کارتِ گرافیکی ندارند.
 - **پنلِ پیشرفته.** پوشه‌ی مدل، توکن‌هایِ زمینه، تعدادِ رشته‌ها، لایه‌های GPU، سقفِ پاسخ به هر مشتری در روز، سقفِ کلِ
   پاسخ‌ها و کلیدِ خاموشیِ اضطراری. سقف‌ها فقط مدل را محدود می‌کنند؛ دکمه‌ها، سبد، سفارش و پرداخت هرگز خاموش نمی‌شوند.
 - **هزینه‌اش پول نیست، زمان است.** چون مدل محلی است قبضی ندارد؛ صفحه‌ی «مصرف» توکن، میلی‌ثانیه‌ی هر پاسخ و زمانِ هر
@@ -459,10 +464,10 @@ docker compose up -d                                   # پوشه‌ی ./data ر
 
 ### وضعیتِ پروژه
 
-این **نخستین انتشارِ عمومی است (۱.۰.۰)**: هوش مصنوعی فقط محلی، تلگرام پیام‌رسانِ اصلی (چتِ بله اختیاری و مستقل)، بله‌پی تنها درگاهِ علاوه بر
+این **نسخه‌ی ۱.۱.۰ است** (نخستین انتشارِ عمومی ۱.۰.۰ بود): هوش مصنوعی فقط محلی، تلگرام و بله هر دو پیام‌رسانِ گفتگو (چتِ بله اختیاری و مستقل)، بله‌پی تنها درگاهِ علاوه بر
 کارت‌به‌کارت، منویِ مشتری با دقیقاً چهار دکمه و یک استودیویِ مرکزیِ پرامپت. عددِ نسخه در فایلِ `app/version.py` زندگی
 می‌کند و تگِ انتشار باید همان باشد؛ چه چیزی آمد و چه چیزی حذف شد را در [CHANGELOG](CHANGELOG.md) بخوان.
-مجموعه‌تستِ خودکار (۲۲۲۳ تست در ۱۰۷ فایل) روی سرورهایِ جعلیِ تلگرام و درگاهِ بله اجرا می‌شود و فروشگاه، پرداخت، رسید،
+مجموعه‌تستِ خودکار (۲۳۲۶ تست در ۱۱۱ فایل) روی سرورهایِ جعلیِ تلگرام و درگاهِ بله اجرا می‌شود و فروشگاه، پرداخت، رسید،
 وضعیتِ ارسال، پشتیبانی، مهاجرت، پشتیبان، پروکسی، حالتِ بی‌پنجره، خروجیِ گزارش، تزریقِ پرامپت و حالت‌هایِ سوءاستفاده را پوشش می‌دهد.
 **راستی‌آزمایی با رباتِ واقعی و درگاهِ واقعی هنوز باید برای هر نصب انجام شود** — قبل از پولِ واقعی، یک خریدِ کامل را با
 مبلغِ کم از اول تا آخر انجام بده. باگ و ایده: بخشِ Issues.

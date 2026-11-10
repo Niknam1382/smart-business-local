@@ -1,4 +1,4 @@
-# Building & releasing · ساخت و انتشار (نسخه‌ی ۱.۰.۰)
+# Building & releasing · ساخت و انتشار (نسخه‌ی ۱.۱.۰)
 
 > **Status.** `.github/workflows/release.yml` builds **Windows and Linux** on GitHub's real runners. It has
 > run on GitHub: the Windows job (installer + single file) and the Linux job (`tar.gz` + checksums) are
@@ -37,13 +37,13 @@
 ### Release steps
 
 1. Put the final code on `main` and make sure **Actions → CI** is green.
-2. Set the version in `app/version.py` (e.g. `1.0.0`) and update `CHANGELOG.md`. The workflow's first
+2. Set the version in `app/version.py` (e.g. `1.1.0`) and add a `## [1.1.0]` section to `CHANGELOG.md`. The workflow's first
    step refuses a tag that does not match `app/version.py`, so bump **before** tagging.
 3. Tag and push (the tag must be exactly `v` + that version):
 
 ```bash
-git tag -a v1.0.0 -m "v1.0.0"
-git push origin v1.0.0
+git tag -a v1.1.0 -m "v1.1.0"
+git push origin v1.1.0
 ```
 
 4. **Actions → Release builds** runs on the three OSes: dependency gate → `flet pack` (PyInstaller) →
@@ -112,7 +112,7 @@ shasum -a 256 -c SHA256SUMS.txt
 
 ```powershell
 # Windows (PowerShell) — compare the printed hash with SHA256SUMS.txt
-Get-FileHash -Algorithm SHA256 .\SmartBusinessLocal-1.0.0-windows-setup.exe
+Get-FileHash -Algorithm SHA256 .\SmartBusinessLocal-1.1.0-windows-setup.exe
 ```
 
 Hashes are published in the same GitHub Release, so they prove *integrity* (a corrupt or tampered
@@ -125,7 +125,7 @@ pip install -r requirements-dev.txt
 flet pack run.py --name SmartBusinessLocal --add-data "assets:assets" \
   --pyinstaller-build-args=--collect-all=llama_cpp -y        # Windows: --add-data "assets;assets"
 # Windows only, before packaging: installer/SmartBusinessLocal.iss → release/
-iscc /DAppVersion=1.0.0 installer\SmartBusinessLocal.iss
+iscc /DAppVersion=1.1.0 installer\SmartBusinessLocal.iss
 python scripts/package_release.py --os linux --dist dist --out release    # windows | macos | linux
 ```
 
@@ -220,10 +220,10 @@ python scripts/make_signing_key.py --passphrase   # writes the private key OUTSI
 Per release (≈ 30 s), after the workflow published the Release:
 
 ```
-python scripts/sign_release.py v1.0.0   # downloads SHA256SUMS.txt, signs it, writes SHA256SUMS.txt.sig
+python scripts/sign_release.py v1.1.0   # downloads SHA256SUMS.txt, signs it, writes SHA256SUMS.txt.sig
 # add --passphrase ONLY if the key file itself is encrypted; this project's key is not, and
 # passing the flag then makes signing fail with "کلید خوانده نشد (رمز اشتباه است یا فایل خراب)".
-# GitHub → Releases → v1.0.0 → Edit → attach SHA256SUMS.txt.sig → Update release
+# GitHub → Releases → v1.1.0 → Edit → attach SHA256SUMS.txt.sig → Update release
 ```
 
 Rules that keep users safe:
@@ -254,9 +254,9 @@ Rules that keep users safe:
 ### مراحل انتشار
 
 ۱. کدِ نهایی روی `main` و **Actions ← CI** سبز.
-۲. نسخه را در `app/version.py` بنویس (مثلاً `1.0.0`) و `CHANGELOG.md` را به‌روز کن — **قبل از تگ**، چون
+۲. نسخه را در `app/version.py` بنویس (مثلاً `1.1.0`) و به `CHANGELOG.md` بخشِ `## [1.1.0]` اضافه کن — **قبل از تگ**، چون
    اولین گامِ ورک‌فلو تگ را با `app/version.py` مقایسه می‌کنه و نخواندنش را رد می‌کنه.
-۳. `git tag -a v1.0.0 -m "v1.0.0" && git push origin v1.0.0`.
+۳. `git tag -a v1.1.0 -m "v1.1.0" && git push origin v1.1.0`.
 ۴. **Actions ← Release builds** روی هر سه سیستم‌عامل: دروازه‌ی وابستگی ← `flet pack` ← Inno Setup
    (ویندوز) ← `scripts/package_release.py`. وقتی همه سبز شدن، Release ساخته می‌شه و همه‌ی فایل‌ها به‌علاوه‌ی
    یک `SHA256SUMS.txt`ِ جامع پیوست می‌شن.
@@ -317,7 +317,7 @@ Releaseِ بی‌امضا فقط صفحه‌ی دانلود را باز می‌�
 
 یک‌بار (فقط یک‌بار): `python scripts/make_signing_key.py --passphrase` (کلیدِ خصوصی بیرون از مخزن
 ساخته می‌شه؛ کلیدِ عمومی چاپ می‌شه) ← آن خط را در `app/branding.py` بگذار و commit کن ← بعد از هر Release:
-`python scripts/sign_release.py v1.0.0` (کلیدِ این ماشین بی‌رمز است؛ اگر بعداً کلیدِ رمزدار ساختی
+`python scripts/sign_release.py v1.1.0` (کلیدِ این ماشین بی‌رمز است؛ اگر بعداً کلیدِ رمزدار ساختی
 فقط همان‌وقت `--passphrase` اضافه کن، وگرنه امضا با «کلید خوانده نشد» می‌شکنه) ← فایلِ
 `SHA256SUMS.txt.sig` را به Release پیوست کن.
 کلیدِ خصوصی را هرگز در گیت/زیپ/چت/ایمیل نذار و چند پشتیبانِ آفلاین ازش داشته باش؛ لو رفت ⇒ کلیدِ تازه +

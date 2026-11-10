@@ -1,5 +1,5 @@
 ﻿; نصب‌کننده‌ی ویندوز (Inno Setup 6.3+) — توسط .github/workflows/release.yml ساخته می‌شه:
-;   ISCC /DAppVersion=1.0.0 installer\SmartBusinessLocal.iss     (از ریشه‌ی پروژه، بعد از «flet pack» و *قبل* از package_release.py)
+;   ISCC /DAppVersion=1.1.0 installer\SmartBusinessLocal.iss     (از ریشه‌ی پروژه، بعد از «flet pack» و *قبل* از package_release.py)
 ; The Windows installer is built by release.yml; scripts/package_release.py then picks the produced
 ; SmartBusinessLocal-<v>-windows-setup.exe up and puts it in SHA256SUMS.txt.
 ;

@@ -12,9 +12,9 @@
 6. `Settings → Actions → General`: اجازه‌ی اجرای workflowها. `Security`: فعال‌کردنِ Dependabot و Private vulnerability reporting.
 
 ## ۲) انتشار (Release)
-1. `app/version.py` و `CHANGELOG.md` رو به‌روز کن (هدف: `1.0.0`) — **قبل از تگ**، چون ورک‌فلو تگ را با `app/version.py` مقایسه می‌کنه و نخواندنش ساخت را متوقف می‌کنه.
-2. `git tag -a v1.0.0 -m "v1.0.0" && git push origin v1.0.0` (یا از GitHub Desktop: Create tag). workflowِ **Release builds** روی ویندوز و لینوکس می‌سازه و این فایل‌ها را به Release پیوست می‌کنه:
-   `SmartBusinessLocal-1.0.0-windows-setup.exe` · `…-windows.exe` · `…-linux.tar.gz` · `SHA256SUMS.txt`.
+1. `app/version.py` و `CHANGELOG.md` رو به‌روز کن (هدف: `1.1.0`) — **قبل از تگ**، چون ورک‌فلو تگ را با `app/version.py` مقایسه می‌کنه و نخواندنش ساخت را متوقف می‌کنه.
+2. `git tag -a v1.1.0 -m "v1.1.0" && git push origin v1.1.0` (یا از GitHub Desktop: Create tag). workflowِ **Release builds** روی ویندوز و لینوکس می‌سازه و این فایل‌ها را به Release پیوست می‌کنه:
+   `SmartBusinessLocal-1.1.0-windows-setup.exe` · `…-windows.exe` · `…-linux.tar.gz` · `SHA256SUMS.txt`.
    **باینریِ macOS ساخته نمی‌شه** (روی رانرِ آرمِ مک `llama-cpp-python` wheelِ آماده ندارد و بیلد از سورس می‌شکنه)؛ کاربرِ مک با `bash scripts/run-from-source.sh` از سورس اجراش می‌کنه. علت و راه برگرداندنِ بیلدِ مک در [`RELEASING.md`](RELEASING.md) است.
    **نسخه‌ی قابل‌حمل (فلش) وجود ندارد** — هیچ `portable.flag` / `SmartBusinessData/` / zipِ portable نمی‌سازه؛ همه‌ی داده‌ها توی پوشه‌ی استانداردِ سیستم (`%APPDATA%\SmartBusinessLocal` و معادل‌هایش) می‌مونن. (جزئیات: [`RELEASING.md`](RELEASING.md))
 3. فایل‌های Release را روی یک ویندوزِ تمیز تست کن (نصب‌کننده و exe تک‌فایل) — SmartScreen هشدار می‌ده؛ طبیعی‌ه (امضای دیجیتال نداریم). روی لینوکس `tar -xzf …` (مجوز اجرا داخلِ tar هست، `chmod` لازم نیست).
@@ -25,7 +25,7 @@
 نصبِ یک‌کلیکی فقط برای نسخه‌ای کار می‌کنه که فایلِ امضای Ed25519 (`SHA256SUMS.txt.sig`) داشته باشه و با **کلیدِ عمومیِ داخلِ برنامه** بخونه. کلیدِ عمومیِ سازنده از همین نخستین انتشار در `app/branding.py` (`UPDATE_PUBLIC_KEY_B64`) گذاشته شده، پس به‌محضِ امضاکردنِ همین Release، نصبِ خودکار برای کاربران فعال است؛ هر فایلِ بی‌امضا هرگز خودکار نصب نمی‌شود و فقط صفحه‌ی دانلود باز می‌شه.
 1. یک‌بار، روی کامپیوترِ خودت: `python scripts/make_signing_key.py --passphrase` ← کلیدِ **خصوصی** بیرون از پوشه‌ی پروژه ساخته می‌شه و کلیدِ **عمومی** (یک خطِ `UPDATE_PUBLIC_KEY_B64 = "…"`) چاپ می‌شه.
 2. آن خط را در `app/branding.py` بگذار، commit کن و **همان نسخه** را منتشر کن (اگر کلید عوض شود، کاربرانِ نسخه‌ی قبلی دیگر امضایِ تو را می‌سنجند و باید دستی ارتقا بگیرند).
-3. بعد از هر Release (وقتی workflow تمام شد): `python scripts/sign_release.py v1.0.0` ← فایلِ `SHA256SUMS.txt.sig` ساخته می‌شه (`--passphrase` فقط اگر خودِ فایلِ کلید رمز داشته باشه؛ کلیدِ این ماشین ندارد); در GitHub ← Releases ← Edit ← همان فایل را پیوست کن.
+3. بعد از هر Release (وقتی workflow تمام شد): `python scripts/sign_release.py v1.1.0` ← فایلِ `SHA256SUMS.txt.sig` ساخته می‌شه (`--passphrase` فقط اگر خودِ فایلِ کلید رمز داشته باشه؛ کلیدِ این ماشین ندارد); در GitHub ← Releases ← Edit ← همان فایل را پیوست کن.
 4. **کلیدِ خصوصی را هرگز** در repo، زیپ، چت یا ایمیل نگذار؛ چند نسخه‌ی آفلاین (فلش، مدیرِ رمز) نگه دار. گم شد ⇒ دیگر نمی‌تونی امضا کنی؛ لو رفت ⇒ کلیدِ تازه بساز و نسخه‌ی بعد را دستی منتشر کن. جزئیات: [`RELEASING.md`](RELEASING.md).
 *English: this first release already ships the author's Ed25519 public key in `app/branding.py`, so as soon as a Release carries `SHA256SUMS.txt.sig` its update installs with one click. To sign: run `scripts/make_signing_key.py --passphrase` once, paste the printed public key into `app/branding.py`, release that version, then after every release run `scripts/sign_release.py <tag>` (add `--passphrase` only if the key file itself is encrypted) and attach the produced `SHA256SUMS.txt.sig` to the Release. A build with no signature is never auto-installed — the app only opens the download page. Never share the private key.*
 

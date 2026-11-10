@@ -115,6 +115,7 @@ def test_shipped_code_never_claims_another_version():
     """هیچ فایلِ ``app/`` یا ``scripts/`` عددِ نسخه‌ی دیگری (لاتین یا فارسی) در خود ندارد، پس
     نه صفحه‌ی «درباره»، نه راهنما و نه بسته‌بندی می‌توانند نسخه‌ای جز ``app/version.py`` بگویند."""
     offenders = []
+    HISTORY = released_versions() | {_latin(__version__)}  # سوابقِ انتشارِ واقعی + نسخه‌یِ امروز
     for folder in ("app", "scripts"):
         for path in (ROOT / folder).rglob("*.py"):
             rel = path.relative_to(ROOT).as_posix()
@@ -122,9 +123,34 @@ def test_shipped_code_never_claims_another_version():
                 continue
             text = path.read_text(encoding="utf-8", errors="ignore")
             for number in _numbers(text):
-                if _latin(number) != __version__:
+                if _latin(number) not in HISTORY:
                     offenders.append(f"{rel}:{_line_of(text, number)} → {number}")
-    assert not offenders, "عددِ نسخه‌ی دیگری در کدِ منتشرشده:\n" + "\n".join(sorted(offenders))
+    assert not offenders, "عددِ نسخه‌ی غیرمنتشرشده در کدِ منتشرشده:\n" + "\n".join(sorted(offenders))
+
+
+def released_versions() -> set:
+    """نسخه‌هایی که واقعاً منتشر شده‌اند: تگِ ``vX.Y.Z`` که رویِ تاریخچه‌یِ همین شاخه نشسته باشد.
+
+    تگ‌هایِ یتیم (بازمانده از تاریخچه‌یِ بازنویسی‌شده) شمرده نمی‌شن، پس سِرجُلفه‌یِ ساختگی در
+    CHANGELOG همچنان قرمز می‌شه؛ ولی «۱.۰.۰» بعد ازِ انتشارِ ۱.۱.۰ یک سوابقِ واقعی است."""
+    try:
+        listed = subprocess.run(("git", "tag", "--list", "v[0-9]*"), cwd=str(ROOT), capture_output=True, text=True, check=True)
+    except (OSError, subprocess.CalledProcessError):
+        return set()
+    out = set()
+    for line in listed.stdout.splitlines():
+        tag = line.strip()
+        if not tag:
+            continue
+        try:
+            subprocess.run(("git", "merge-base", "--is-ancestor", tag, "HEAD"), cwd=str(ROOT),
+                           capture_output=True, text=True, check=True)
+        except (OSError, subprocess.CalledProcessError):
+            continue  # تگِ یتیم؛ بخشی از تاریخچه‌یِ امروز نیست
+        version = tag.lstrip("v")
+        if re.fullmatch(r"\d+\.\d+\.\d+", version):
+            out.add(version)
+    return out
 
 
 def test_readme_badge_release_names_and_changelog_follow_the_version():
@@ -143,8 +169,12 @@ def test_readme_badge_release_names_and_changelog_follow_the_version():
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     headings = re.findall(r"^## \[([^\]]+)\]", changelog, re.M)
     assert headings, "هیچ سِرجُلفه‌ی ``## [x.y.z]`` در CHANGELOG نیست"
-    wrong_headings = [head for head in headings if head != __version__]
-    assert not wrong_headings, f"CHANGELOG بخش‌هایِ دیگری دارد (تاریخچه‌ی ساختگی؟): {wrong_headings}"
+    assert headings[0] == __version__, f"سِرجُلفه‌ی اولِ CHANGELOG ({headings[0]}) با نسخه‌ی برنامه ({__version__}) یکی نیست"
+    # از ۱.۱.۰ به بعد این پروژه بیش از یک انتشارِ واقعی دارد: سِرجُلفه‌هایِ قدیمی مجازند،
+    # ولی فقط اگر واقعاً تگِ منتشرشده‌شان وجود داشته باشد (تاریخچه‌ی ساختگی همچنان ممنوع).
+    released = released_versions() | {__version__}
+    invented = [head for head in headings[1:] if head not in released]
+    assert not invented, f"CHANGELOG بخشِ نسخه‌ای دارد که هرگز تگ نشده: {invented}"
 
 
 def test_no_document_hard_codes_another_app_version():
@@ -157,6 +187,7 @@ def test_no_document_hard_codes_another_app_version():
         text = path.read_text(encoding="utf-8", errors="ignore")
         allowed = {_latin(number) for number in REQUIREMENT_PIN.findall(text)}
         allowed |= {_latin(number) for number in LIBRARY_VERSIONS.get(rel, ("", set()))[1]}
+        allowed |= released_versions()  # سوابقِ انتشارِ واقعی؛ «۱.۰.۰» در متنِ تاریخی عددِ ساختگی نیست
         for number in _numbers(text):
             if _latin(number) in allowed or _latin(number) == __version__:
                 continue

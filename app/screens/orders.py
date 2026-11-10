@@ -10,13 +10,15 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 import flet as ft
 
 from app import theme
-from app.core import jalali
+from app.core import jalali, shop_texts
 from app.core import report_pdf, report_xlsx
 from app.core.bot_manager import BotManagerError
 from app.core.owner_console import extra_info_lines
@@ -27,6 +29,7 @@ from app.core.orders import (
     METHOD_BALE_PAY,
     METHOD_CARD_TO_CARD,
     STATUS_CANCELLED,
+    STATUS_CLOSED,
     STATUS_CONFIRMED,
     STATUS_EXPIRED,
     STATUS_PAID,
@@ -41,10 +44,31 @@ from app.core.orders import (
 )
 from app.i18n import t
 from app.screens import owner_settings, payment_settings
-from app.screens.common import card, open_folder, page_header
+from app.screens.common import card, get_or_create_file_picker, open_folder, page_header
 
-_ALL_STATUSES = [STATUS_PENDING_PAYMENT, STATUS_PAID, STATUS_CONFIRMED, STATUS_REJECTED, STATUS_CANCELLED, STATUS_EXPIRED]
+logger = logging.getLogger(__name__)
+
+_ALL_STATUSES = [
+    STATUS_PENDING_PAYMENT, STATUS_PAID, STATUS_CONFIRMED, STATUS_REJECTED, STATUS_CANCELLED,
+    STATUS_EXPIRED, STATUS_CLOSED,
+]
 _PLATFORM_ICON = {"telegram": ft.Icons.SEND_ROUNDED, "bale": ft.Icons.CHAT_BUBBLE_OUTLINE_ROUNDED}
+
+# قلم ۵: کنشگرِ همین صفحه «app» است — دقیقاً همان چیزی که دکمه‌ی تأیید می‌فرستد
+# (``order_store.confirm(order_id, by="app")``). نامِ واقعیِ ادمین/مدیر فقط در سمتِ ربات
+# (owner_console/admin_panel با ``actor_of``) معلوم است و آنجا ممیزی می‌شود.
+_ACTOR = "app"
+
+# فایلِ ارسالی برای مشتری: همان قراردادِ اعتبارسنجیِ ``broadcast.MAX_PHOTO_BYTES`` و
+# ``products._ALLOWED_PHOTO_EXTENSIONS`` (پسوند + حجم)، فقط با سقفِ بزرگ‌تر چون اینجا
+# بارنامه/PDF/فشرده هم فرستاده می‌شود.
+MAX_FILE_BYTES = 20 * 1024 * 1024
+SENDABLE_EXTENSIONS = (
+    ".pdf", ".jpg", ".jpeg", ".png", ".webp", ".gif", ".txt", ".csv",
+    ".xlsx", ".docx", ".zip", ".rar", ".7z",
+)
+MAX_CAPTION_CHARS = 1000  # همان سقفِ کپشنِ ``telegram_adapter.send_document_strict``
+
 
 # متن‌های مخصوصِ همین صفحه (دوزبانه) — کلیدهایِ تازه به app/i18n اضافه نمی‌شن
 _S = {
@@ -92,13 +116,100 @@ _S = {
     "export.pdf": ("خروجِ PDF", "PDF export"),
     "export.done": ("✅ گزارشِ {n} سطری ساخته شد: {path}", "✅ Report with {n} rows created: {path}"),
     "export.failed": ("ساختنِ فایل ناموفق بود: {error}", "Could not create the file: {error}"),
+    # ---- برچسبِ وضعیت و فیلترها («بسته‌شده» کلیدِ app/i18n ندارد؛ اینجا دو زبانه است) ----
+    "status.closed": ("بسته‌شده", "Closed"),
+    "filter.open": ("همه (به‌جز بسته‌شده‌ها)", "All except closed"),
+    "filter.closed": ("سفارش‌های بسته‌شده", "Closed orders"),
+    # ---- «میزِ سفارش» (قلم ۵): پیام/فایل/کد رهگیری/تحویل + بستنِ سفارش ----
+    "desk.head": ("🗂 میزِ سفارش — پیام، فایل و بستن", "🗂 Order desk — message, file, close"),
+    "desk.target": ("فرستادن برایِ همین مشتری: {platform} · {chat_id}", "Sends go to this customer: {platform} · {chat_id}"),
+    "desk.msg_label": ("متنِ پیام — همان متن، کپشنِ فایل هم می‌شود", "Message text — the same field is used as the file caption"),
+    "desk.send": ("📤 پیام به مشتری", "📤 Message the customer"),
+    "desk.file": ("📎 ارسال فایل", "📎 Send a file"),
+    "desk.pick_title": ("فایلی برایِ فرستادن به این مشتری انتخاب کن", "Pick a file to send this customer"),
+    "desk.tracking": ("🔎 فرستادنِ کد رهگیری", "🔎 Send the tracking code"),
+    "desk.delivered": ("📦 تحویل شد", "📦 Delivered"),
+    "desk.sent": ("✅ پیامِ تو برای مشتریِ سفارش #{id} رفت.", "✅ Your message for order #{id} was sent."),
+    "desk.send_failed": ("⚠️ پیام نرفت: {reason}", "⚠️ Nothing was sent: {reason}"),
+    "desk.file_sent": ("✅ فایلِ «{name}» با کپشنِ {caption} برای مشتریِ سفارش #{id} رفت.", "✅ “{name}” (caption: {caption}) was sent for order #{id}."),
+    "desk.file_sent_plain": ("✅ فایلِ «{name}» برای مشتریِ سفارش #{id} رفت.", "✅ “{name}” was sent for order #{id}."),
+    "desk.file_failed": ("⚠️ فایل نرفت: {reason}", "⚠️ The file was not sent: {reason}"),
+    "desk.empty": ("اول متنِ پیام را بنویس.", "Write the message first."),
+    "desk.no_bot": (
+        "⚠️ ربات روشن/وصل نیست؛ هیچ چیزی برای مشتری نرفته است. اول از صفحه‌ی «ربات‌ها» روشنش کن.",
+        "⚠️ The bot is not running, so nothing was sent. Turn it on from the “Bots” screen first.",
+    ),
+    "desk.caption_long": (
+        "کپشنِ فایل بیشتر از {n} نویسه است؛ کوتاه‌اش کن (پیامِ طولانی را جدا بفرست).",
+        "The caption is longer than {n} characters — shorten it (send long text separately).",
+    ),
+    "desk.file_missing": ("فایلِ انتخاب‌شده پیدا نشد یا خوانده نشد.", "The picked file was not found or could not be read."),
+    "desk.file_type": ("این نوعِ فایل فرستاده نمی‌شود. مجاز: {types}", "That file type is not sent. Allowed: {types}"),
+    "desk.file_big": ("حجمِ فایل بیشتر از {mb} مگابایت است؛ خلاصه‌اش کن یا لینک بفرست.", "The file is above {mb} MB — compress it or send a link."),
+    "desk.no_tracking": (
+        "برایِ این سفارش کد رهگیری ثبت نشده؛ اول در «وضعیتِ ارسال» کد را بنویس و ذخیره کن.",
+        "This order has no tracking code yet — write and save one under “Fulfilment” first.",
+    ),
+    "desk.gone": ("این سفارش دیگه وجود نداره.", "This order no longer exists."),
+    "desk.close": ("🔒 بستنِ سفارش", "🔒 Close the order"),
+    "desk.close_sure": ("✅ مطمئنم؛ ببند", "✅ Yes, close it"),
+    "desk.close_arm": (
+        "اگر یک بارِ دیگر بزنی، سفارش بسته می‌شود و از فهرستِ کاری بیرون می‌رود. پول و موجودی دست نمی‌خورد.",
+        "One more click closes the order and drops it from your working list. Money and stock are untouched.",
+    ),
+    "desk.close_hint": (
+        "بستن یعنی پیام‌ها و ارسالِ این مشتری تمام شده؛ هیچ داده‌ای پاک نمی‌شود و سفارش فقط به "
+        "فیلترِ «سفارش‌های بسته‌شده» می‌رود.",
+        "Closing means the messaging and delivery for this customer are done; nothing is deleted — the order only "
+        "moves to the “Closed orders” filter.",
+    ),
+    "desk.closed": ("✅ سفارش #{id} بسته شد و از فهرستِ کاری بیرون رفت.", "✅ Order #{id} was closed and left your working list."),
+    "desk.close_failed": ("بستنِ سفارش انجام نشد: ", "Could not close the order: "),
+    "desk.closed_readonly": (
+        "🔒 این سفارش بسته شده است و این‌جا فقط خواندنی نمایش داده می‌شود. بستن هیچ راهِ بازکردنِ خودکار "
+        "ندارد (از «بسته‌شده» هیچ حرکتِ مجازی تعریف نشده، چون پول و موجودی نباید دوباره باز شود)؛ اگر "
+        "کاری باقی مانده، در «گفتگوها» به همان مشتری پیام بده یا سفارشِ تازه‌ای ثبت کن.",
+        "🔒 This order is closed and is shown read-only here. Closing has no automatic way back (nothing is a valid "
+        "transition out of “closed”, because money and stock must not be re-applied); if something is still due, "
+        "message the customer from “Chats” or create a new order.",
+    ),
 }
+
 
 
 def _s(key: str, lang: str, **kw) -> str:
     fa, en = _S[key]
     text = en if lang == "en" else fa
     return text.format(**kw) if kw else text
+
+
+def _status_label(status: str, lang: str) -> str:
+    """برچسبِ فارسی/انگلیسیِ وضعیت. «بسته‌شده» کلیدِ ``app/i18n`` ندارد (و آن فایل دست‌نخورده می‌ماند)،
+    پس همین‌جا دو زبانه تعریف شده — وگرنه صفحه «orders.status.closed» خام به کاربر نشان می‌داد."""
+    if status == STATUS_CLOSED:
+        return _s("status.closed", lang)
+    return t(f"orders.status.{status}", lang)
+
+
+def _file_problem(path: str, lang: str) -> str:
+    """چرا این فایل را *نمی‌فرستیم*؟ ``""`` یعنی سالم است.
+
+    همان قراردادِ ``broadcast.store_photo`` (پوندِ مجاز + سقفِ حجم + خواندنِ فایل) — قبل ازِ هر
+    تماسِ شبکه، تا «فایلِ بی‌اعتبار» هرگز به‌عنوانِ ارسال‌شده ثبت نشود."""
+    if not path:
+        return _s("desk.file_missing", lang)
+    src = Path(path)
+    if src.suffix.lower() not in SENDABLE_EXTENSIONS:
+        return _s("desk.file_type", lang, types="، ".join(SENDABLE_EXTENSIONS))
+    try:
+        size = src.stat().st_size
+    except (OSError, ValueError):
+        return _s("desk.file_missing", lang)
+    if size > MAX_FILE_BYTES:
+        return _s("desk.file_big", lang, mb=MAX_FILE_BYTES // (1024 * 1024))
+    if size == 0:
+        return _s("desk.file_missing", lang)
+    return ""
 
 
 def _updated_jalali(order: Order) -> str:
@@ -118,6 +229,7 @@ def _status_color(status: str) -> str:
         STATUS_REJECTED: theme.DANGER,
         STATUS_CANCELLED: theme.DANGER,
         STATUS_EXPIRED: theme.TEXT_SECONDARY_LIGHT,
+        STATUS_CLOSED: theme.TEXT_SECONDARY_LIGHT,
     }.get(status, theme.ACCENT)
 
 
@@ -157,10 +269,22 @@ def build(
     """``manager`` (BotManager) اختیاریه: بدونش تایید سفارش فقط توی دیتابیس ثبت
     می‌شه و پیامی برای مشتری نمی‌ره. ``settings``/``save_callback`` هم اختیاری‌ان:
     اگه داده بشن، کارت «تنظیمات پرداخت» بالای صفحه نشون داده می‌شه."""
-    ui = {"filter": "", "error": "", "notice": ""}
+    ui = {"filter": "", "error": "", "notice": "", "armed": None}
     list_column = ft.Column(spacing=12)
-    error_text = ft.Text("", size=12, color=theme.DANGER, visible=False)
-    notice_text = ft.Text("", size=12, color=theme.SUCCESS, visible=False)
+    error_text = ft.Text("", key="orders_error", size=12, color=theme.DANGER, visible=False)
+    notice_text = ft.Text("", key="orders_notice", size=12, color=theme.SUCCESS, visible=False)
+    desk_fields: dict = {}  # order_id -> فیلدِ متنِ «میزِ سفارش» (برایِ خالی‌کردن بعد از ارسالِ موفق)
+
+    def show_status() -> None:
+        """نتیجه‌ی یک کارِ فقط-شبکه‌ای را نشان بده، **بدونِ بازسازیِ لیست** — متنِ تایپ‌شده‌ی
+        ادمین نباید به‌خاطرِ یک ارسالِ ناموفق پاک بشه (برعکسِ render_list که کارت‌ها را از نو می‌سازد)."""
+        error_text.value, error_text.visible = ui["error"], bool(ui["error"])
+        notice_text.value, notice_text.visible = ui["notice"], bool(ui["notice"])
+
+    def say(error: str = "", notice: str = "") -> None:
+        ui["error"], ui["notice"] = error, notice
+        show_status()
+        page.update()
 
     def notify_customer(order: Order, kind: str = "confirm") -> None:
         """بعد از تایید/ردِ موفق، پیام رو به پلتفرم/چتِ واقعیِ سفارش می‌فرسته. تغییرِ وضعیت توی
@@ -305,6 +429,212 @@ def build(
             ),
         )
 
+    # ------------------------------------------------- «میزِ سفارش» (قلم ۵: پیام، فایل، بستن)
+    def _can_send(attr: str) -> bool:
+        """ربات/اتصال‌ها باید باشد و *هم* مسیرِ درستِ ارسال را داشته باشد (قلم ۵: متن و فایل
+        هر دو «سخت»ند — خطا می‌دهند، پس هیچ‌وقت چیزی را «رفته» حساب نمی‌کنیم مگر اینکه واقعاً برود)."""
+        return manager is not None and callable(getattr(manager, attr, None))
+
+    def send_desk_text(order_id: int, raw: str) -> None:
+        """پیامِ خصوصیِ ادمین به مشتریِ همین سفارش — از همان مسیرِ ``send_to_customer_sync``
+        (قوانینِ صفحه‌ی گفتگوها: بلاک/لغو/پیشوندِ «فروشگاه» و ثبت در تاریخچه با نقشِ ``owner``)."""
+        order = order_store.get(order_id)
+        if order is None:
+            say(error=_s("desk.gone", lang))
+            return
+        text = (raw or "").strip()
+        if not text:
+            say(error=_s("desk.empty", lang))
+            return
+        if not _can_send("send_to_customer_sync"):
+            say(error=_s("desk.no_bot", lang))
+            return
+
+        def work() -> None:
+            try:
+                manager.send_to_customer_sync(order.platform, order.chat_id, text)
+            except BotManagerError as exc:
+                say(error=_s("desk.send_failed", lang, reason=str(exc)))
+            except Exception as exc:  # noqa: BLE001 — شکستِ ارسال هرگز «موفق» حساب نمی‌شود
+                logger.exception("ارسالِ پیامِ ادمین از صفحه‌ی سفارش‌ها ناموفق بود")
+                say(error=_s("desk.send_failed", lang, reason=f"{type(exc).__name__}: {exc}"))
+            else:
+                field = desk_fields.get(order_id)
+                if field is not None:
+                    field.value = ""
+                say(notice=_s("desk.sent", lang, id=order.id))
+
+        page.run_thread(work)
+
+    def send_desk_file(order_id: int, path: str) -> None:
+        """فایل با همان مسیرِ سختِ فاکتور (``send_file_to_customer_sync``) می‌رود: اگر نرود،
+        ``BotManagerError`` فارسی بالا می‌آید و همین‌جا نمایش داده می‌شود — ثبت می‌شود که *نرفته*."""
+        order = order_store.get(order_id)
+        if order is None:
+            say(error=_s("desk.gone", lang))
+            return
+        problem = _file_problem(path, lang)
+        if problem:
+            say(error=problem)
+            return
+        field = desk_fields.get(order_id)
+        caption = ((field.value if field is not None else "") or "").strip()
+        if len(caption) > MAX_CAPTION_CHARS:
+            say(error=_s("desk.caption_long", lang, n=MAX_CAPTION_CHARS))
+            return
+        if not _can_send("send_file_to_customer_sync"):
+            say(error=_s("desk.no_bot", lang))
+            return
+
+        def work() -> None:
+            try:
+                manager.send_file_to_customer_sync(order.platform, order.chat_id, path, caption)
+            except BotManagerError as exc:
+                say(error=_s("desk.file_failed", lang, reason=str(exc)))
+            except Exception as exc:  # noqa: BLE001
+                logger.exception("ارسالِ فایل به مشتری از صفحه‌ی سفارش‌ها ناموفق بود")
+                say(error=_s("desk.file_failed", lang, reason=type(exc).__name__))
+            else:
+                if field is not None:
+                    field.value = ""
+                name = Path(path).name
+                if caption:
+                    say(notice=_s("desk.file_sent", lang, name=name, caption=caption, id=order.id))
+                else:
+                    say(notice=_s("desk.file_sent_plain", lang, name=name, id=order.id))
+
+        page.run_thread(work)
+
+    async def pick_desk_file(order_id: int) -> None:
+        """دیالوگِ انتخاب فایلِ سیستم‌عامل (همان الگوی ``broadcast``/``products``): یک فایل، بدونِ
+        چندانتخابی. روی وب/تست دیالوگ نیست ⇒ ``FletUnsupportedPlatformException`` و هیچ چیزی فرستاده نمی‌شود."""
+        if not _can_send("send_file_to_customer_sync"):
+            say(error=_s("desk.no_bot", lang))
+            return
+        picker = get_or_create_file_picker(page)
+        try:
+            result = await picker.pick_files(
+                dialog_title=_s("desk.pick_title", lang), allow_multiple=False,
+                file_type=ft.FilePickerFileType.CUSTOM, allowed_extensions=list(SENDABLE_EXTENSIONS),
+            )
+        except ft.FletUnsupportedPlatformException:
+            result = None
+        if result:
+            send_desk_file(order_id, result[0].path)
+
+    def send_tracking_code(order_id: int) -> None:
+        """اقدامِ سریع: کد رهگیریِ ثبت‌شده با همان متنِ همیشگیِ ربات (``ord.tracking`` — «🔎 کد رهگیری: …»)
+        برایِ مشتری می‌رود، نه با متنِ تازه‌نویس‌شده."""
+        order = order_store.get(order_id)
+        if order is None:
+            say(error=_s("desk.gone", lang))
+            return
+        if not order.tracking_code:
+            say(error=_s("desk.no_tracking", lang))
+            return
+        send_desk_text(order_id, shop_texts.t("ord.tracking", code=order.tracking_code))
+
+    def handle_close(order_id: int) -> None:
+        try:
+            order_store.close(order_id, by=_ACTOR)  # ممیزیِ ``by`` در لاگِ ``app.core.orders`` ثبت می‌شود
+        except OrderError as exc:
+            ui["armed"] = None
+            ui["error"] = _s("desk.close_failed", lang) + str(exc)
+            ui["notice"] = ""
+            render_list()
+            page.update()
+            return
+        ui["armed"] = None
+        ui["error"] = ""
+        ui["notice"] = _s("desk.closed", lang, id=order_id)
+        render_list()
+        page.update()
+
+    def handle_close_arm(order_id: int) -> None:
+        """تأییدِ دو مرحله‌ای (همان الگوی ``ui["armed"]`` در admins/broadcast/customers): کلیکِ اول
+        فقط آماده می‌کند و متنِ دکمه عوض می‌شود؛ کلیکِ دوم می‌بندد."""
+        if ui["armed"] != order_id:
+            ui["armed"] = order_id
+            ui["error"] = ""
+            ui["notice"] = _s("desk.close_arm", lang)
+            render_list()
+            page.update()
+            return
+        handle_close(order_id)
+
+    def order_desk_block(order: Order) -> ft.Control:
+        """بخشِ جداِ سفارشِ تأییدشده: پیام/فایل به همان مشتری، کد رهگیری، تحویل، و بستنِ سفارش.
+
+        روی هر کلیک فقط *خوانده* یا *ارسال* می‌شود؛ هیچ مبلغ و هیچ موجودی اینجا عوض نمی‌شود.
+        شکستِ ارسال (ربات خاموش، مشتری بلاک/دسترس‌ناپذیر) با دلیلِ فارسی نشان داده می‌شود."""
+        msg = ft.TextField(
+            key=f"desk_msg_{order.id}", label=_s("desk.msg_label", lang),
+            multiline=True, min_lines=2, max_lines=5, width=430, dense=True, border_radius=10,
+        )
+        desk_fields[order.id] = msg
+        actions: list[ft.Control] = [
+            ft.Button(
+                key=f"desk_send_{order.id}", content=_s("desk.send", lang), icon=ft.Icons.SEND_ROUNDED,
+                bgcolor=theme.ACCENT, color="#FFFFFF",
+                on_click=lambda e, oid=order.id, fld=msg: send_desk_text(oid, fld.value),
+            ),
+            ft.OutlinedButton(
+                key=f"desk_file_{order.id}", content=_s("desk.file", lang), icon=ft.Icons.ATTACH_FILE_ROUNDED,
+                on_click=lambda e, oid=order.id: pick_desk_file(oid),
+            ),
+            ft.OutlinedButton(
+                key=f"desk_tracking_{order.id}", content=_s("desk.tracking", lang),
+                icon=ft.Icons.TRACK_CHANGES_ROUNDED, on_click=lambda e, oid=order.id: send_tracking_code(oid),
+            ),
+        ]
+        if order.fulfillment == FULFILL_SHIPPED:  # «تحویل شد» فقط از «ارسال شد» مجاز است (FULFILL._FORWARD)
+            actions.append(
+                ft.Button(
+                    key=f"desk_delivered_{order.id}", content=_s("desk.delivered", lang),
+                    icon=ft.Icons.INVENTORY_2_ROUNDED, bgcolor=theme.SUCCESS, color="#FFFFFF",
+                    on_click=lambda e, oid=order.id: apply_fulfillment(oid, FULFILL_DELIVERED, order.tracking_code),
+                )
+            )
+        armed = ui["armed"] == order.id
+        return ft.Container(
+            key=f"desk_{order.id}",
+            padding=ft.Padding.symmetric(horizontal=12, vertical=10),
+            border_radius=12,
+            border=ft.Border.all(1, theme.border_color(page)),
+            bgcolor=f"{theme.ACCENT}0A",
+            content=ft.Column(
+                spacing=8,
+                controls=[
+                    ft.Text(_s("desk.head", lang), size=13, weight=ft.FontWeight.W_700),
+                    ft.Text(
+                        _s("desk.target", lang, platform=order.platform, chat_id=order.chat_id),
+                        key=f"desk_target_{order.id}", size=11.5, color=theme.text_secondary(page), selectable=True,
+                    ),
+                    msg,
+                    ft.Row(spacing=8, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER, controls=actions),
+                    ft.Row(
+                        spacing=8,
+                        wrap=True,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        controls=[
+                            ft.Button(
+                                key=f"desk_close_{order.id}",
+                                content=_s("desk.close_sure" if armed else "desk.close", lang),
+                                icon=ft.Icons.CHECK_ROUNDED if armed else ft.Icons.LOCK_ROUNDED,
+                                bgcolor=theme.DANGER, color="#FFFFFF",
+                                on_click=lambda e, oid=order.id: handle_close_arm(oid),
+                            ),
+                            ft.Text(
+                                _s("desk.close_arm", lang) if armed else _s("desk.close_hint", lang),
+                                key=f"desk_close_hint_{order.id}", size=11.5,
+                                color=theme.ACCENT_DARK if armed else theme.text_secondary(page),
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+        )
+
     def receipts_of(order: Order) -> list:
         """رسیدهایِ این سفارش از تازه به قدیم (dict هایِ همون جدولِ payment_receipts)."""
         rows = list(getattr(order, "receipts", None) or [])
@@ -359,7 +689,7 @@ def build(
             )
         )
 
-        who = order_store.confirmed_by(order.id) if order.status == STATUS_CONFIRMED else ""
+        who = order_store.confirmed_by(order.id) if order.status in (STATUS_CONFIRMED, STATUS_CLOSED) else ""
         decision = _s("paystat.decided", lang, who=who) if who else (_s("paystat.rejected", lang) if order.status == STATUS_REJECTED else "")
         if decision:
             when = _updated_jalali(order)
@@ -481,7 +811,7 @@ def build(
                     padding=ft.Padding.symmetric(horizontal=10, vertical=4),
                     border_radius=20,
                     bgcolor=f"{_status_color(order.status)}22",
-                    content=ft.Text(t(f"orders.status.{order.status}", lang), size=11.5, color=_status_color(order.status), weight=ft.FontWeight.W_500),
+                    content=ft.Text(_status_label(order.status, lang), size=11.5, color=_status_color(order.status), weight=ft.FontWeight.W_500),
                 ),
             ],
         )
@@ -516,10 +846,18 @@ def build(
         extra = extra_info_lines(order)
         if extra:
             controls.append(ft.Text(" · ".join(extra), key=f"extra_{order.id}", size=11.5, color=theme.text_secondary(page)))
-        if order.payment_method or receipts_of(order) or order.status in (STATUS_PAID, STATUS_CONFIRMED, STATUS_REJECTED):
+        if order.payment_method or receipts_of(order) or order.status in (STATUS_PAID, STATUS_CONFIRMED, STATUS_REJECTED, STATUS_CLOSED):
             controls.append(payment_status_block(order))
         if order.status == STATUS_CONFIRMED:
             controls.append(fulfillment_block(order))
+            controls.append(order_desk_block(order))
+        elif order.status == STATUS_CLOSED:
+            controls.append(
+                ft.Text(
+                    _s("desk.closed_readonly", lang), key=f"closed_note_{order.id}", size=12,
+                    color=theme.ACCENT_DARK, selectable=True,
+                )
+            )
         if order.payment_reference:
             controls.append(
                 ft.Text(f"{t('orders.reference_label', lang)}: {order.payment_reference}", size=11, color=theme.text_secondary(page))
@@ -635,9 +973,22 @@ def build(
             rows.append(ft.Text(t("orders.attention.more", lang, n=len(pending) - 10), size=11.5, color=theme.text_secondary(page)))
         attention_rows.controls = rows
 
+    def visible_orders() -> list:
+        """فهرستِ همین صفحه.
+
+        قلم ۵: پیش‌فرض («همه») هیچ سفارشِ **بسته‌شده‌ای** نشان داده نمی‌شود — بسته‌شدن یعنی «از
+        لیستِ کاری بیرون برو»، نه پاک‌شدن. فیلترِ «سفارش‌های بسته‌شده» همان‌ها را می‌آورد و معنایِ
+        بقیه‌ی فیلترها (تک‌وضعیتی) مثلِ قبل است."""
+        status = ui["filter"] or None
+        orders = order_store.list(status=status)
+        if status is None:
+            orders = [o for o in orders if o.status != STATUS_CLOSED]
+        return orders
+
     def render_list() -> None:
         render_attention()
-        orders = order_store.list(status=ui["filter"] or None)
+        desk_fields.clear()  # کارت‌ها از نو ساخته می‌شوند؛ فیلدهایِ سفارش‌های رفته نماند
+        orders = visible_orders()
         error_text.value = ui["error"]
         error_text.visible = bool(ui["error"])
         notice_text.value = ui["notice"]
@@ -664,11 +1015,12 @@ def build(
         """گزارشِ رسمیِ **همان فهرستِ فیلترشده** (وضعیتِ انتخابی) در فایلِ اکسل یا PDFِ راست‌به‌چپ.
 
         فایل در ``<داده>/reports`` ساخته می‌شود و پوشه‌اش باز می‌شود — همان تجربه‌ی فاکتور. هیچ
-        سفارشی اینجا تغییر نمی‌کند: فقط خواندنِ سطور و نوشتنِ فایل."""
+        سفارشی اینجا تغییر نمی‌کند: فقط خواندنِ سطور و نوشتنِ فایل. «همه» دقیقاً مثلِ فهرستِ
+        صفحه، سفارش‌های بسته‌شده را ندارد."""
 
         def work() -> None:
             try:
-                data = report_xlsx.orders_report(order_store.list(status=ui["filter"] or None),
+                data = report_xlsx.orders_report(visible_orders(),
                                                  shop_name=report_xlsx.shop_name_of(settings or manager))
                 path = report_pdf.write_pdf(data) if fmt == "pdf" else report_xlsx.write_xlsx(data)
             except report_xlsx.ReportError as exc:  # «چیزی برای خروجی گرفتن نیست» / شکستِ PDF
@@ -700,17 +1052,21 @@ def build(
 
     def handle_filter_change(e) -> None:
         ui["filter"] = e.control.value
+        ui["armed"] = None  # آمادگیِ «بستن» مالِ کارتِ قبلیِ صفحه است
         render_list()
         page.update()
 
     filter_dropdown = ft.Dropdown(
         key="status_filter",
-        label=t("orders.filter.all", lang),
+        label=_s("filter.open", lang),
         value="",
         width=230,
         border_radius=10,
-        options=[ft.DropdownOption(key="", text=t("orders.filter.all", lang))]
-        + [ft.DropdownOption(key=s, text=t(f"orders.status.{s}", lang)) for s in _ALL_STATUSES],
+        options=[ft.DropdownOption(key="", text=_s("filter.open", lang))]
+        + [
+            ft.DropdownOption(key=s, text=_s("filter.closed", lang) if s == STATUS_CLOSED else _status_label(s, lang))
+            for s in _ALL_STATUSES
+        ],
         on_select=handle_filter_change,
     )
 

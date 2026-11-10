@@ -25,9 +25,11 @@ from app.core.bot_pipeline import IncomingMessage
 from app.core.cart import MAX_QTY_PER_LINE, CartStore, CheckoutSession, CheckoutSessionStore
 from app.core.discounts import DiscountError, DiscountStore
 from app.core.orders import (
+    DEFAULT_RESERVE_MINUTES,
     METHOD_CARD_TO_CARD,
     STATUS_CONFIRMED,
     STATUS_EXPIRED,
+    STATUS_PAID,
     STATUS_PENDING_PAYMENT,
     UNLIMITED,
     OrderError,
@@ -37,6 +39,7 @@ from app.core.orders import (
 from app.core.owner_console import order_alert_text
 from app.core.payments import PaymentError, PaymentHooks, PaymentService, reservation_active
 from app.core.products import ProductStore
+from app.core.receipts import parse_receipt
 from app.core.settings import active_shipping_methods, find_shipping_method, shipping_cost_irr
 from app.core.agent_common import MAX_EXPIRED_UNPAID_PER_DAY, MAX_ORDERS_PER_HOUR, sanitize_display_name
 from app.core.ui import Btn, FlowResult, UiMessage, safe_url
@@ -49,6 +52,7 @@ ORDERS_LIST_LIMIT = 8
 LABEL_MAX = 48
 CAPTION_MAX = 1000
 REF_TTL_SECONDS = 600
+RECEIPT_GRACE_SECONDS = 300  # رسید ممکن است چند دقیقه بعد از مهلتِ رزرو هم برسد (پرداختِ دیررس ثبت می‌شه)
 MAX_TRACKED_CHAT_LOCKS = 2000  # سقفِ گفتگوهایِ هم‌زمانِ دنبال‌شده با قفل
 _COMMANDS = {
     "/start": "menu", "/menu": "menu", "/help": "guide", "/products": "products", "/cart": "cart",
@@ -63,8 +67,21 @@ GUIDE_DIRECT_CUSTOM = 2  # بیش از این تعداد دکمه‌ی سفار�
 GUIDE_PAGE_SIZE = 6
 CART_NAME_MAX = 22
 # فعل‌هایی که فقط در حالتِ فروشگاه (سبد/سفارش) معنی دارن؛ در حالتِ مشاوره بی‌اثرن
-_SHOP_VERBS = frozenset({"k", "l", "p", "q", "a", "cart", "s", "cl", "fix", "co", "pm", "sp", "o", "od", "oc", "op", "opm", "paid", "dc", "dr", "inv"})
+_SHOP_VERBS = frozenset({"k", "l", "p", "q", "a", "cart", "s", "cl", "fix", "co", "pm", "sp", "o", "od", "oc", "op", "opm", "rc", "paid", "dc", "dr", "inv"})
 _SHOP_ACTIONS = frozenset({"products", "cart", "checkout", "orders"})
+
+
+def reserve_minutes_of(settings) -> int:
+    """مهلتِ رزرویِ سفارش (دقیقه) — همان چیزی که ادمین در «تنظیماتِ پرداختِ هوشمند» تعیین می‌کند.
+
+    تنها منبعِ این عدد همین‌جا و ``settings.reservation_minutes`` است؛ هیچ‌جا عددِ ۱۵ تکرار
+    نمی‌شود (سقفِ ``DEFAULT_RESERVE_MINUTES`` فقط وقتی استفاده می‌شه که تنظیمی نباشه). ورودیِ
+    خراب/متنی هرگز استثنا نمی‌دهد — برنامه نباید به‌خاطرِ یک عددِ اشتباه از کار بیفتد."""
+    try:
+        minutes = int(getattr(settings, "reservation_minutes", DEFAULT_RESERVE_MINUTES) or DEFAULT_RESERVE_MINUTES)
+    except (TypeError, ValueError):
+        return DEFAULT_RESERVE_MINUTES
+    return max(1, minutes)
 
 
 class _Stale(Exception):
@@ -479,7 +496,28 @@ class ShopFlow:
         order = self._own_order(ctx, int(a[0]))
         if not reservation_active(order):
             return FlowResult([UiMessage(ctx.t("ord.not_payable"), edit=True)], answer=ctx.t("ord.not_payable"))
-        return FlowResult([UiMessage(ctx.t("co.created", order_id=order.id), edit=True), *await self._instruction(ctx, order, a[1])])
+        messages, _asks_receipt = await self._instruction(ctx, order, a[1])
+        return FlowResult([UiMessage(ctx.t("co.created", order_id=order.id), edit=True), *messages])
+
+    async def _cb_rc(self, ctx, a):
+        """«🧾 ارسالِ رسید» — بازگشتِ یک‌لمسی به همان سفارشِ کارت‌به‌کارتِ پرداخت‌نشده.
+
+        فقط دو کار می‌کند: مرحله‌ی «رسید» را دوباره باز می‌کند و دستورِ پرداختِ حداقلی را
+        دوباره می‌فرستد. هیچ منوی دیگری به این پیام نمی‌چسبد تا چیزی جای «رسید را بفرست»
+        را نگیرد؛ سفارش و مهلتش هم دست‌نخورده می‌مانن (F4)."""
+        order = self._own_order(ctx, int(a[0]))
+        if not self._receipt_path(ctx, order):
+            raise _Stale()  # دکمه‌ی قدیمی/مسیرِ بسته (مالک دریافتِ رسید را خاموش کرده)
+        if order.status == STATUS_PENDING_PAYMENT:
+            if not reservation_active(order):
+                return FlowResult([UiMessage(ctx.t("ord.not_payable"), edit=True)], answer=ctx.t("ord.not_payable"))
+            messages, _asks = await self._instruction(ctx, order, METHOD_CARD_TO_CARD)
+            return FlowResult(messages)
+        if order.status in (STATUS_PAID, STATUS_EXPIRED):
+            # پرداخت اعلام شده (یا مهلت رفته) ولی رسید نیامده: همان درخواستِ رسید، بدونِ منو
+            self._open_receipt_step(ctx, order.id)
+            return FlowResult([UiMessage(ctx.t("pay.receipt.ask"), log=True)])
+        return FlowResult([UiMessage(ctx.t("ord.not_payable"), edit=True)], answer=ctx.t("ord.not_payable"))
 
     async def _cb_paid(self, ctx, a):
         return await self._claim_card_payment(ctx, int(a[0]))
@@ -669,7 +707,7 @@ class ShopFlow:
             text.append(ctx.t("cart.warn_gone", name=name) if kind == "gone" else ctx.t("cart.warn_short", name=name, n=avail))
         if problems:
             text += ["", ctx.t("cart.fix_hint")]  # N3: هر پیام می‌گه قدمِ بعد چیه
-        text += ["", ctx.t("cart.note", minutes=int(getattr(ctx.settings, "reservation_minutes", 15) or 15))]
+        text += ["", ctx.t("cart.note", minutes=reserve_minutes_of(ctx.settings))]
         if problems:
             rows.append([Btn(ctx.t("cart.fix"), "c:fix")])
         if prev.manual_code:
@@ -955,7 +993,7 @@ class ShopFlow:
         try:
             order_id = self.orders.create(
                 ctx.platform, ctx.chat, lines, payment_method="", note=answers.get("notes", ""),
-                reserve_minutes=int(getattr(ctx.settings, "reservation_minutes", 15) or 15),
+                reserve_minutes=reserve_minutes_of(ctx.settings),
                 customer_name=name, customer_phone=phone, customer_address=address, customer_info=answers,
                 discount_code=self.discounts.cart_code(ctx.platform, ctx.chat), auto_discounts=True,
                 shipping=shipping,
@@ -974,10 +1012,19 @@ class ShopFlow:
         self.sessions.clear(ctx.platform, ctx.chat)
         order = self.orders.get(order_id)
         head = UiMessage(ctx.t("co.created", order_id=order_id) + "\n\n" + build_order_summary_text(order), edit=True, log=True)
-        return FlowResult([head, *await self._instruction(ctx, order, method), self._menu_result(ctx).messages[0]], answer=ctx.t("co.created", order_id=order_id))
+        messages, asks_receipt = await self._instruction(ctx, order, method)
+        # در مسیرِ کارت‌به‌کارت هیچ منوی تازه‌ای فرستاده نمی‌شه: بعد از انتخابِ پرداخت،
+        # تنها چیزی که مشتری می‌بینه «رسید را بفرست» است، نه دکمه‌های دیگر (F4).
+        if not asks_receipt:
+            messages.append(self._menu_result(ctx).messages[0])
+        return FlowResult([head, *messages], answer=ctx.t("co.created", order_id=order_id))
 
-    async def _instruction(self, ctx: _Ctx, order, method: str) -> list:
-        """پیام(های) دستورِ پرداخت؛ خطای ساختِ دستور هرگز متنِ خامِ مخصوصِ مدل رو به مشتری نشون نمی‌ده."""
+    async def _instruction(self, ctx: _Ctx, order, method: str) -> tuple:
+        """پیام(های) دستورِ پرداخت و «آیا از مشتری رسید خواسته می‌شه؟».
+
+        خطای ساختِ دستور هرگز متنِ خامِ مخصوصِ مدل رو به مشتری نشون نمی‌ده.
+        کارت‌به‌کارت با دریافتِ رسید روشن: مرحله‌ی «رسید» همین‌جا باز می‌شه تا مشتری بعد از
+        واریز بتواند مستقیم عکس یا متنِ رسید را بفرستد و پیامش گم نشه (F4)."""
         rows: list = [[Btn(ctx.t("ord.title"), f"c:od:{order.id}")]]
         try:
             ins = await self.payments.build_instruction(order, method, self.hooks)
@@ -985,10 +1032,31 @@ class ShopFlow:
             logger.warning("ساخت دستورِ پرداخت برای سفارش %s ناموفق: %s", order.id, exc)
             if self.attention is not None:
                 self.attention.add("payment_failed", str(order.id), str(exc))
-            return [UiMessage(ctx.t("co.pay_failed"), [[Btn(ctx.t("ord.pay"), f"c:op:{order.id}")], *rows], log=True)]
+            return [UiMessage(ctx.t("co.pay_failed"), [[Btn(ctx.t("ord.pay"), f"c:op:{order.id}")], *rows], log=True)], False
         url_rows = [[Btn(label, url=url)] for label, url in ins.buttons if safe_url(url)]
         extra = [[Btn(ctx.t("pay.claim"), f"c:paid:{order.id}")]] if method == METHOD_CARD_TO_CARD else []
-        return [UiMessage(ins.text, url_rows + extra + rows, log=True)]
+        if ins.receipt_requested and method == METHOD_CARD_TO_CARD and order.status == STATUS_PENDING_PAYMENT:
+            self._open_receipt_step(ctx, order.id)
+        return [UiMessage(ins.text, url_rows + extra + rows, log=True)], bool(ins.receipt_requested)
+
+    # ------------------------------------------------------------- مرحله‌ی رسید
+
+    @staticmethod
+    def _receipt_path(ctx: _Ctx, order) -> bool:
+        """مسیرِ «رسید بفرست»؟ یعنی کارت‌به‌کارت بودنِ سفارش + روشن بودنِ دریافتِ رسیدِ مالک."""
+        return bool(
+            order is not None
+            and order.payment_method == METHOD_CARD_TO_CARD
+            and getattr(ctx.settings, "receipt_check_enabled", True)
+        )
+
+    def _receipt_ttl(self, ctx: _Ctx) -> int:
+        """مهلتِ مرحله‌ی «رسید» به مهلتِ رزرویِ سفارش وصل است: ادمین هر عددی در برنامه تعیین
+        کند، مشتری همانقدر (به‌علاوه‌ی چند دقیقه‌ی تأخیر) وقت دارد رسید را بفرستد."""
+        return max(REF_TTL_SECONDS, reserve_minutes_of(ctx.settings) * 60 + RECEIPT_GRACE_SECONDS)
+
+    def _open_receipt_step(self, ctx: _Ctx, order_id: int) -> None:
+        self.sessions.put(ctx.platform, ctx.chat, "receipt", {"order_id": int(order_id)}, ttl=self._receipt_ttl(ctx))
 
     # ============================================================ پیگیری ====
 
@@ -1027,9 +1095,18 @@ class ShopFlow:
             text.append(ctx.t("ord.info", label=labels.get(key, key), value=_clip(str(value), 200)))
         rows = []
         if order.status == STATUS_PENDING_PAYMENT:
-            rows.append([Btn(ctx.t("ord.pay"), f"c:op:{order.id}"), Btn(ctx.t("ord.cancel"), f"c:oc:{order.id}")])
-            if order.payment_method == METHOD_CARD_TO_CARD:
-                rows.append([Btn(ctx.t("pay.claim"), f"c:paid:{order.id}")])
+            if self._receipt_path(ctx, order):
+                # بازگشتِ یک‌لمسی به مسیرِ پرداختِ کارت‌به‌کارت: دقیقاً دو کار — فرستادنِ رسید یا انصراف (F4).
+                # «💳 پرداخت» برای این سفارش‌ها لازم نیست؛ خودِ «🧾 ارسالِ رسید» شماره‌کارت و مبلغ را
+                # دوباره می‌فرستد و مرحله‌ی رسید را باز می‌کند.
+                rows.append([Btn(ctx.t("ord.send_receipt"), f"c:rc:{order.id}"), Btn(ctx.t("ord.cancel"), f"c:oc:{order.id}")])
+            else:
+                rows.append([Btn(ctx.t("ord.pay"), f"c:op:{order.id}"), Btn(ctx.t("ord.cancel"), f"c:oc:{order.id}")])
+                if order.payment_method == METHOD_CARD_TO_CARD:
+                    rows.append([Btn(ctx.t("pay.claim"), f"c:paid:{order.id}")])
+        elif order.status in (STATUS_PAID, STATUS_EXPIRED) and self._receipt_path(ctx, order):
+            # پرداخت اعلام شده (یا مهلت رفته) ولی رسیدی نرسیده: درِ فرستادنِ رسید باز می‌ماند
+            rows.append([Btn(ctx.t("ord.send_receipt"), f"c:rc:{order.id}")])
         if order.status == STATUS_CONFIRMED and order.total_irr > 0 and self.invoice_handler is not None and self.invoice_visible():
             rows.append([Btn(ctx.t("inv.button"), f"c:inv:{order.id}")])
         rows.append([Btn(ctx.t("ui.back"), "c:o")])
@@ -1048,6 +1125,17 @@ class ShopFlow:
             return FlowResult([UiMessage(ctx.t("ord.cannot_cancel"), edit=True)], answer=ctx.t("ord.cannot_cancel"))
         return FlowResult([UiMessage(ctx.t("ord.cancelled", order_id=order.id), edit=True)], answer=ctx.t("ord.cancelled", order_id=order.id))
 
+    async def _notify_card_claim(self, order_id: int) -> None:
+        """«مشتری می‌گوید واریز کرده» را به مالک و مدیرها می‌رساند (تأییدِ نهایی همیشه دستی است).
+
+        همان آلارمِ دکمه‌ی «✅ پرداخت کردم»؛ رسیدِ فرستاده‌شده روی سفارشِ هنوز-پرداخت‌نشده هم
+        از همین مسیر رد می‌شود تا سفارش روی «در انتظارِ پرداخت» گیر نکند و مهلتش باطل نشود."""
+        fresh = self.orders.get(order_id)
+        if fresh is None:
+            return
+        self.hooks.payment_claim(fresh, {"kind": "claim"})
+        await self.hooks.notify_owner(order_alert_text(fresh, "needs_confirm"))
+
     async def _claim_card_payment(self, ctx: _Ctx, order_id: int) -> FlowResult:
         order = self._own_order(ctx, order_id)
         bad = FlowResult([UiMessage(ctx.t("pay.claim_bad"))], answer=ctx.t("pay.claim_bad"))
@@ -1057,16 +1145,12 @@ class ShopFlow:
             self.orders.mark_paid(order.id, METHOD_CARD_TO_CARD, "")
         except OrderError:
             return bad
-        fresh = self.orders.get(order.id)
         # آلارمِ فوری: مالک و مدیرهایِ دارایِ دسترسیِ «تصمیمِ سفارش» باید بروند حساب را چک کنند
-        self.hooks.payment_claim(fresh, {"kind": "claim"})
-        await self.hooks.notify_owner(order_alert_text(fresh, "needs_confirm"))
+        await self._notify_card_claim(order.id)
         if getattr(ctx.settings, "receipt_check_enabled", True):
-            self.sessions.put(ctx.platform, ctx.chat, "receipt", {"order_id": order.id}, ttl=REF_TTL_SECONDS)
-            return FlowResult(
-                [UiMessage(ctx.t("pay.receipt.ask"), log=True, menu=self._menu_rows(ctx))],
-                answer=ctx.t("pay.received"),
-            )
+            self._open_receipt_step(ctx, order.id)
+            # بدونِ کیبوردِ مشتری: هیچ دکمه‌ی دیگری نباید جای «رسید را بفرست» را بگیرد (F4)
+            return FlowResult([UiMessage(ctx.t("pay.receipt.ask"), log=True)], answer=ctx.t("pay.received"))
         self.sessions.put(ctx.platform, ctx.chat, "ref", {"order_id": order.id}, ttl=REF_TTL_SECONDS)
         return FlowResult([UiMessage(ctx.t("pay.claim_done"), log=True)], answer=ctx.t("pay.received"))
 
@@ -1079,22 +1163,41 @@ class ShopFlow:
         await self.hooks.notify_owner(f"🧾 شماره پیگیریِ سفارش #{order_id}: {cf.normalize_input(text, 100)}")
         return FlowResult([UiMessage(ctx.t("pay.ref_saved"), log=True)])
 
+    async def _claim_before_receipt(self, order_id: int) -> None:
+        """رسید = ادعایِ پرداخت: همان ثبتِ دکمه‌ی «✅ پرداخت کردم» (بدونِ هیچ تأییدِ نهایی).
+
+        بی‌این، رسیدی که مشتری مستقیم فرستاده روی «در انتظارِ پرداخت» می‌ماند و مهلتِ رزرو
+        همان سفارشِ رسیددار را باطل می‌کند؛ تأییدِ آخر همچنان فقط با دستِ مالک است."""
+        try:
+            self.orders.mark_paid(order_id, METHOD_CARD_TO_CARD, "")
+        except OrderError:
+            logger.info("سفارشِ %s درست پیش از رسید تغییر وضعیت داد", order_id)
+            return
+        await self._notify_card_claim(order_id)
+
     async def _save_receipt(self, ctx: _Ctx, session: CheckoutSession, ev) -> FlowResult:
         """رسیدِ کارت‌به‌کارت: متن یا عکس. هیچ‌وقت سفارش را تأیید نمی‌کند.
 
         اگر پیامِ بعدیِ مشتری دکمه‌ی منو بود (نه رسید)، نشست بسته می‌شه و جریان به همان
-        دکمه می‌رسه — مشتری هرگز داخلِ یک مرحله‌ی کور گیر نمی‌کند."""
+        دکمه می‌رسه — مشتری هرگز داخلِ یک مرحله‌ی کور گیر نمی‌کند.
+
+        تا وقتی «پرداخت کردم» زده نشده (سفارشِ در انتظار/منقضی) رسید خودش همان ادعاست؛
+        ولی متنِ بی‌عددِ بی‌ربط («سلام») رسید حساب نمی‌شه — وگرنه هر گپِ ساده‌ای سفارش را
+        «پرداخت‌شده» می‌کرد (F4)."""
         order_id = int(session.data.get("order_id", 0))
         order = self.orders.get(order_id)
         if order is None or order.platform != ctx.platform or str(order.chat_id) != ctx.chat:
             self.sessions.clear(ctx.platform, ctx.chat)
             return FlowResult(consumed=False)
+        claimed = order.status not in (STATUS_PENDING_PAYMENT, STATUS_EXPIRED)
         text = (ev.text or "").strip()
         attachment = getattr(ev, "attachment", None)
         if attachment and self.hooks.attachment_saver is not None:
             path = await self.hooks.attachment_saver(ctx.platform, ctx.chat, attachment)
             if path:
                 self.sessions.clear(ctx.platform, ctx.chat)
+                if not claimed:
+                    await self._claim_before_receipt(order_id)
                 info = self.payments.attach_receipt(order_id, "", self.hooks, file_path=path)
                 if info is None:
                     return FlowResult([UiMessage(ctx.t("ui.error"))])
@@ -1105,8 +1208,14 @@ class ShopFlow:
             # دکمه‌ی «📦 سفارش‌های من» را رسید حساب می‌کرد و مشتری دکمه‌اش را گم می‌کرد
             self.sessions.clear(ctx.platform, ctx.chat)
             return FlowResult(consumed=False)  # این پیام رسید نبود؛ بده به جریانِ عادی
+        clean = cf.normalize_input(text, 1000)
+        if not claimed and not parse_receipt(clean, order.total_irr).has_anything:
+            self.sessions.clear(ctx.platform, ctx.chat)
+            return FlowResult(consumed=False)  # حرفِ بی‌ربط، نه رسید؛ سفارشِ پرداخت‌نشده دست‌نخورده می‌ماند
         self.sessions.clear(ctx.platform, ctx.chat)
-        info = self.payments.attach_receipt(order_id, cf.normalize_input(text, 1000), self.hooks)
+        if not claimed:
+            await self._claim_before_receipt(order_id)
+        info = self.payments.attach_receipt(order_id, clean, self.hooks)
         if info is None:
             return FlowResult([UiMessage(ctx.t("ui.error"))])
         if info.get("trace"):

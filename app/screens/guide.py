@@ -64,7 +64,7 @@ def build(page: ft.Page, lang: str, settings, manager=None, open_article: Option
     def article_view(a) -> list:
         related = [guide.by_id(i) for i in dict.fromkeys(a.links) if guide.by_id(i)]
         out = [
-            ft.TextButton(key="gd_back", content=S("back", lang), icon=ft.Icons.ARROW_BACK_ROUNDED, on_click=lambda _e: (st.update(article=None), render())),
+            common.text(S("back", lang), key="gd_back", icon=ft.Icons.ARROW_BACK_ROUNDED, on_click=lambda _e: (st.update(article=None), render())),
             ft.Text(a.category_title, size=12, color=secondary),
             ft.Text(a.title, key="gd_title", size=21, weight=ft.FontWeight.W_700),
             ft.Text(S("read", lang, n=guide.reading_minutes(a)), key="gd_read", size=11.5, color=secondary),
@@ -73,12 +73,12 @@ def build(page: ft.Page, lang: str, settings, manager=None, open_article: Option
         prev_a, next_a = guide.neighbors(a.id)
         if prev_a or next_a:
             out.append(ft.Row(spacing=8, wrap=True, controls=[
-                *([ft.OutlinedButton(key="gd_prev", content=f"{S('prev', lang)}: {prev_a.title}", icon=ft.Icons.ARROW_FORWARD_ROUNDED, on_click=lambda _e, i=prev_a.id: go(i))] if prev_a else []),
-                *([ft.OutlinedButton(key="gd_next", content=f"{S('next', lang)}: {next_a.title}", icon=ft.Icons.ARROW_BACK_ROUNDED, on_click=lambda _e, i=next_a.id: go(i))] if next_a else []),
+                *([common.secondary(f"{S('prev', lang)}: {prev_a.title}", key="gd_prev", icon=ft.Icons.ARROW_FORWARD_ROUNDED, size="sm", on_click=lambda _e, i=prev_a.id: go(i))] if prev_a else []),
+                *([common.secondary(f"{S('next', lang)}: {next_a.title}", key="gd_next", icon=ft.Icons.ARROW_BACK_ROUNDED, size="sm", on_click=lambda _e, i=next_a.id: go(i))] if next_a else []),
             ]))
         if related:
             out.append(ft.Text(S("related", lang), size=13, color=secondary))
-            out.append(ft.Row(spacing=6, wrap=True, controls=[ft.OutlinedButton(key=f"gd_rel_{r.id}", content=r.title, on_click=lambda _e, i=r.id: go(i)) for r in related]))
+            out.append(ft.Row(spacing=6, wrap=True, controls=[common.secondary(r.title, key=f"gd_rel_{r.id}", size="sm", on_click=lambda _e, i=r.id: go(i)) for r in related]))
         return out
 
     def articles_tab() -> list:
@@ -88,7 +88,7 @@ def build(page: ft.Page, lang: str, settings, manager=None, open_article: Option
         rows: list = [
             ft.Text(S("start_here", lang), size=13, weight=ft.FontWeight.W_700, color=secondary),
             ft.Row(key="gd_start_here", spacing=6, wrap=True, controls=[
-                ft.FilledTonalButton(key=f"gd_start_{a.id}", content=a.title, on_click=lambda _e, i=a.id: go(i)) for a in (guide.by_id(x) for x in guide.START_HERE) if a]),
+                ft.FilledTonalButton(key=f"gd_start_{a.id}", content=a.title, height=theme.BTN_MD, on_click=lambda _e, i=a.id: go(i)) for a in (guide.by_id(x) for x in guide.START_HERE) if a]),
         ]
         for cat, title in guide.CATEGORIES:
             if cat in ("faq",):
@@ -128,15 +128,15 @@ def build(page: ft.Page, lang: str, settings, manager=None, open_article: Option
         icon = S(f"st_{f.status}", lang)
         controls = [ft.Text(f"{icon} {f.title}", size=14, weight=ft.FontWeight.W_600), ft.Text(f.detail, size=13, color=secondary)]
         if f.article and guide.by_id(f.article) and f.status != troubleshoot.OK:
-            controls.append(ft.TextButton(key=f"gd_fix_more_{f.key}", content=S("more", lang), on_click=lambda _e, i=f.article: (st.update(tab="articles"), go(i))))
+            controls.append(common.text(S("more", lang), key=f"gd_fix_more_{f.key}", on_click=lambda _e, i=f.article: (st.update(tab="articles"), go(i))))
         return common.card(page, ft.Column(spacing=2, controls=controls), padding=12)
 
     def fix_tab() -> list:
-        return [ft.Text(S("fix_intro", lang), size=13, color=secondary), ft.FilledButton(key="gd_fix_run", content=S("run", lang), icon=ft.Icons.PLAY_ARROW_ROUNDED, on_click=run_fix), fix_out]
+        return [ft.Text(S("fix_intro", lang), size=13, color=secondary), common.primary(S("run", lang), key="gd_fix_run", icon=ft.Icons.PLAY_ARROW_ROUNDED, size="sm", on_click=run_fix), fix_out]
 
     def render(update: bool = True) -> None:
-        tabs = ft.Row(spacing=8, wrap=True, controls=[(ft.FilledButton if st["tab"] == k else ft.OutlinedButton)(
-            key=f"gd_tab_{k}", content=S(f"tab_{k}", lang), on_click=lambda _e, kk=k: (st.update(tab=kk, article=None, query=""), setattr(search_tf, "value", ""), render())) for k in ("articles", "faq", "fix")])
+        tabs = ft.Row(spacing=8, wrap=True, alignment=ft.MainAxisAlignment.START, controls=[(common.primary if st["tab"] == k else common.secondary)(
+            S(f"tab_{k}", lang), key=f"gd_tab_{k}", size="sm", on_click=lambda _e, kk=k: (st.update(tab=kk, article=None, query=""), setattr(search_tf, "value", ""), render())) for k in ("articles", "faq", "fix")])
         article = guide.by_id(st["article"]) if st["article"] else None
         if article:
             body.controls = [search_tf, *article_view(article)]

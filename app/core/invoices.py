@@ -7,6 +7,11 @@
 - **ریاضی:** جمعِ سطرها − تخفیف + ارسال = جمعِ کل = مبلغِ سفارش (آنچه مشتری پرداخت). مالیات بر ارزش افزوده (اگه روشن) از
   مبلغِ کل *استخراج* می‌شه (قیمت‌ها «با مالیات»)؛ گردکردنِ یکنواخت (نیم به بالا، یک‌بار روی جمعِ کل).
 - صدور idempotent است و خارج از ساگای موجودی (فقط روی سفارشِ ``confirmed`` با ``inventory_applied``).
+- **متن‌هایِ شخصی‌سازی‌شده (قلم ۸):** نامِ فروشگاه یک‌جا با زنجیره‌ی
+  ``invoice_seller_name → user_name → invoice_seller_fallback → «فروشگاه»`` حل می‌شود (هرگز نامِ خالی
+  روی فاکتور نمی‌آید)؛ متنِ تشکر و سلبِ مسئولیت از تنظیمات می‌آیند و برچسب‌هایِ مهمِ فاکتور از
+  ``settings.bot_texts`` (کلیدهایِ ``invoice.label.*``). همه داخلِ *snapshotِ* فاکتور منجمد می‌شن،
+  پس فاکتورِ صادرشده با عوض‌شدنِ تنظیمات عوض نمی‌شود و PDF همچنان قطعی است.
 """
 
 from __future__ import annotations
@@ -24,6 +29,18 @@ from app.core.finance import MAX_BP, clean_text, round_div
 KIND_SALE = "sale"
 KIND_CREDIT = "credit_note"
 ANON_NAME = "حذف‌شده به درخواستِ مشتری"
+# آخرینِ لایه‌یِ نامِ فروشگاه روی فاکتور — هرگز جایِ نام، عنوانِ «فاکتور فروش» چاپ نمی‌شود.
+DEFAULT_SELLER_NAME = "فروشگاه"
+
+# «متن‌هایِ مهمِ فاکتور» که مالک می‌تواند عوض کند (کلیدهایِ ``LABELS`` در ``app.core.invoice_pdf``).
+EDITABLE_LABEL_KEYS = ("sale", "credit", "buyer", "col_item", "final", "date", "number")
+# برچسب‌هایِ سفارشی در همان ``settings.bot_texts`` (تنها جاودانهِ قابل‌ویرایشِ متن در این نسخه) می‌نشینند؛
+# پیشوندِ ``invoice.label.`` هیچ‌وقت با کلیدِ پیامِ ربات قاطی نمی‌شود (``shop_texts`` فقط کلیدهایِ ثبت‌شده را می‌خواند).
+LABEL_PREFIX = "invoice.label."
+MAX_LABEL_LEN = 60
+MAX_THANKS_LEN = 200
+MAX_DISCLAIMER_LEN = 300
+MAX_NAME_LEN = 40
 
 _IMMUTABLE_COLUMNS = (
     "number", "kind", "order_id", "ref_invoice_id", "issued_ts", "seller_json", "lines_json", "subtotal_irr", "discount_irr",
@@ -134,11 +151,53 @@ def compute_totals(lines: list, total_irr: int, declared_discount: int = 0, vat_
     return {"subtotal_irr": subtotal, "discount_irr": discount, "shipping_irr": shipping, "tax_irr": tax, "total_irr": int(total_irr)}
 
 
+def seller_name_of(settings) -> str:
+    """نامِ فروشندهٔ فاکتور — **یک‌جا، با یک زنجیره:** ``invoice_seller_name → user_name →
+    invoice_seller_fallback → «فروشگاه»``.
+
+    چرا زنجیره؟ «نامِ فروشگاه» در تنظیماتِ فاکتور خیلی‌ها خالی است (مالک فقط نامِ خود را در
+    «آغازِ سریع» نوشته)، و قبلاً در آن حالت جایِ نام، عنوانِ «فاکتور فروش» در نوارِ رنگی چاپ
+    می‌شد — یعنی سربرگِ بی‌نام. هرگز رشته‌یِ خالی برنمی‌گرداند، پس هیچ باندی خالی نمی‌ماند."""
+    for value in (getattr(settings, "invoice_seller_name", ""), getattr(settings, "user_name", ""),
+                  getattr(settings, "invoice_seller_fallback", "")):
+        name = clean_text(value, MAX_NAME_LEN)
+        if name:
+            return name
+    return DEFAULT_SELLER_NAME
+
+
+def invoice_labels_of(settings) -> dict:
+    """overrideِ برچسب‌هایِ مهمِ فاکتور، به شکلِ ``{زبان: {کلیدِ LABELS: متن}}`` (خالی = پیش‌فرض).
+
+    متن‌ها نامطمئن‌اند (از ``settings.json`` و از پشتیبانِ بازگردانده‌شده هم می‌آیند): نویسه‌های
+    کنترلی/bidi دور ریخته می‌شوند، طول کران‌دار است و فقط کلیدهایِ ``EDITABLE_LABEL_KEYS`` —
+    پس چیدمانِ فاکتور با متنِ دلخواه نمی‌شکند."""
+    table = getattr(settings, "bot_texts", None)
+    out: dict = {}
+    if not isinstance(table, dict):
+        return out
+    for lang in ("fa", "en"):
+        raw = table.get(lang)
+        if not isinstance(raw, dict):
+            continue
+        texts: dict = {}
+        for key in EDITABLE_LABEL_KEYS:
+            value = raw.get(LABEL_PREFIX + key)
+            text = clean_text(value, MAX_LABEL_LEN) if isinstance(value, str) else ""
+            if text:
+                texts[key] = text
+        if texts:
+            out[lang] = texts
+    return out
+
+
 def seller_snapshot(settings) -> dict:
     g = lambda name, default="": getattr(settings, name, default)  # noqa: E731
     logo = str(g("invoice_logo_path"))
     return {
-        "name": clean_text(g("invoice_seller_name") or "فروشگاه", 80),
+        "name": seller_name_of(settings),
+        # نامِ صریحِ جایگزین هم در snapshot می‌ماند تا اگر «نام» به هر دلیلی چاپ‌شدنی نبود، همین نشان داده شود
+        "fallback_name": clean_text(g("invoice_seller_fallback"), MAX_NAME_LEN),
         "legal_name": clean_text(g("invoice_seller_legal_name"), 80),
         "national_id": clean_text(g("invoice_seller_national_id"), 20),
         "address": clean_text(g("invoice_seller_address"), 200),
@@ -146,6 +205,10 @@ def seller_snapshot(settings) -> dict:
         "logo_path": logo,
         "color": g("invoice_color") if re.fullmatch(r"#[0-9a-fA-F]{6}", str(g("invoice_color"))) else "#1F6FEB",
         "footer": clean_text(g("invoice_footer"), 200),
+        # متن‌هایِ قابلِ شخصی‌سازیِ فاکتور (قلم ۸): خالی ⇒ متنِ پیش‌فرضِ خودِ برنامه
+        "thanks": clean_text(g("invoice_thanks"), MAX_THANKS_LEN),
+        "disclaimer": clean_text(g("invoice_disclaimer"), MAX_DISCLAIMER_LEN),
+        "labels": invoice_labels_of(settings),
         "vat_enabled": bool(g("invoice_vat_enabled", False)),
         "vat_rate_bp": int(g("invoice_vat_rate_bp", 0) or 0),
         "paper": g("invoice_paper", "A4") if g("invoice_paper", "A4") in ("A4", "A5") else "A4",
@@ -250,6 +313,9 @@ class InvoiceStore:
                  "address": clean_text(order.customer_address, 300),
                  # کدِ پیگیری/تراکنش روی فاکتور چاپ می‌شه؛ بخشی از snapshot است، نه داده‌ی هویتی
                  "trace": clean_text(order.payment_reference, 40),
+                 # کدِ رهگیریِ مرسوله و شناسهٔ مشتری هم روی فاکتور می‌آیند (بلوکِ «مشخصات خریدار» همیشه پُره)
+                 "tracking": clean_text(getattr(order, "tracking_code", ""), 40),
+                 "buyer_id": clean_text(getattr(order, "chat_id", ""), 40),
                  # روشِ ارسالِ انتخابیِ مشتری هم روی فاکتور می‌آید (برچسبِ غیرهویتی؛ با /forget پاک می‌شه)
                  "shipping_method": clean_text(getattr(order, "shipping_method", ""), 60)}
         conn = self._conn()
@@ -315,7 +381,8 @@ class InvoiceStore:
         شماره‌ی فاکتورهایی که PDFشان باید پاک بشه را برمی‌گردونه."""
         numbers: list = []
         conn = self._conn()
-        anon = json.dumps({"anonymized": True, "name": ANON_NAME, "phone": "", "address": ""}, ensure_ascii=False)
+        anon = json.dumps({"anonymized": True, "name": ANON_NAME, "phone": "", "address": "", "trace": "",
+                           "tracking": "", "buyer_id": "", "shipping_method": ""}, ensure_ascii=False)
         for oid in order_ids:
             for r in conn.execute("SELECT number FROM invoices WHERE order_id=?", (int(oid),)).fetchall():
                 numbers.append(r["number"])

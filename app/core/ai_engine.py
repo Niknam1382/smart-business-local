@@ -334,7 +334,10 @@ def gpu_offload_available(force: bool = False) -> bool:
 
     بیلدِ رسمیِ برنامه (و بسته‌هایِ آماده) از شاخه‌ی CPU installed می‌شود، پس پاسخِ این تابع
     False است و «لایه‌هایِ GPU» هیچ اثری ندارد — دقیقاً همان ابهامی که کاربر باید پیش از
-    تغییرِ عدد بداند. اگر llama_cpp نباشد یا تابع را نداشته باشد هم False برمی‌گردد."""
+    تغییرِ عدد بداند. ``app.core.gpu_pack`` همین ابهام را برطرف می‌کند: اگر بستهٔ شتاب نصب و
+    راستی‌آزمایی شده باشد، مسیرِ کشفِ کتابخانه پیش از اولین import روی همان بسته می‌رود و
+    پاسخِ این تابع از *بیلدِ CUDA* می‌آید. اگر llama_cpp نباشد یا تابع را نداشته باشد هم False
+    برمی‌گردد. پاسخ کش می‌شود؛ بعدِ هر عوض‌شدنِ بیلد ``reset_gpu_offload_cache()`` لازم است."""
     global _gpu_offload_cache
     if _gpu_offload_cache is not None and not force:
         return _gpu_offload_cache
@@ -381,17 +384,12 @@ def expanded_user(text: str) -> str:
     return str(_P(text).expanduser())
 
 
-def auto_gpu_layers(hw, model_size_bytes: int) -> int:
-    """«چند لایه روی GPU؟» را از خودِ سیستم می‌پرسه، نه از نامِ کارت (قلم ۱۴ مستر‌پرامپت).
+def gpu_layer_tier(vram_gb: float, model_size_bytes: int) -> int:
+    """طبقه‌بندیِ خالصِ «چند لایه با این VRAM؟» — بدونِ پرس‌وجو از بیلد.
 
-    پاسخِ ``gpu_offload_available`` از *بیلدِ نصب‌شده‌ی* llama-cpp می‌آید؛ بیلدِ رسمیِ برنامه CPU
-    است و برای همین همیشه ۰ برمی‌گرده — یعنی هیچ عددِ ساختگیِ GPU به مدل داده نمی‌شه. اگر کاربر
-    بیلدِ CUDA نصب کرده باشد: با VRAMِ کافی مدلِ کامل روی گرافیک (‎-۱)، و با VRAMِ نصفه‌نیمه
-    همه‌ی لایه‌ها جز ده لایه‌ی آخر (‎-۱۱) تا مدل در حافظه‌ی گرافیک جا بشه.
-    """
-    if not gpu_offload_available():
-        return 0
-    vram = float(getattr(hw, "gpu_vram_gb", 0) or 0)
+    از ``auto_gpu_layers`` جدا شده تا ``gpu_pack`` بتواند دقیقاً همان عددِ تولیدی را در
+    آزمایشِ بارگذاریِ مدل به کار بگیرد (دو نسخه‌ی یک قاعده نداشته باشیم)."""
+    vram = float(vram_gb or 0)
     if vram < 2.0:
         return 0
     model_gb = max(0.0, (model_size_bytes or 0) / (1024**3))
@@ -402,9 +400,28 @@ def auto_gpu_layers(hw, model_size_bytes: int) -> int:
     return 0
 
 
+def auto_gpu_layers(hw, model_size_bytes: int) -> int:
+    """«چند لایه روی GPU؟» را از خودِ سیستم می‌پرسه، نه از نامِ کارت (قلم ۱۴ مستر‌پرامپت).
+
+    پاسخِ ``gpu_offload_available`` از *بیلدِ بارگذاری‌شده* می‌آید. بیلدِ رسمیِ بسته فقط-CPU است،
+    پس تا وقتی «بستهٔ شتابِ گرافیکی» (``app.core.gpu_pack``) نصب نشده این‌جا همیشه ۰ برمی‌گرده —
+    یعنی هیچ عددِ ساختگیِ GPU به مدل داده نمی‌شه. بعدِ نصبِ بسته (یا با بیلدِ CUDAیِ خودِ کاربر)
+    که توان تأیید شد: با VRAMِ کافی مدلِ کامل روی گرافیک (‎-۱)، و با VRAMِ نصفه‌نیمه همه‌ی لایه‌ها
+    جز ده لایه‌ی آخر (‎-۱۱) تا مدل در حافظه‌ی گرافیک جا بشه.
+    """
+    if not gpu_offload_available():
+        return 0
+    return gpu_layer_tier(getattr(hw, "gpu_vram_gb", 0), model_size_bytes)
+
+
 def build_engine_from_settings(settings) -> LocalEngine:
     """موتور را از AppSettings می‌سازد (بارگذاریِ واقعی تنبل و در اولین تماس است)."""
-    from app.core import hardware, model_catalog
+    from app.core import gpu_pack, hardware, model_catalog
+
+    # قلم ۲: اگر بستهٔ شتابِ گرافیکی نصب شده باشد، همین‌جا (پیش از اولین ``import llama_cpp``)
+    # مسیرِ کشفِ کتابخانه روی آن گذاشته می‌شود. هیچ چیزِ دیگری در این تابع عوض نشده است؛
+    # نبودِ بسته = رفتارِ قبلیِ دقیق.
+    gpu_pack.ensure_active(settings)
 
     if not _llama_available():
         raise AiEngineError(

@@ -112,7 +112,7 @@ def build(page: ft.Page, lang: str, manager, state) -> ft.Control:
                     dropdown("admins_platform", t("admins.platform", lang),
                              [(p, platform_label(p)) for p in PLATFORMS], ui["platform"], on_platform, width=200),
                     dropdown("admins_role", t("admins.role", lang), [(r, t(f"admins.role.{r}", lang)) for r in am.ASSIGNABLE_ROLES], ui["role"], on_role),
-                    ft.OutlinedButton(key="admins_invite", content=t("admins.invite", lang), icon=ft.Icons.QR_CODE_2_ROUNDED, on_click=on_invite),
+                    common.secondary(t("admins.invite", lang), key="admins_invite", icon=ft.Icons.QR_CODE_2_ROUNDED, size="sm", on_click=on_invite),
                 ],
             ),
         ]
@@ -128,10 +128,10 @@ def build(page: ft.Page, lang: str, manager, state) -> ft.Control:
                             controls=[
                                 ft.Text(t("admins.invite_link", lang), size=12, color=secondary),
                                 ft.Text(invite["link"], key="admins_invite_link", size=12.5, selectable=True),
-                                ft.OutlinedButton(key="admins_copy_link", content=t("admins.copy", lang), icon=ft.Icons.CONTENT_COPY_ROUNDED, on_click=copier(invite["link"])),
+                                common.secondary(t("admins.copy", lang), key="admins_copy_link", icon=ft.Icons.CONTENT_COPY_ROUNDED, size="sm", on_click=copier(invite["link"])),
                                 ft.Text(t("admins.invite_cmd", lang), size=12, color=secondary),
                                 ft.Text(invite["cmd"], key="admins_invite_cmd", size=12.5, selectable=True),
-                                ft.OutlinedButton(key="admins_copy_cmd", content=t("admins.copy", lang), icon=ft.Icons.CONTENT_COPY_ROUNDED, on_click=copier(invite["cmd"])),
+                                common.secondary(t("admins.copy", lang), key="admins_copy_cmd", icon=ft.Icons.CONTENT_COPY_ROUNDED, size="sm", on_click=copier(invite["cmd"])),
                             ],
                         ),
                     ],
@@ -141,7 +141,7 @@ def build(page: ft.Page, lang: str, manager, state) -> ft.Control:
             ft.Divider(),
             ft.Text(t("admins.by_id", lang), size=14, weight=ft.FontWeight.W_600),
             ft.Text(t("admins.by_id_hint", lang), size=12, color=secondary),
-            ft.Row(wrap=True, spacing=10, controls=[id_field, name_field, ft.OutlinedButton(key="admins_add_id", content=t("admins.add_id", lang), icon=ft.Icons.PERSON_ADD_ROUNDED, on_click=on_add_id)]),
+            ft.Row(wrap=True, spacing=10, alignment=ft.MainAxisAlignment.START, controls=[id_field, name_field, common.secondary(t("admins.add_id", lang), key="admins_add_id", icon=ft.Icons.PERSON_ADD_ROUNDED, size="sm", on_click=on_add_id)]),
         ]
         return card(page, ft.Column(spacing=10, controls=controls))
 
@@ -176,8 +176,8 @@ def build(page: ft.Page, lang: str, manager, state) -> ft.Control:
         sub = " · ".join(p for p in ((f"@{a.username}" if a.username else ""), a.user_id, platform_label(a.platform)) if p)
         buttons: list = []
         if a.status != am.STATUS_PENDING:
-            buttons.append(ft.TextButton(key=f"admin_toggle_{tag}", content=t("admins.disable" if a.status == am.STATUS_ACTIVE else "admins.enable", lang), on_click=on_toggle))
-        buttons.append(ft.TextButton(key=f"admin_remove_{tag}", content=t("admins.remove_confirm" if ui["armed"] == (a.platform, a.user_id) else "admins.remove", lang), on_click=on_remove))
+            buttons.append(common.text(t("admins.disable" if a.status == am.STATUS_ACTIVE else "admins.enable", lang), key=f"admin_toggle_{tag}", on_click=on_toggle))
+        buttons.append(common.text(t("admins.remove_confirm" if ui["armed"] == (a.platform, a.user_id) else "admins.remove", lang), key=f"admin_remove_{tag}", on_click=on_remove))
         return ft.Container(
             key=f"admin_row_{tag}", padding=ft.Padding.symmetric(horizontal=14, vertical=10), border_radius=12,
             bgcolor=theme.card_bgcolor(page), border=ft.Border.all(1, theme.border_color(page)),

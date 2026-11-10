@@ -13,6 +13,9 @@
   ``تایید 12`` ...). هر متنِ دیگه‌ای از چتِ مالک به AI می‌ره (برای تستِ ربات با حسابِ خودش).
 - **اعلان‌ها:** پرداختِ منتظرِ تایید، فروشِ تایید‌شده‌ی خودکار (مشخصاتِ تحویل)، پرداختِ دیررس،
   و درخواستِ «نیاز به پیگیری» از طرفِ AI.
+- **قلم ۲۲/۳ (قاعده‌ی مالک):** هیچ پیامِ انسانی نباید کسی را به تایپِ فرمان دعوت کند وقتی دکمه وجود
+  دارد؛ اعلان‌های «منتظرِ تصمیم» با دکمه‌هایِ تأیید/رد می‌روند و راهنما پنل‌محور است. فرمان‌هایِ
+  متنی برایِ سازگاری (و تست‌ها) سرِ جایشان‌اند، فقط تبلیغ نمی‌شوند.
 """
 
 from __future__ import annotations
@@ -46,6 +49,10 @@ _CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # بدون حروفِ گی�
 _CODE_LENGTH = 10
 _DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
 
+# ۲۲/۳: دو جمله‌ای که *خودِ این ماژول* برای «منتظرِ تصمیمِ مالک» می‌سازد — اگر این الگو بخورد،
+# اعلان با دکمه‌هایِ تأیید/رد فرستاده می‌شه (نه با دستورِ متنی).
+_WAITING_DECISION_RE = re.compile(r"سفارش #(\d+) (?:ثبت شد و منتظر تاییدته|«پرداخت‌شده» علامت خورد)")
+
 _ALIASES = {
     "help": {"help", "راهنما", "کمک", "owner"},
     "orders": {"orders", "سفارش‌ها", "سفارشها", "سفارش_ها"},
@@ -69,17 +76,18 @@ _COMMAND_CAPS = {
 }
 
 _HELP_LINES = [
-    (admins_mod.CAP_ORDERS_VIEW, "/orders — سفارش‌های منتظر تایید"),
-    (admins_mod.CAP_ORDERS_VIEW, "/order 12 — جزئیات سفارش"),
-    (admins_mod.CAP_ORDERS_DECIDE, "/confirm 12 — تایید (موجودی کم می‌شه + فاکتور برای مشتری)"),
-    (admins_mod.CAP_ORDERS_DECIDE, "/reject 12 — رد (به مشتری اطلاع داده می‌شه)"),
-    (admins_mod.CAP_STOCK_VIEW, "/stock — کالاهای کم‌موجود/تمام‌شده"),
-    (admins_mod.CAP_OWNER_UNLINK, "/unlink — قطعِ این چت از کنسول مالک"),
-    (admins_mod.CAP_PANEL, "/admin — پنلِ دکمه‌ای (سفارش‌ها، موجودی، آمار، پشتیبانی)"),
-    (admins_mod.CAP_PANEL, "/id — شناسه‌ی عددیِ این چت"),
+    # قلم ۳/۲۲: راهنما «پنل‌محور» است — هر کاری دکمه دارد و هیچ انسانی نباید برای کارِ ساده فرمان تایپ کند.
+    # فرمان‌هایِ متنی (/confirm 12 …) همچنان کار می‌کنن (سازگاری و تست‌ها)، فقط دیگر تبلیغ نمی‌شن.
+    (admins_mod.CAP_PANEL, "/admin — پنلِ دکمه‌ایِ همه‌کاره: سفارش‌ها (تأیید/رد با دکمه)، موجودی، آمار، پشتیبانی، مالی، تنظیماتِ عملیاتی"),
+    (admins_mod.CAP_PANEL, "/id — شناسه‌ی عددیِ این چت (برای افزودنِ مدیر)"),
+    (admins_mod.CAP_OWNER_UNLINK, "/unlink — قطعِ این چت از کنسولِ مالک"),
 ]
 
-HELP_TEXT = "🛠 کنسول مالک\n" + "\n".join(line for _cap, line in _HELP_LINES) + "\nفارسی هم می‌شه: «تایید 12»، «رد 12»، «سفارش‌ها»، «موجودی»."
+HELP_TEXT = (
+    "🛠 کنسولِ مالک — همه‌چیز با دکمه\n"
+    + "\n".join(line for _cap, line in _HELP_LINES)
+    + "\nتأیید و ردِ سفارش، موجودی، پشتیبانی و تنظیمات همه در دکمه‌هایِ /admin هستن؛ فرمان‌هایِ متنیِ قدیمی را لازم نداری."
+)
 
 
 def help_text(role: str) -> str:
@@ -140,13 +148,16 @@ def order_details(order: Order, receipts: Optional[list] = None) -> str:
 
 
 def order_alert_text(order: Order, kind: str) -> str:
-    """kind: ``needs_confirm`` (پرداخت شد، منتظر تاییدِ مالک)، ``sale`` (تایید خودکار شد)."""
+    """kind: ``needs_confirm`` (پرداخت شد، منتظر تاییدِ مالک)، ``sale`` (تایید خودکار شد).
+
+    قلم ۲۲/۳: این متن با **دکمه‌هایِ تأیید/رد** می‌رسد (``OwnerConsole.order_action_rows`` و
+    ``notify``)، پس هیچ‌جا به انسان نمی‌گوییم فرمان تایپ کند."""
     if kind == "sale":
         head = f"🛒 فروش جدید — سفارش #{order.id} تایید خودکار شد؛ آماده‌ی ارسال کن."
         tail = ""
     else:
         head = f"💰 پرداختِ سفارش #{order.id} ثبت شد و منتظر تاییدته."
-        tail = f"\n\nتایید: /confirm {order.id}\nرد: /reject {order.id}"
+        tail = f"\n\nبرای تصمیم، دکمه‌هایِ ✅ تأیید و ❌ ردِ همین پیام را بزن (سفارش #{order.id})."
         if order.payment_method == METHOD_CARD_TO_CARD:
             tail = "\n⚠️ کارت‌به‌کارت است؛ قبل از تایید، واریز رو توی حسابت چک کن." + tail
     late = "\n⚠️ پرداخت بعد از پایان مهلت رزرو رسیده؛ موجودی رو چک کن." if order.paid_late else ""
@@ -193,9 +204,7 @@ def build_payment_claim_alert(order: Order, receipt: dict) -> str:
     if other:
         # یک کدِ رهگیری روی دو سفارشِ متفاوت ⇒ یا واریزِ تکراری/اشتباه است یا سوءاستفاده
         body.append(f"⚠️ همین کدِ رهگیری قبلاً روی سفارش #{other} ثبت شده؛ قبل از تأیید مطمئن شو دو واریزِ جدایی.")
-    body.append("قبل از تأیید، توی اپِ بانک/حسابِ خودت واریز را ببین؛ بعد:")
-    body.append(f"/confirm {order.id}")
-    body.append(f"/reject {order.id}")
+    body.append("قبل از تأیید، توی اپِ بانک/حسابِ خودت واریز را ببین؛ بعد دکمه‌هایِ «✅ تأییدِ سفارش» و «❌ ردِ سفارش» را بزن.")
     return f"{head}\n\n" + "\n".join(body)
 
 
@@ -314,7 +323,7 @@ class OwnerConsole:
         if command in _NEEDS_ID and arg is None:
             if not slashed:
                 return False  # «رد شدم»، «سفارش دادم» ... = گفتگوی عادی
-            await send("شماره‌ی سفارش رو هم بنویس؛ مثلاً /confirm 12")
+            await send("شماره‌ی سفارش را هم بنویس — همان عددی که روی کارتِ دکمه‌ی تأیید می‌بینی؛ سریع‌ترش در پنلِ «سفارش‌ها» است.")
             return True
         await send(await self._run(command, arg, platform, role=role, actor=self.actor_of(platform, chat_id)))
         return True
@@ -341,7 +350,7 @@ class OwnerConsole:
 
     async def _run(self, command: str, arg: Optional[int], platform: str, role: str = admins_mod.ROLE_OWNER, actor: str = "") -> str:
         if arg == -1:
-            return "شماره‌ی سفارش باید عدد باشه؛ مثلاً /confirm 12"
+            return "شماره‌ی سفارش باید عدد باشد — همان عددی که روی کارتِ دکمه‌ی تأیید نوشته شده."
         if command == "help":
             return help_text(role)
         if command == "unlink":
@@ -378,7 +387,11 @@ class OwnerConsole:
                 await send(deny)
                 return True
             target = parse_ref(match.group(1))
-            await send("❌ شناسه‌ی گفتگو نامعتبره؛ مثلاً /reply t123456 سلام" if target is None else await self._handoff.owner_reply(*target, match.group(2)))
+            await send(
+                "❌ شناسه‌ی گفتگو نامعتبره؛ از پنلِ مدیریتِ «پشتیبانی» روی نامِ مشتری بزن و همان‌جا بنویس."
+                if target is None
+                else await self._handoff.owner_reply(*target, match.group(2))
+            )
             return True
         match = re.fullmatch(r"/close(?:@\w+)?\s+(\S+)", text)
         if match:
@@ -428,7 +441,7 @@ class OwnerConsole:
         lines = [f"📋 منتظر تایید: {len(waiting)} (در انتظار پرداخت: {pending})"]
         for order in waiting[:10]:
             lines.append("• " + order_details(order).replace("\n", " | ") + ("  ⚠️دیررس" if order.paid_late else ""))
-        lines.append("\nتایید: /confirm <شماره>   رد: /reject <شماره>")
+        lines.append("\nبرای تأیید/رد، از پنلِ مدیریت («سفارش‌ها») روی همان شماره بزن و دکمه‌ها را ببین.")
         return "\n".join(lines)
 
     def _stock_text(self) -> str:
@@ -449,12 +462,30 @@ class OwnerConsole:
             [Btn("🔎 جزئیاتِ سفارش", f"adm:od:{order.id}"), Btn("🛠 پنلِ مدیریت", "adm:home")],
         ]
 
+    def _rows_for_alert(self, text: str) -> list:
+        """۲۲/۳: هر اعلانی که **خودِ همین ماژول** ساخته و منتظرِ تصمیمِ مالک است، دکمه‌هایِ
+        تأیید/رد می‌گیرد — حتی اگر فرستنده‌اش (جریانِ فروشگاه) ردیفِ دکمه نسازد.
+
+        الگو به سرِ جمله‌ی «سفارش #N …» قفل شده، پس هشدارهایِ فنی/سقفِ AI/کمپین هیچ‌وقت
+        دکمه‌ی سفارش نمی‌گیرن."""
+        match = _WAITING_DECISION_RE.search(text or "")
+        if match is None or self._orders is None:
+            return []
+        try:
+            order = self._orders.get(int(match.group(1)))
+        except (TypeError, ValueError):
+            return []
+        return self.order_action_rows(order) if order is not None else []
+
     async def notify(self, text: str, to_managers: bool = False, rows: Optional[list] = None) -> bool:
         """به همه‌ی چت‌های ثبت‌شده‌ی مالک پیام می‌ده؛ True اگه حداقل به یکی رسید. ``to_managers``: مدیرانِ فعالِ دارای
         قابلیتِ «تأیید/ردِ سفارش» هم خبردار می‌شن (فقط اعلانِ سفارش؛ هشدارهای فنی/سقفِ AI فقط برای مالک).
 
         ``rows`` (دکمه‌ها) فقط وقتی به کار می‌ره که ``send_ui`` تزریق شده باشد؛ وگرنه همان متن
-        فرستاده می‌شه — پس هیچ مسیری بدونِ آداپتور نمی‌شکند."""
+        فرستاده می‌شه — پس هیچ مسیری بدونِ آداپتور نمی‌شکند. اگر ردیفی داده نشود و متن اعلانِ
+        «منتظرِ تصمیم»ِ خودِ همین ماژول باشد، دکمه‌ها خودکار می‌چسبند (``_rows_for_alert``)."""
+        if not rows:
+            rows = self._rows_for_alert(text)
         delivered = False
         targets = list(self.owner_chats().items())
         if to_managers and self._admins is not None:

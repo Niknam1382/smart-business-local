@@ -163,17 +163,14 @@ def build(page: ft.Page, lang: str, store: ProductStore, settings=None, save=Non
 
     def build_photo_buttons() -> list:
         buttons = [
-            ft.OutlinedButton(
+            common.secondary(
                 t("products.form.change_photo", lang) if ui["photo_path"] else t("products.form.add_photo", lang),
-                icon=ft.Icons.IMAGE_OUTLINED,
-                on_click=handle_pick_photo,
+                icon=ft.Icons.IMAGE_OUTLINED, size="sm", on_click=handle_pick_photo,
             )
         ]
         if ui["photo_path"]:
             buttons.append(
-                ft.TextButton(
-                    t("products.form.remove_photo", lang), icon=ft.Icons.DELETE_OUTLINE_ROUNDED, on_click=handle_remove_photo
-                )
+                common.text(t("products.form.remove_photo", lang), icon=ft.Icons.DELETE_OUTLINE_ROUNDED, on_click=handle_remove_photo)
             )
         return buttons
 
@@ -310,9 +307,8 @@ def build(page: ft.Page, lang: str, store: ProductStore, settings=None, save=Non
                     spacing=10,
                     controls=[
                         primary_button(t("products.form.save", lang), handle_save, width=140),
-                        ft.TextButton(
-                            key="product_form_cancel",
-                            content=t("products.form.cancel", lang),
+                        common.text(
+                            t("products.form.cancel", lang), key="product_form_cancel",
                             on_click=lambda e: (close_form(), render_list(), page.update()),
                         ),
                     ],
@@ -380,10 +376,10 @@ def build(page: ft.Page, lang: str, store: ProductStore, settings=None, save=Non
         wrap=True,
         controls=[
             ft.Text(t("products.import.title", lang), size=13, weight=ft.FontWeight.W_600),
-            ft.OutlinedButton(key="product_template", content=t("products.import.template", lang),
-                              icon=ft.Icons.DOWNLOAD_ROUNDED, on_click=do_template),
-            ft.OutlinedButton(key="product_import", content=t("products.import.run", lang),
-                              icon=ft.Icons.UPLOAD_FILE_ROUNDED, on_click=on_import_file),
+            common.secondary(t("products.import.template", lang), key="product_template",
+                             icon=ft.Icons.DOWNLOAD_ROUNDED, size="sm", on_click=do_template),
+            common.secondary(t("products.import.run", lang), key="product_import",
+                             icon=ft.Icons.UPLOAD_FILE_ROUNDED, size="sm", on_click=on_import_file),
         ],
     )
 
@@ -413,10 +409,10 @@ def build(page: ft.Page, lang: str, store: ProductStore, settings=None, save=Non
         wrap=True,
         controls=[
             ft.Text(_r("title", lang), size=13, weight=ft.FontWeight.W_600),
-            ft.OutlinedButton(key="product_export_xlsx", content=_r("xlsx", lang),
-                              icon=ft.Icons.TABLE_VIEW, on_click=lambda e: do_report("xlsx")),
-            ft.OutlinedButton(key="product_export_pdf", content=_r("pdf", lang),
-                              icon=ft.Icons.PICTURE_AS_PDF_ROUNDED, on_click=lambda e: do_report("pdf")),
+            common.secondary(_r("xlsx", lang), key="product_export_xlsx",
+                             icon=ft.Icons.TABLE_VIEW, size="sm", on_click=lambda e: do_report("xlsx")),
+            common.secondary(_r("pdf", lang), key="product_export_pdf",
+                             icon=ft.Icons.PICTURE_AS_PDF_ROUNDED, size="sm", on_click=lambda e: do_report("pdf")),
         ],
     )
 
@@ -475,17 +471,10 @@ def build(page: ft.Page, lang: str, store: ProductStore, settings=None, save=Non
                             ft.Row(spacing=8, controls=badges),
                         ],
                     ),
-                    ft.OutlinedButton(
-                        key=f"edit_{product.id}",
-                        content=t("products.edit", lang),
-                        icon=ft.Icons.EDIT_OUTLINED,
-                        on_click=lambda e, p=product: open_edit_form(p),
-                    ),
-                    ft.TextButton(
-                        key=f"toggle_active_{product.id}",
-                        content=t("products.activate", lang) if not product.active else t("products.deactivate", lang),
-                        on_click=lambda e, p=product: handle_toggle_active(p),
-                    ),
+                    common.secondary(t("products.edit", lang), key=f"edit_{product.id}",
+                                     icon=ft.Icons.EDIT_OUTLINED, size="sm", on_click=lambda e, p=product: open_edit_form(p)),
+                    common.text(t("products.activate", lang) if not product.active else t("products.deactivate", lang),
+                                key=f"toggle_active_{product.id}", on_click=lambda e, p=product: handle_toggle_active(p)),
                 ],
             ),
         )
@@ -516,7 +505,7 @@ def build(page: ft.Page, lang: str, store: ProductStore, settings=None, save=Non
                                 t("products.empty", lang), size=13, color=theme.text_secondary(page), text_align=ft.TextAlign.CENTER
                             ),
                             # N2: برنامه کاملاً خالی شروع می‌شه؛ محصولِ نمونه فقط وقتی ساخته می‌شه که خودِ کاربر بخواد
-                            ft.TextButton(key="product_add_sample", content=t("products.sample.button", lang), on_click=handle_add_sample),
+                            common.text(t("products.sample.button", lang), key="product_add_sample", on_click=handle_add_sample),
                         ],
                     ),
                 )

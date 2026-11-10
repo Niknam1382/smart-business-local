@@ -11,6 +11,7 @@ import flet as ft
 
 from app import theme
 from app.i18n import t
+from app.screens import common
 from app.screens.common import card, section_header
 
 PLATFORMS = ("telegram", "bale")  # `/owner <کد>` روی هر پیام‌رسانِ روشن کار می‌کند
@@ -59,8 +60,8 @@ def build(page: ft.Page, lang: str, settings, manager) -> ft.Control:
         page.update()
 
     for platform in PLATFORMS:
-        unlink_buttons[platform] = ft.TextButton(
-            key=f"owner_unlink_{platform}", content=t("owner.unlink", lang), on_click=make_unlink(platform), visible=False
+        unlink_buttons[platform] = common.text(
+            t("owner.unlink", lang), key=f"owner_unlink_{platform}", on_click=make_unlink(platform), visible=False
         )
     refresh()
 
@@ -72,7 +73,7 @@ def build(page: ft.Page, lang: str, settings, manager) -> ft.Control:
                 section_header(ft.Icons.NOTIFICATIONS_ACTIVE_ROUNDED, t("owner.title", lang)),
                 ft.Text(t("owner.subtitle", lang), size=12, color=theme.text_secondary(page)),
                 *[ft.Row(controls=[status[p], unlink_buttons[p]], alignment=ft.MainAxisAlignment.SPACE_BETWEEN) for p in PLATFORMS],
-                ft.OutlinedButton(key="owner_link_btn", content=t("owner.make_code", lang), icon=ft.Icons.LINK_ROUNDED, on_click=make_code),
+                common.secondary(t("owner.make_code", lang), key="owner_link_btn", icon=ft.Icons.LINK_ROUNDED, size="sm", on_click=make_code),
                 code_text,
                 code_help,
             ],

@@ -82,7 +82,7 @@ def build(
             ft.Text(str(data), key="data_path", size=12.5, selectable=True),
             ft.Text(t(_MODE_KEYS.get(mode, "data.mode.system"), lang), key="data_mode", size=12, color=theme.text_secondary(page)),
             ft.Text(f"{t('data.version', lang)}: {__version__}", size=12, color=theme.text_secondary(page)),
-            ft.OutlinedButton(key="data_open_folder", content=t("data.open_folder", lang), icon=ft.Icons.FOLDER_OPEN_ROUNDED, on_click=on_open_folder),
+            common_screen.secondary(t("data.open_folder", lang), key="data_open_folder", icon=ft.Icons.FOLDER_OPEN_ROUNDED, size="sm", on_click=on_open_folder),
         ],
     )
 
@@ -103,13 +103,8 @@ def build(
 
         page.run_thread(work)
 
-    backup_button = ft.Button(
-        key="backup_now",
-        content=t("data.backup.now", lang),
-        icon=ft.Icons.SAVE_ALT_ROUNDED,
-        bgcolor=theme.PRIMARY,
-        color="#FFFFFF",
-        on_click=on_backup,
+    backup_button = common_screen.primary(
+        t("data.backup.now", lang), key="backup_now", icon=ft.Icons.SAVE_ALT_ROUNDED, size="lg", on_click=on_backup
     )
 
     # ------------------------------------------------------------ بازگردانی
@@ -165,17 +160,11 @@ def build(
         if picked:
             do_restore(Path(picked[0].path))
 
-    restore_button = ft.OutlinedButton(
-        key="restore_btn",
-        content=t("data.restore.btn", lang),
-        icon=ft.Icons.SETTINGS_BACKUP_RESTORE_ROUNDED,
-        on_click=on_restore,
+    restore_button = common_screen.secondary(
+        t("data.restore.btn", lang), key="restore_btn", icon=ft.Icons.SETTINGS_BACKUP_RESTORE_ROUNDED, on_click=on_restore
     )
-    restore_file_button = ft.TextButton(
-        key="restore_file",
-        content=t("data.restore.file", lang),
-        icon=ft.Icons.FOLDER_OPEN_ROUNDED,
-        on_click=on_restore_file,
+    restore_file_button = common_screen.text(
+        t("data.restore.file", lang), key="restore_file", icon=ft.Icons.FOLDER_OPEN_ROUNDED, on_click=on_restore_file
     )
 
     # ------------------------------------------------------------ تشخیص
@@ -192,11 +181,8 @@ def build(
 
         page.run_thread(work)
 
-    diagnostics_button = ft.OutlinedButton(
-        key="diagnostics_btn",
-        content=t("data.diag.btn", lang),
-        icon=ft.Icons.BUG_REPORT_OUTLINED,
-        on_click=on_diagnostics,
+    diagnostics_button = common_screen.secondary(
+        t("data.diag.btn", lang), key="diagnostics_btn", icon=ft.Icons.BUG_REPORT_OUTLINED, on_click=on_diagnostics
     )
 
     # ------------------------------------------------------------ بازنشانی
@@ -240,14 +226,9 @@ def build(
 
         page.run_thread(work)
 
-    reset_button = ft.Button(
-        key="reset_btn",
-        content=t("data.reset.btn", lang),
-        icon=ft.Icons.DELETE_FOREVER_ROUNDED,
-        bgcolor=theme.DANGER,
-        color="#FFFFFF",
-        disabled=True,
-        on_click=on_reset,
+    reset_button = common_screen.primary(
+        t("data.reset.btn", lang), key="reset_btn", icon=ft.Icons.DELETE_FOREVER_ROUNDED,
+        bgcolor=theme.DANGER, size="lg", disabled=True, on_click=on_reset
     )
 
     def on_shop_reset(e=None) -> None:
@@ -270,8 +251,9 @@ def build(
         page.run_thread(work)
 
     shop_reset_confirm = ft.TextField(key="shop_reset_confirm", label=t("data.reset.confirm_label", lang), border_radius=10, width=280)
-    shop_reset_button = ft.Button(key="shop_reset_btn", content=t("data.shopreset.btn", lang), icon=ft.Icons.DELETE_SWEEP_OUTLINED,
-                                  bgcolor=theme.DANGER, color="#FFFFFF", on_click=on_shop_reset)
+    shop_reset_button = common_screen.primary(t("data.shopreset.btn", lang), key="shop_reset_btn",
+                                              icon=ft.Icons.DELETE_SWEEP_OUTLINED, bgcolor=theme.DANGER,
+                                              size="md", on_click=on_shop_reset)
     shop_reset_tile = ft.ExpansionTile(
         title=ft.Text(t("data.shopreset.title", lang), size=13, weight=ft.FontWeight.W_500, color=theme.DANGER),
         controls=[

@@ -1,8 +1,9 @@
 """
 منطقِ پرداخت — دو روش، هر دو با پولِ خودِ فروشنده:
 
-* **کارت‌به‌کارت**: شماره کارت و مبلغ دقیق به مشتری نشان داده می‌شه؛ مشتری «پرداخت کردم»
-  می‌زند و (اگر تنظیم روشن باشد) رسید می‌فرستد. برنامه مبلغ/کدِ رهگیری را از متنِ رسید
+* **کارت‌به‌کارت**: شماره کارت و مبلغ دقیق به مشتری نشان داده می‌شه و **همان‌جا فقط یک چیز**
+  از او خواسته می‌شه: بعد از واریز، رسید را (متن یا عکس) بفرستد. (اگر مالک دریافتِ رسید را
+  خاموش کرده باشد، همان‌جا می‌نویسد «پرداخت کردم».) برنامه مبلغ/کدِ رهگیری را از متنِ رسید
   می‌خواند، با مبلغِ سفارش مقایسه می‌کند و **فوری** به مالک و مدیرها هشدار می‌دهد.
   تأییدِ نهایی همیشه دستی است — پول در حسابِ خودِ فروشنده است و هیچ درگاهی نبود که
   از آن استعلام بگیری.
@@ -227,8 +228,16 @@ class PaymentService:
         return t("pay.after_auto") if auto else t("pay.after_manual")
 
     def _card_instruction(self, order: Order) -> PaymentInstruction:
+        """پیامِ حداقلیِ کارت‌به‌کارت (F4): شماره کارت و مبلغ، **یک** جمله «رسید را بفرست»
+        و مهلتِ رزرو.
+
+        هیچ دستورِ دومی («بنویس پرداخت کردم») و هیچ پاراگرافِ شرطیِ بلند نبود؛ وقتی دریافتِ
+        رسید روشن است، تنها خواسته‌ی برنامه فرستادنِ رسید است. اگر مالک رسید را خاموش کرده
+        باشد، همان سطرِ قدیمیِ «پرداخت کردم بنویس» می‌ماند. هر سطر از ``shop_texts``/``t``
+        می‌آید تا مالک بتواند متنش را در «متن‌های ربات» عوض کند."""
         s = self._settings
         self._orders.set_payment_info(order.id, METHOD_CARD_TO_CARD)
+        want_receipt = bool(getattr(s, "receipt_check_enabled", True))
         lines = [
             t("pay.card.title", order_id=order.id),
             t("pay.amount", amount=f"{order.total_irr:,}"),
@@ -236,13 +245,10 @@ class PaymentService:
         ]
         if s.card_to_card_holder_name:
             lines.append(t("pay.card.holder", holder=s.card_to_card_holder_name))
+        lines.append(t("pay.card.receipt.ask" if want_receipt else "pay.card.after"))
         left = _left_text(order)
         if left:
             lines.append(left)
-        lines.append(t("pay.card.after"))
-        want_receipt = bool(getattr(s, "receipt_check_enabled", True))
-        if want_receipt:
-            lines.append(t("pay.card.receipt.ask"))
         return PaymentInstruction(METHOD_CARD_TO_CARD, "\n".join(lines), receipt_requested=want_receipt)
 
     async def build_instruction(self, order: Order, method: str, hooks: PaymentHooks) -> PaymentInstruction:

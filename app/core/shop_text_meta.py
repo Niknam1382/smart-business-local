@@ -158,6 +158,7 @@ ord.none|orders|advanced|پیامِ نداشتنِ سفارش|No orders yet||
 ord.not_found|orders|advanced|پیامِ پیدا‌نشدنِ سفارش|Order not found||
 ord.not_payable|orders|advanced|پیامِ غیرقابل‌پرداخت بودنِ سفارش|Order cannot be paid||
 ord.pay|orders|advanced|دکمه‌ی «پرداخت»|“Pay” button||
+ord.send_receipt|orders|advanced|دکمه‌ی «ارسالِ رسید» روی سفارشِ در انتظارِ پرداخت|“Send the receipt” button on an unpaid order|وقتی مشتری کارت‌به‌کارت را انتخاب کرده و هنوز رسید نفرستاده|When the customer picked card-to-card and has not sent the receipt yet
 ord.status.cancelled|orders|advanced|وضعیتِ «لغو شده»|Status: cancelled||
 ord.status.confirmed|orders|advanced|وضعیتِ «تأیید شده»|Status: confirmed||
 ord.status.expired|orders|advanced|وضعیتِ «منقضی شده»|Status: expired||
@@ -200,7 +201,6 @@ pay.bale.link.manual|payment|advanced|راهنمای دستیِ بله‌پی|Ba
 pay.bale.link.open|payment|advanced|راهنمای بازکردنِ بله‌پی|How to open Bale Pay||
 pay.bale.link.title|payment|advanced|عنوانِ پیامِ لینکِ بله‌پی|Bale Pay link title||
 pay.bale.native|payment|advanced|پیامِ فاکتورِ بله‌پی (داخل بله)|Bale Pay invoice sent||
-pay.card.receipt.ask|payment|advanced|راهنمایِ فرستادنِ رسیدِ کارت‌به‌کارت|Card-to-card receipt instructions|وقتی مشتری کارت‌به‌کارت را انتخاب می‌کند|When the customer picks card-to-card
 pay.receipt.ask|payment|advanced|درخواستِ رسید بعد از اعلامِ پرداخت|Receipt request after payment claim||
 pay.receipt_saved|payment|advanced|ثبتِ رسید|Receipt recorded||
 pay.receipt_saved_text|payment|advanced|تأییدِ ثبتِ رسیدِ متنی|Text receipt confirmed||
@@ -211,7 +211,8 @@ pay.bale.deeplink.manual|payment|advanced|فرمانِ پشتیبانِ /pay|Fal
 pay.amount_changed|payment|advanced|تغییرِ مبلغِ سفارش هنگامِ پرداخت|Order amount changed at checkout||
 pay.currency_error|payment|advanced|ارزِ اشتباهِ فاکتور|Wrong invoice currency||
 pay.link_expired|payment|advanced|انقضای لینکِ پرداخت|Expired payment link||
-pay.card.after|payment|basic|راهنمای بعد از واریزِ کارت‌به‌کارت|After a card-to-card transfer|وقتی مشتری روشِ کارت‌به‌کارت رو انتخاب می‌کنه، زیرِ شماره‌کارت|When a customer picks card-to-card, under the card number
+pay.card.after|payment|basic|راهنمای بعد از واریزِ کارت‌به‌کارت|After a card-to-card transfer|وقتی مالک «دریافتِ رسید» را خاموش کرده باشد، زیرِ شماره‌کارت|When the owner switched receipt collection off, under the card number
+pay.card.receipt.ask|payment|advanced|تکلیفِ بعد از واریز: فرستادنِ رسید|What to do after the transfer: send the receipt|وقتی مشتری کارت‌به‌کارت را انتخاب می‌کند|When the customer picks card-to-card
 pay.card.amount|payment|advanced|سطرِ مبلغِ دقیقِ کارت‌به‌کارت|Card-to-card exact amount||
 pay.card.holder|payment|advanced|سطرِ نامِ صاحبِ کارت|Card holder line||
 pay.card.number|payment|advanced|سطرِ شماره‌کارت|Card number line||
@@ -303,7 +304,7 @@ BUTTON_KEYS = frozenset({
     "co.back", "co.cancel", "co.confirm", "co.edit", "co.edit_info", "co.method.bale_pay", "co.method.card_to_card",
     "co.resume", "co.share_phone", "co.ship_change", "co.skip", "faq.back", "guide.more", "handoff.end", "menu.cart", "menu.checkout",
     "menu.faq", "menu.guide", "menu.orders", "menu.orders_old", "menu.products", "menu.support", "support.ask_human", "ord.cancel", "ord.cancel_yes",
-    "ord.pay", "pay.bale.button", "pay.bale.link.button", "pay.claim", "pay.link.button", "prod.add", "prod.continue", "prod.update", "prod.view_cart",
+    "ord.pay", "ord.send_receipt", "pay.bale.button", "pay.bale.link.button", "pay.claim", "pay.link.button", "prod.add", "prod.continue", "prod.update", "prod.view_cart",
     "ui.back", "channel.join", "channel.joined",
 })
 MAX_DEFAULT_LABEL = 28  # سقفِ طولِ برچسبِ پیش‌فرضِ دکمه (با مقدارِ نمونه)

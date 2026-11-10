@@ -59,7 +59,7 @@ def build(page: ft.Page, lang: str, orders=None, products=None, customers=None,
         on_submit=lambda _e: run(),
         on_change=lambda e: state.__setitem__("term", e.control.value or ""),
     )
-    run_btn = ft.FilledButton(_s("run", lang), key="gs_run", icon=ft.Icons.SEARCH_ROUNDED, on_click=lambda _e: run())
+    run_btn = common.primary(_s("run", lang), key="gs_run", icon=ft.Icons.SEARCH_ROUNDED, on_click=lambda _e: run())
     count_line = ft.Text("", key="gs_count", size=12.5, color=secondary)
     results = ft.Column(spacing=theme.SPACE_MD, key="gs_results", expand=True)
 

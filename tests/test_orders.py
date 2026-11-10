@@ -1,3 +1,4 @@
+import logging
 import threading
 
 import pytest
@@ -8,7 +9,9 @@ from app.core.orders import (
     OrderError,
     OrderStore,
     STATUS_CANCELLED,
+    STATUS_CLOSED,
     STATUS_CONFIRMED,
+    STATUS_EXPIRED,
     STATUS_PAID,
     STATUS_PENDING_PAYMENT,
     STATUS_REJECTED,
@@ -304,3 +307,86 @@ def test_fulfillment_message_for_each_state(tmp_path):
     delivered = store.set_fulfillment(oid, "delivered")
     assert "تحویل" in orders_module.build_order_fulfillment_text(delivered)
     assert orders_module.build_order_shipped_text(shipped) == shipped_text
+
+
+# ------------------------------------------------- قلم ۵: بستنِ سفارشِ تأییدشده (OrderStore.close)
+
+
+def test_close_moves_a_confirmed_order_out_of_the_working_state(tmp_path):
+    """بستن = فقط «از لیستِ کاری بیرون». نه پولی جابه‌جا می‌شود، نه موجودی‌ای کم/زیاد می‌شود،
+    نه داده‌ای پاک می‌شود؛ وضعیت به ``closed`` می‌رود (``inventory_applied`` هم دست‌نخورده می‌ماند)."""
+    products, orders, oid = confirmed_order(tmp_path)
+    before = orders.get(oid)
+    orders.close(oid)
+    after = orders.get(oid)
+    assert after.status == STATUS_CLOSED
+    assert after.total_irr == before.total_irr and after.inventory_applied is True
+    assert products.get(products.list()[0].id).stock_quantity == 9, "بستن نباید موجودی را لمس کند"
+
+
+def test_close_is_only_valid_from_confirmed(tmp_path):
+    """«بسته‌شده» فقط از «تأییدشده» reachable است: هیچ سفارشِ دیگری بسته نمی‌شود و وضعیتش عوض
+    نمی‌شود (پول و رزروِ آن‌ها معنا ندارد آرشیوی شود)."""
+    import time
+
+    from app.core.orders import _VALID_TRANSITIONS
+
+    products, orders = make_stores(tmp_path)
+    pid = products.add("محصول", 1000, 10)
+    expired = orders.create("telegram", "5", [(pid, 1)])
+    orders.expire_stale(now=time.time() + 16 * 60)  # تنها سفارشِ موجود = همین، پس فقط این منقضی می‌شود
+    pending = orders.create("telegram", "1", [(pid, 1)])
+    paid = orders.create("telegram", "2", [(pid, 1)])
+    orders.mark_paid(paid, METHOD_CARD_TO_CARD)
+    rejected = orders.create("telegram", "3", [(pid, 1)])
+    orders.mark_paid(rejected, METHOD_CARD_TO_CARD)
+    orders.reject(rejected)
+    cancelled = orders.create("telegram", "4", [(pid, 1)])
+    orders.cancel(cancelled)
+
+    for oid, status in ((pending, STATUS_PENDING_PAYMENT), (paid, STATUS_PAID), (rejected, STATUS_REJECTED),
+                        (cancelled, STATUS_CANCELLED), (expired, STATUS_EXPIRED)):
+        with pytest.raises(OrderError, match="نمی‌شه سفارش"):
+            orders.close(oid, by="manager:telegram:9")
+        assert orders.get(oid).status == status, "ردشدنِ بستن هیچ چیزی را عوض نمی‌کند"
+    with pytest.raises(OrderError):
+        orders.close(999, by="app")  # سفارشِ ناموجود
+    assert _VALID_TRANSITIONS[STATUS_CONFIRMED] == {STATUS_CLOSED}, "درگاهِ بستن فقط از تأییدشده باز است"
+
+
+def test_closed_order_has_no_way_back(tmp_path):
+    """عمداً هیچگذارِ خروجیِ از ``closed`` تعریف نشده (پول/موجودیِ دوباره‌اعمال‌شدنی) — پس «بازکردن»
+    در UI هم وجود ندارد، نه اینکه پنهان باشد."""
+    from app.core.orders import _VALID_TRANSITIONS
+
+    _, orders, oid = confirmed_order(tmp_path)
+    orders.close(oid)
+    assert _VALID_TRANSITIONS.get(STATUS_CLOSED, set()) == set()
+    for target in (STATUS_CONFIRMED, STATUS_PAID, STATUS_REJECTED, STATUS_CANCELLED):
+        with pytest.raises(OrderError, match="نمی‌شه سفارش"):
+            orders._transition(oid, target)
+    assert orders.get(oid).status == STATUS_CLOSED
+
+
+def test_close_records_the_actor_in_the_audit_log(tmp_path, caplog):
+    """ستونِ ``closed_by`` عمداً اضافه نشده (نسخه‌ی اسکیمای میخ‌کوب‌شده می‌شکست)؛ کنشگر در لاگِ
+    ساختاریافته‌ی ``app.core.orders`` می‌ماند — همان قراردادی که ``set_fulfillment`` استفاده می‌کند."""
+    with caplog.at_level(logging.INFO, logger="app.core.orders"):
+        _, orders, oid = confirmed_order(tmp_path, chat="7")
+        orders.set_fulfillment(oid, "preparing", by="app")
+        caplog.clear()
+        orders.close(oid, by="manager:telegram:44")
+    line = next(r.getMessage() for r in caplog.records if "بسته شد" in r.getMessage())
+    assert f"#{oid}" in line and "manager:telegram:44" in line
+
+
+def test_closed_orders_leave_the_default_list_but_survive_the_status_filter(tmp_path):
+    """``list(status=None)`` مثلِ همیشه «همه» می‌دهد (کاهشِ معنایِ آن کارِ صفحه است، نه فروشگاه)؛
+    فیلترِ ``closed`` همان‌ها را جدا می‌آورد."""
+    products, orders, oid = confirmed_order(tmp_path, chat="7")
+    other = orders.create("telegram", "8", [(products.list()[0].id, 1)])
+    orders.close(oid)
+    assert {o.id for o in orders.list()} == {oid, other}
+    assert [o.id for o in orders.list(status=STATUS_CLOSED)] == [oid]
+    assert [o.id for o in orders.list(status=STATUS_CONFIRMED)] == []
+    assert [o.id for o in orders.list(status=STATUS_CLOSED, platform="telegram")] == [oid]

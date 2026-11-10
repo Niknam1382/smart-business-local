@@ -175,12 +175,12 @@ def build(page: ft.Page, lang: str, settings, manager) -> ft.Control:
         common.card(page, ft.Column(spacing=6, controls=[head("top"), top_col]), padding=14),
         common.card(page, ft.Column(spacing=6, controls=[head("breakdown"),
                     ft.Text(S("breakdown_line", lang, s=n(bd["system"]), h=n(bd["history"]), m=n(bd["message"])) if bd["calls"] else S("no_data", lang), size=13),
-                    *[ft.Text(tip, size=12.5, color=theme.ACCENT_DARK) for tip in tips]]), padding=14),
+                    *[ft.Text(tip, size=12.5, color=theme.INFO) for tip in tips]]), padding=14),
         common.card(page, ft.Column(spacing=10, controls=[
             head("caps_title"),
             ft.Row(spacing=10, wrap=True, controls=[cap_chat_tf, cap_total_tf]),
             kill_sw, head("opt"), hist_sw, max_sw,
-            ft.FilledButton(key="us_save", content=S("save", lang), icon=ft.Icons.SAVE_ROUNDED, on_click=on_save), notice,
+            common.primary(S("save", lang), key="us_save", icon=ft.Icons.SAVE_ROUNDED, on_click=on_save), notice,
         ]), padding=14),
     ]
     return ft.Container(expand=True, padding=ft.Padding.symmetric(horizontal=32, vertical=24),

@@ -16,8 +16,9 @@ from app import theme
 from app.screens import common
 
 SIDEBAR_WIDTH = 232
-_TEXT_DIM = "#C7CCDA"
-_TEXT_FAINT = "#8B92A8"
+# رنگ‌های روی نیوی از theme.py می‌آیند (قبلاً هگزِ خام بودند؛ همان مقدارها)
+_TEXT_DIM = theme.SIDEBAR_TEXT_DIM
+_TEXT_FAINT = theme.SIDEBAR_TEXT_FAINT
 
 
 @dataclass(frozen=True)
@@ -35,14 +36,14 @@ def nav_item(entry: NavEntry, active: str) -> ft.Control:
         margin=ft.Margin.symmetric(horizontal=10),
         padding=ft.Padding.symmetric(horizontal=12, vertical=9),
         border_radius=10,
-        bgcolor="#FFFFFF2B" if is_active else None,
+        bgcolor=theme.SIDEBAR_ACTIVE_BG if is_active else None,
         ink=True,
         on_click=entry.on_click,
         content=ft.Row(
             spacing=11,
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
             controls=[
-                ft.Icon(icon=entry.icon, size=18, color="#FFFFFF" if is_active else _TEXT_DIM),
+                ft.Icon(icon=entry.icon, size=18, color=theme.ON_SOLID if is_active else _TEXT_DIM),
                 ft.Text(
                     entry.label,
                     size=13,
@@ -50,7 +51,7 @@ def nav_item(entry: NavEntry, active: str) -> ft.Control:
                     max_lines=1,
                     overflow=ft.TextOverflow.ELLIPSIS,
                     weight=ft.FontWeight.W_600 if is_active else ft.FontWeight.W_400,
-                    color="#FFFFFF" if is_active else _TEXT_DIM,
+                    color=theme.ON_SOLID if is_active else _TEXT_DIM,
                 ),
                 *([ft.Container(width=6, height=6, border_radius=3, bgcolor=theme.ACCENT)] if is_active else []),
             ],
@@ -66,7 +67,7 @@ def group_label(text: str) -> ft.Control:
 
 
 def divider() -> ft.Control:
-    return ft.Container(margin=ft.Margin.symmetric(horizontal=18, vertical=6), height=1, bgcolor="#FFFFFF1F")
+    return ft.Container(margin=ft.Margin.symmetric(horizontal=18, vertical=6), height=1, bgcolor=theme.SIDEBAR_DIVIDER)
 
 
 def build(
@@ -105,8 +106,8 @@ def build(
                                 tight=True,
                                 expand=True,
                                 controls=[
-                                    ft.Text(brand_title, size=13, weight=ft.FontWeight.W_700, color="#FFFFFF", max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
-                                    ft.Text(brand_badge, size=10, color="#93E6B7", weight=ft.FontWeight.W_500, max_lines=1),
+                                    ft.Text(brand_title, size=13, weight=ft.FontWeight.W_700, color=theme.ON_SOLID, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
+                                    ft.Text(brand_badge, size=10, color=theme.SIDEBAR_ON_DARK, weight=ft.FontWeight.W_500, max_lines=1),
                                 ],
                             ),
                         ],

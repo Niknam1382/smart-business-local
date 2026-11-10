@@ -63,7 +63,7 @@ def test_the_whole_menu_list_scrolls_and_nothing_is_pinned(app):
 
 
 def test_scrollbars_are_coloured_and_always_visible(app):
-    """۴: اسکرولِ رنگی و همیشه‌دیده (هم تم، هم قابِ هر صفحه)."""
+    """۴: اسکرولِ همیشه‌دیده، ولی با رنگِ خنثیِ همان پالت (نه نیویِ برند)."""
     import flet as ft
 
     from app import theme
@@ -71,9 +71,9 @@ def test_scrollbars_are_coloured_and_always_visible(app):
     page = app
     assert page.theme.scrollbar_theme is not None and page.dark_theme.scrollbar_theme is not None
     light = page.theme.scrollbar_theme
-    assert light.thickness >= 8 and light.thumb_color == theme.PRIMARY and light.track_color
+    assert light.thickness == 8 and light.thumb_color == theme.SCROLL_THUMB_LIGHT and light.track_color
     assert light.thumb_visibility is True and light.track_visibility is True
-    assert page.dark_theme.scrollbar_theme.thumb_color == theme.PRIMARY_LIGHT
+    assert page.dark_theme.scrollbar_theme.thumb_color == theme.SCROLL_THUMB_DARK
 
     root = app.controls[0].content
     columns = [c for c in walk(root) if isinstance(c, ft.Column) and c.scroll is not None]

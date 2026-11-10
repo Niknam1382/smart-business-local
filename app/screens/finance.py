@@ -18,7 +18,7 @@ from app.core import finance as fin
 from app.core import jalali
 from app.core import report_pdf, report_xlsx
 from app.core.invoice_pdf import money as pdf_money  # noqa: F401  (هم‌خانواده‌ی قالبِ پولیِ PDF)
-from app.core.invoices import InvoiceError
+from app.core.invoices import LABEL_PREFIX, MAX_LABEL_LEN, MAX_NAME_LEN, InvoiceError
 from app.core.settings import save_settings
 from app.screens import common
 from app.screens.discounts import parse_toman
@@ -63,6 +63,25 @@ _S = {
     "s_seller": ("اطلاعاتِ فروشنده روی فاکتور", "Seller details on invoices"), "s_name": ("نامِ فروشگاه", "Shop name"), "s_legal": ("نامِ حقیقی/حقوقی", "Legal name"),
     "s_nid": ("شناسه‌ی ملی/اقتصادی", "National / economic id"), "s_addr": ("نشانی", "Address"), "s_phone": ("تلفن", "Phone"),
     "s_logo": ("لوگو (مسیرِ فایلِ PNG/JPG، حداکثر ۳۰۰ کیلوبایت)", "Logo (PNG/JPG path, max 300 KB)"), "s_color": ("رنگِ اصلی (#RRGGBB)", "Accent color (#RRGGBB)"), "s_footer": ("متنِ پایینِ فاکتور", "Invoice footer text"),
+    # قلم ۸: متن‌هایِ مهمِ فاکتور برایِ خودِ مالک قابلِ تغییر است + «فاکتورِ تستی» تا نتیجه را قبلِ ارسال ببیند
+    "s_fallback": ("نامِ جایگزینِ فروشگاه (اگر «نامِ فروشگاه» را خالی گذاشتی)", "Fallback shop name (if “Shop name” is empty)"),
+    "s_name_hint": ("اگر «نامِ فروشگاه» خالی باشد، نامِ شما در «آغازِ سریع»، بعد «نامِ جایگزین» و در آخر نوشتهٔ «فروشگاه» روی فاکتور می‌آید — سربرگِ فاکتور هیچ‌وقت بی‌نام نمی‌ماند.",
+                    "If “Shop name” is empty, invoices use your onboarding name, then the fallback name, then the word “فروشگاه” — the header is never nameless."),
+    "s_thanks": ("متنِ تشکرِ فاکتور (خالی = بدونِ متنِ تشکر)", "Invoice thank-you text (empty = none)"),
+    "s_disclaimer": ("جایِ متنِ «ابزارِ کمکی…» بنویس (خالی = متنِ پیش‌فرضِ برنامه)", "Custom note instead of the default “helper tool…” line (empty = built-in text)"),
+    "s_texts": ("متن‌هایِ مهمِ فاکتور (قابلِ شخصی‌سازی)", "Important invoice texts (personalizable)"),
+    "t_lang": ("زبانِ متن‌هایی که می‌نویسی", "Language of the texts you write"),
+    "t_hint": ("هر خانَه را خالی بگذاری همان نوشتهٔ پیش‌فرضِ برنامه می‌مونه. متن‌ها فقط رویِ فاکتورهایِ *جدید* اثر می‌ذارن؛ فاکتورِ صادرشده تغییر نمی‌کنه.",
+               "Leaving a field empty keeps the built-in wording. These texts only affect *new* invoices; issued invoices never change."),
+    "t_sale": ("عنوانِ فاکتورِ فروش", "Sales invoice title"), "t_credit": ("عنوانِ فاکتورِ برگشتی", "Credit note title"),
+    "t_buyer": ("برچسبِ «خریدار»", "“Customer” label"), "t_item": ("برچسبِ ستونِ «شرح کالا»", "“Item” column label"),
+    "t_final": ("برچسبِ «مبلغ نهایی»", "“Final amount” label"), "t_date": ("برچسبِ «تاریخ»", "“Date” label"), "t_number": ("برچسبِ «شماره»", "“No.” label"),
+    "preview_invoice": ("🧪 فاکتورِ تستی", "🧪 Test invoice"),
+    "preview_note": ("با «🧪 فاکتورِ تستی» یکِ فاکتورِ نمونه با تنظیماتِ خودت بساز؛ فایل در پوشهٔ فاکتورها ذخیره می‌شه و برایِ هیچ مشتری‌ای ارسال نمی‌شه.",
+                     "“🧪 Test invoice” builds a sample invoice with your own settings; the file lands in the invoices folder and is never sent to a customer."),
+    "preview_done": ("✅ فاکتورِ تستی ساخته شد — جایش: {path} (هیچ پیامی برایِ مشتری فرستاده نشد)",
+                     "✅ Test invoice created — saved at: {path} (nothing was sent to any customer)"),
+    "preview_failed": ("ساختنِ فاکتورِ تستی ناموفق بود: {error}", "Could not build the test invoice: {error}"),
     "s_vat": ("مالیات بر ارزش افزوده را روی فاکتور نشان بده (قیمت‌ها «با مالیات» حساب می‌شن)", "Show VAT on invoices (prices are treated as VAT-inclusive)"),
     "s_vat_rate": ("نرخِ مالیات (٪)", "VAT rate (%)"), "s_vat_hint": ("نرخِ عمومیِ ۱۴۰۵ طبقِ سازمانِ امورِ مالیاتی ۱۰٪ اعلام شده؛ هر زمان تغییر کرد همین‌جا عوضش کن.", "The general 2026 rate was announced as 10%; change it here if it changes."),
     "s_num": ("شماره‌گذاری", "Numbering"), "s_prefix": ("پیشوند", "Prefix"), "s_start": ("شماره‌ی شروع", "Start number"), "s_year": ("سالِ جلالی در شماره (شمارنده هر سال از نو)", "Jalali year in the number (counter restarts yearly)"),
@@ -102,6 +121,44 @@ def parse_amount(text, unit: str) -> Optional[int]:
         return int(raw) if raw.isdigit() and 0 < int(raw) <= fin.MAX_AMOUNT else None
     value = parse_toman(text, allow_empty=False)
     return value if value and 0 < value <= fin.MAX_AMOUNT else None
+
+
+# قلم ۸: برچسب‌هایِ «مهمِ» فاکتور که مالک می‌تواند عوض کند — (کلیدِ LABELS در ``invoice_pdf``، کلیدِ متنِ این صفحه)
+_LABEL_FIELDS = (("sale", "t_sale"), ("credit", "t_credit"), ("buyer", "t_buyer"), ("col_item", "t_item"),
+                 ("final", "t_final"), ("date", "t_date"), ("number", "t_number"))
+
+
+def invoice_text_lang_of(settings) -> str:
+    """زبانِ پیش‌فرضِ متن‌هایِ سفارشیِ فاکتور = زبانِ برنامه (فاکتورِ انگلیسی ⇒ برچسبِ انگلیسی)."""
+    return "en" if getattr(settings, "language", "fa") == "en" else "fa"
+
+
+def get_label_override(settings, key: str, lang: str) -> str:
+    """نوشتهٔ سفارشیِ یکِ برچسب؛ در ``settings.bot_texts[lang]`` با کلیدِ ``invoice.label.<key>`` می‌نشیند.
+
+    چرا ``bot_texts``؟ تنها جایِ *قابل‌ویرایشِ* متن در تنظیماتِ همین نسخه است و چون کلیدهایِ
+    ``invoice.label.*`` در ``shop_texts`` ثبت نشده‌اند، هرگز با پیام‌هایِ ربات قاطی نمی‌شوند."""
+    table = getattr(settings, "bot_texts", None)
+    raw = table.get(lang) if isinstance(table, dict) else None
+    value = raw.get(LABEL_PREFIX + key) if isinstance(raw, dict) else ""
+    return value if isinstance(value, str) else ""
+
+
+def set_label_override(settings, key: str, lang: str, text: str) -> str:
+    """override را کران‌دار و تمیز می‌کند و ذخیره می‌کند؛ متنِ خالی یعنی «همانِ پیش‌فرضِ برنامه».
+
+    متنِ *پاک‌شده* (نویسه‌های کنترلی/bidi رفته) برمی‌گردد تا صفحه در صورتِ لزوم همان را نشان بدهد."""
+    value = fin.clean_text(text, MAX_LABEL_LEN)
+    table = {lg: dict(v) for lg, v in (getattr(settings, "bot_texts", None) or {}).items() if isinstance(v, dict)}
+    bucket = table.setdefault(lang, {})
+    if value:
+        bucket[LABEL_PREFIX + key] = value
+    else:
+        bucket.pop(LABEL_PREFIX + key, None)
+    if not bucket:
+        table.pop(lang, None)
+    settings.bot_texts = table
+    return value
 
 
 def period_range(key: str, now: Optional[float] = None) -> tuple:
@@ -414,6 +471,14 @@ def build(page: ft.Page, lang: str, manager, settings, product_store=None) -> ft
         "logo": ft.TextField(key="fn_set_logo", label=S("s_logo", lang), width=420, border_radius=10, value=settings.invoice_logo_path),
         "color": ft.TextField(key="fn_set_color", label=S("s_color", lang), width=170, border_radius=10, value=settings.invoice_color),
         "footer": ft.TextField(key="fn_set_footer", label=S("s_footer", lang), width=420, border_radius=10, value=settings.invoice_footer),
+        # --- قلم ۸: متن‌هایِ فاکتور (نامِ جایگزین، تشکر، سلبِ مسئولیت، برچسب‌هایِ مهم) ---
+        "fallback": ft.TextField(key="fn_set_fallback", label=S("s_fallback", lang), width=260, border_radius=10, max_length=MAX_NAME_LEN,
+                                 value=settings.invoice_seller_fallback),
+        "thanks": ft.TextField(key="fn_set_thanks", label=S("s_thanks", lang), width=420, border_radius=10, max_length=200, value=settings.invoice_thanks),
+        "disclaimer": ft.TextField(key="fn_set_disclaimer", label=S("s_disclaimer", lang), width=420, border_radius=10, min_lines=2, max_lines=4,
+                                   max_length=300, value=settings.invoice_disclaimer),
+        "text_lang": ft.Dropdown(key="fn_set_text_lang", label=S("t_lang", lang), width=170, border_radius=10, value=invoice_text_lang_of(settings),
+                                 options=[ft.DropdownOption(key=k, text="فارسی" if k == "fa" else "English") for k in ("fa", "en")]),
         "vat": ft.Switch(key="fn_set_vat", label=S("s_vat", lang), value=settings.invoice_vat_enabled),
         "vat_rate": ft.TextField(key="fn_set_vat_rate", label=S("s_vat_rate", lang), width=150, border_radius=10, value=pct(settings.invoice_vat_rate_bp)),
         "prefix": ft.TextField(key="fn_set_prefix", label=S("s_prefix", lang), width=120, border_radius=10, value=settings.invoice_number_prefix),
@@ -427,6 +492,20 @@ def build(page: ft.Page, lang: str, manager, settings, product_store=None) -> ft
         "unit": ft.Dropdown(key="fn_set_unit", label=S("s_unit", lang), width=140, border_radius=10, value=settings.finance_unit, options=[ft.DropdownOption(key=k, text=S(f"unit_{k}", lang)) for k in ("toman", "irr")]),
         "mgr": ft.Switch(key="fn_set_mgr", label=S("s_mgr", lang), value=settings.finance_manager_access),
     }
+
+    # هفتِ برچسبِ مهمِ فاکتور، برایِ زبانی که بالا انتخاب شده (خالی = متنِ پیش‌فرضِ برنامه)
+    for _lbl_key, _text_key in _LABEL_FIELDS:
+        f[f"lbl_{_lbl_key}"] = ft.TextField(key=f"fn_set_lbl_{_lbl_key}", label=S(_text_key, lang), width=240, border_radius=10,
+                                            max_length=MAX_LABEL_LEN, value=get_label_override(settings, _lbl_key, f["text_lang"].value))
+
+    def load_text_fields(_e=None) -> None:
+        """با عوض‌کردنِ زبانِ متن‌ها، خانَه‌ها از نوشته‌هایِ *ذخیره‌شده*ِ همان زبان پر می‌شن."""
+        lg = f["text_lang"].value or invoice_text_lang_of(settings)
+        for _key, _text_key in _LABEL_FIELDS:
+            f[f"lbl_{_key}"].value = get_label_override(settings, _key, lg)
+        render()
+
+    f["text_lang"].on_select = load_text_fields
 
     def do_save(_e=None) -> None:
         vat_bp, bale_bp = parse_percent_bp(f["vat_rate"].value), parse_percent_bp(f["fee_bale"].value)
@@ -453,9 +532,33 @@ def build(page: ft.Page, lang: str, manager, settings, product_store=None) -> ft
         settings.invoice_auto_send, settings.invoice_send_owner_copy = f["auto"].value or "off", bool(f["owner"].value)
         settings.finance_fee_bp_bale_pay = bale_bp
         settings.finance_unit, settings.finance_manager_access = f["unit"].value or "toman", bool(f["mgr"].value)
+        # متن‌هایِ شخصی‌سازی‌شده (قلم ۸): هر سه رشته کران‌دار/تمیز، برچسب‌ها در همان ``bot_texts``
+        settings.invoice_seller_fallback = fin.clean_text(f["fallback"].value, MAX_NAME_LEN)
+        settings.invoice_thanks, settings.invoice_disclaimer = fin.clean_text(f["thanks"].value, 200), fin.clean_text(f["disclaimer"].value, 300)
+        texts_lang = f["text_lang"].value or invoice_text_lang_of(settings)
+        for _key, _text_key in _LABEL_FIELDS:
+            set_label_override(settings, _key, texts_lang, f[f"lbl_{_key}"].value)
         save_settings(settings)
         say(S("saved", lang), True)
         render()
+
+    def do_preview(_e=None) -> None:
+        """«🧪 فاکتورِ تستی»: یکِ فاکتورِ *نمونه* با تنظیماتِ خودِ مالک، در همان پوشهٔ PDFها.
+
+        نه دیتابیسی می‌خواند/می‌نویسد و نه پیامی به مشتری می‌رود (``InvoiceService.preview``); برایِ همین
+        روی تردِ پس‌زمینه می‌رود و نتیجه/خطا صادقانه به فارسی همان‌جا نوشته می‌شود."""
+
+        def work() -> None:
+            try:
+                path = invoices.preview()
+            except Exception as exc:  # noqa: BLE001 — نبودِ فونت/هاردِ پر = پیامِ فارسی، نه کرش
+                say(S("preview_failed", lang, error=str(exc) or type(exc).__name__), False)
+            else:
+                say(S("preview_done", lang, path=path), True)
+                common.open_folder(path.parent)
+            page.update()
+
+        page.run_thread(work)
 
     def logo_ok(path: str) -> bool:
         from app.core.invoice_pdf import _load_logo
@@ -464,8 +567,16 @@ def build(page: ft.Page, lang: str, manager, settings, product_store=None) -> ft
 
     def settings_tab() -> list:
         head = lambda key: ft.Text(S(key, lang), size=15, weight=ft.FontWeight.W_700)  # noqa: E731
+        preview_btn = ([ft.OutlinedButton(key="fn_preview_invoice", content=S("preview_invoice", lang), icon=ft.Icons.SCIENCE_OUTLINED, on_click=do_preview)]
+                       if invoices is not None else [])
         return [common.card(page, ft.Column(spacing=12, controls=[
-            head("s_seller"), ft.Row(spacing=10, wrap=True, controls=[f["name"], f["legal"], f["nid"], f["phone"]]), f["addr"], f["logo"], ft.Row(spacing=10, wrap=True, controls=[f["color"], f["paper"], f["digits"]]), f["footer"],
+            head("s_seller"), ft.Text(S("s_name_hint", lang), size=11.5, color=secondary), ft.Row(spacing=10, wrap=True, controls=[f["name"], f["legal"], f["nid"], f["phone"]]), f["addr"], f["logo"], ft.Row(spacing=10, wrap=True, controls=[f["color"], f["paper"], f["digits"]]), f["footer"],
+            head("s_texts"), ft.Text(S("t_hint", lang), size=11.5, color=secondary),
+            f["fallback"], f["thanks"], f["disclaimer"],
+            ft.Row(spacing=10, wrap=True, controls=[f["text_lang"]]),
+            ft.Row(spacing=10, wrap=True, controls=[f["lbl_sale"], f["lbl_credit"], f["lbl_buyer"]]),
+            ft.Row(spacing=10, wrap=True, controls=[f["lbl_col_item"], f["lbl_final"], f["lbl_date"], f["lbl_number"]]),
+            *preview_btn, ft.Text(S("preview_note", lang), size=11.5, color=secondary),
             head("s_vat"), f["vat"], ft.Row(spacing=10, wrap=True, controls=[f["vat_rate"]]), ft.Text(S("s_vat_hint", lang), size=11.5, color=secondary),
             head("s_num"), ft.Row(spacing=10, wrap=True, controls=[f["prefix"], f["start"]]), f["year"],
             head("s_auto"), ft.Row(spacing=10, wrap=True, controls=[f["auto"]]), f["owner"],

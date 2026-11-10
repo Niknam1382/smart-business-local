@@ -30,6 +30,19 @@ _PLATFORM_ICON = {"telegram": ft.Icons.SEND_ROUNDED, "bale": ft.Icons.CHAT_BUBBL
 # متنِ دکمه‌هایِ خروجیِ حرفه‌ای (دوزبانه، محلیِ همین صفحه — کلیدهایِ تازه به i18n اضافه نمی‌شوند)
 _X = {"xlsx": ("خروجِ اکسل", "Excel export"), "pdf": ("خروجِ PDF", "PDF export")}
 
+# قلم ۶: فیلدِ سقفِ شخصیِ روزانه‌ی AI (همان محدودیتِ صفحه‌ی گفتگوها) — کلیدهایِ تازه در i18n ثبت نشده‌اند،
+# الگویِ ``_S`` همان required_channels_card.py و broadcast.py است.
+_S = {
+    "limit": ("سقفِ پاسخِ AI در روز", "Daily AI answer limit"),
+    "limit.hint": ("خالی = سراسری · ۰ = بدونِ AI", "Empty = global cap · 0 = no AI"),
+    "limit.bad": ("سقف باید عددی بین ۰ تا ۱۰۰۰ باشد (یا خالی).", "The limit must be a number between 0 and 1000 (or empty)."),
+}
+
+
+def _s(key: str, lang: str) -> str:
+    fa, en = _S[key]
+    return en if lang == "en" else fa
+
 
 def _x(key: str, lang: str) -> str:
     fa, en = _X[key]
@@ -209,11 +222,23 @@ def build(page: ft.Page, lang: str, manager, order_store=None, export_dir: Optio
             return list_view()
         platform, user_id = c.platform, c.user_id
         calls, tokens = store.token_usage(platform, user_id)
+        # قلم ۶: همان سقفِ شخصیِ روزانه‌ی AI که در صفحه‌ی گفتگوها تنظیم می‌شه (منبعِ واحد: conversations.daily_ai_limit)
+        current_limit = manager.store.get_limit_override(platform, user_id)
+        limit_field = ft.TextField(
+            key="customer_daily_limit", label=_s("limit", lang), hint_text=_s("limit.hint", lang),
+            value="" if current_limit is None else str(current_limit), width=190, keyboard_type=ft.KeyboardType.NUMBER, border_radius=10,
+        )
         tags_field = ft.TextField(key="customer_tags", label=t("customers.tags", lang), value=", ".join(c.tags), border_radius=10)
         notes_field = ft.TextField(key="customer_notes", label=t("customers.notes", lang), value=c.notes, multiline=True, min_lines=3, max_lines=6, border_radius=10)
         message_field = ft.TextField(key="customer_message", label=t("customers.message", lang), hint_text=t("customers.message_hint", lang), multiline=True, min_lines=2, max_lines=5, border_radius=10)
 
         def on_save(_e=None) -> None:
+            try:
+                saved_limit = manager.store.set_limit_override(platform, user_id, limit_field.value)
+            except ValueError:
+                say(_s("limit.bad", lang), ok=False)
+                return
+            limit_field.value = "" if saved_limit is None else str(saved_limit)
             store.set_tags(platform, user_id, tags_field.value or "")
             store.set_notes(platform, user_id, notes_field.value or "")
             say(t("customers.saved", lang))
@@ -287,6 +312,7 @@ def build(page: ft.Page, lang: str, manager, order_store=None, export_dir: Optio
                 controls=[
                     tags_field,
                     notes_field,
+                    ft.Row(spacing=10, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER, controls=[limit_field]),
                     ft.OutlinedButton(key="customer_save", content=t("customers.save", lang), on_click=on_save),
                     ft.Row(
                         wrap=True, spacing=10,

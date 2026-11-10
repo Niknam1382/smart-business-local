@@ -207,10 +207,8 @@ _t("pay.receipt_saved_text", "✅ رسید ثبت شد. صاحب فروشگاه 
    "✅ Receipt saved. I told the shop owner to check the deposit in their account; it is confirmed after that.")
 _t("pay.receipt_saved_photo", "✅ عکسِ رسید رسید. صاحب فروشگاه آن را در برنامه می‌بیند و بعد از چک کردنِ حساب تأیید می‌کند.",
    "✅ Got the receipt photo. The shop owner sees it in the app and confirms after checking the account.")
-_t("pay.card.receipt.ask", "بعد از واریز، رسید را برایم بفرست: یا متنِ رسید (مبلغ + کد رهگیری) یا عکسِ واضح از آن. "
-   "تا رسید را نبینم و صاحب فروشگاه حساب را چک نکند، سفارش تأیید نمی‌شود.",
-   "After the transfer, send me the receipt: either its text (amount + trace code) or a clear photo. "
-   "The order is not confirmed until the shop owner checks the account.")
+_t("pay.card.receipt.ask", "🧾 بعد از واریز، فقط رسید را بفرست: عکسِ واضح یا متنِ رسید (مبلغ و کد رهگیری).",
+   "🧾 After the transfer, just send the receipt: a clear photo or the receipt text (amount and trace code).")
 _t("pay.bale.link.how", "با زدنِ دکمه، مستقیم واردِ پرداختِ بله می‌شوی (همان‌جا و بدونِ ترکِ تلگرام).",
    "Tap the button and you go straight into Bale's payment page.")
 _t("pay.bale.link.button", "🔵 پرداخت در بله", "🔵 Pay in Bale")
@@ -252,8 +250,8 @@ _t("order.confirmed_head", "سفارشتون تایید شد 🎉", "Your order 
 _t("order.confirmed_tail", "ممنون از خریدتون!", "Thank you for your purchase!")
 _t("order.expired", "⏳ مهلتِ پرداختِ سفارش #{order_id} تموم شد و موجودی‌ها آزاد شدن. اگه هنوز می‌خوای، بگو تا دوباره برات ثبتش کنم.",
    "⏳ The payment window for order #{order_id} has ended and the items were released. Tell me if you still want it and I'll place it again.")
-_t("order.expired_card_hint", "اگه همین الان واریز کرده‌ای، بنویس «پرداخت کردم» تا به فروشنده اطلاع بدم.",
-   "If you've just transferred the money, write “I paid” and I'll tell the seller.")
+_t("order.expired_card_hint", "اگه همین الان واریز کرده‌ای، رسیدت را همین‌جا بفرست (یا «پرداخت کردم» را بزن) تا به فروشنده برسانم.",
+   "If you've just transferred the money, send the receipt here (or tap “I paid”) and I'll tell the seller.")
 _t("inv.button", "🧾 فاکتور", "🧾 Invoice")
 _t("inv.sent", "✅ فاکتور برات فرستاده شد.", "✅ Your invoice was sent.")
 _t("inv.failed", "فاکتور الان فرستاده نشد؛ کمی بعد دوباره امتحان کن یا به فروشنده بگو.", "The invoice couldn't be sent right now; try again shortly or tell the seller.")
@@ -394,6 +392,7 @@ _t("ord.cancel_yes", "✅ بله، لغو کن", "✅ Yes, cancel it")
 _t("ord.cancelled", "سفارش #{order_id} لغو شد. اگه خواستی دوباره از «🛍 محصولات» سفارش بده.", "Order #{order_id} was cancelled. You can order again from “🛍 Products”.")
 _t("ord.cannot_cancel", "این سفارش دیگه قابل‌لغو نیست.", "This order can no longer be cancelled.")
 _t("ord.pay", "💳 پرداخت", "💳 Pay")
+_t("ord.send_receipt", "🧾 ارسالِ رسید", "🧾 Send the receipt")
 _t("ord.not_found", "این سفارش پیدا نشد؛ فهرستت رو از «📦 سفارش‌هام» ببین.", "Order not found; check your list under “📦 My orders”.")
 _t("ord.not_payable", "این سفارش دیگه قابل‌پرداخت نیست (مهلتش تموم شده یا پرداخت شده).", "This order can no longer be paid (expired or already paid).")
 _t("ord.info", "{label}: {value}", "{label}: {value}")

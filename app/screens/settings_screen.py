@@ -40,7 +40,7 @@ def _row(page: ft.Page, icon: str, title: str, value: str, button_text: str, on_
                     ),
                 ],
             ),
-            ft.OutlinedButton(button_text, on_click=on_click),
+            common.secondary(button_text, on_click=on_click),
         ],
     )
 
@@ -99,15 +99,15 @@ def build(
                 ft.Row(
                     spacing=6,
                     controls=[
-                        ft.OutlinedButton(
+                        common.secondary(
                             "فارسی",
-                            style=ft.ButtonStyle(bgcolor=f"{theme.ACCENT}22" if lang == "fa" else None),
                             on_click=lambda e: on_change_language("fa"),
+                            bgcolor=f"{theme.ACCENT}22" if lang == "fa" else None,
                         ),
-                        ft.OutlinedButton(
+                        common.secondary(
                             "English",
-                            style=ft.ButtonStyle(bgcolor=f"{theme.ACCENT}22" if lang == "en" else None),
                             on_click=lambda e: on_change_language("en"),
+                            bgcolor=f"{theme.ACCENT}22" if lang == "en" else None,
                         ),
                     ],
                 ),
@@ -139,12 +139,8 @@ def build(
         ),
     )
 
-    controls = [
-        common.page_header(page, ft.Icons.SETTINGS_OUTLINED, t("settings.title", lang)),
-        language_card,
-        mode_card,
-        ai_card,
-    ]
+    header = common.page_header(page, ft.Icons.SETTINGS_OUTLINED, t("settings.title", lang))
+    controls = [language_card, mode_card, ai_card]
     if on_change_close is not None:  # قلم ۱۶: انتخابِ رفتارِ ✕ (هر بار بپرس / پس‌زمینه / خروجِ کامل)
         controls.append(
             common.card(
@@ -158,11 +154,12 @@ def build(
                             spacing=6,
                             wrap=True,
                             controls=[
-                                ft.OutlinedButton(
+                                common.secondary(
+                                    t(f"settings.close.{value}", lang),
                                     key=f"close_{value}",
-                                    content=t(f"settings.close.{value}", lang),
-                                    style=ft.ButtonStyle(bgcolor=f"{theme.ACCENT}22" if state.close_action == value else None),
+                                    size="sm",
                                     on_click=lambda e, v=value: on_change_close(v),
+                                    bgcolor=f"{theme.ACCENT}22" if state.close_action == value else None,
                                 )
                                 for value in ("ask", "hide", "quit")
                             ],
@@ -176,8 +173,6 @@ def build(
             data_safety.build(page, lang, state, on_data_changed=on_data_changed, manager=manager, notice=notice)
         )
 
-    return ft.Container(
-        expand=True,
-        padding=ft.Padding.symmetric(horizontal=32, vertical=24),
-        content=ft.Column(expand=True, scroll=ft.ScrollMode.AUTO, spacing=18, controls=controls),
-    )
+    # قلم ۱: حاشیه و اسکرولِ این صفحه از همان screen_frameِ همه‌ی صفحه‌ها می‌آید
+    # (قبلاً ۳۲/۲۴ و ScrollMode.AUTO داشت، یعنی نوارِ اسکرولِ نامرئیِ Material).
+    return common.screen_frame(page, header, controls, key="settings_page")

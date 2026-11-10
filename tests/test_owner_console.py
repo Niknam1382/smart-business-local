@@ -106,7 +106,8 @@ def test_link_code_shape_is_unambiguous_and_unguessable(rig):
 def test_registration_happy_path_persists_and_is_single_use(rig):
     code = rig.console.new_link_code()
     handled, reply = rig.run("telegram", "900", f"/owner {code}")
-    assert handled and "ثبت شد" in reply and "/confirm" in reply, "راهنما هم نشون داده می‌شه"
+    assert handled and "ثبت شد" in reply, "راهنما هم نشون داده می‌شه"
+    assert "/admin" in reply and "/confirm" not in reply and "/orders" not in reply, "قلم ۳: راهنما پنل‌محور است"
     assert rig.settings.owner_chats == {"telegram": "900"} and rig.console.is_owner("telegram", "900")
     assert settings_module.load_settings().owner_chats == {"telegram": "900"}
     # همون کد از چتِ دیگه‌ای: بی‌صدا رد می‌شه
@@ -160,7 +161,9 @@ def test_orders_listing_and_details(rig):
     assert "منتظر تایید نداری" in rig.run("telegram", "900", "/orders")[1]
     pid, oid = rig.paid_order()
     handled, reply = rig.run("telegram", "900", "/orders")
-    assert handled and f"#{oid}" in reply and "گوشی×2" in reply and "کارت‌به‌کارت" in reply and "/confirm" in reply
+    assert handled and f"#{oid}" in reply and "گوشی×2" in reply and "کارت‌به‌کارت" in reply
+    # قلم ۳: فهرستِ سفارش‌ها هیچ فرمانی تبلیغ نمی‌کنه — راهِ بعدی دکمه است
+    assert "/confirm" not in reply and "/reject" not in reply and "پنلِ مدیریت" in reply
     handled, reply = rig.run("telegram", "900", f"/order {oid}")
     assert "مریم" in reply and "09121234567" in reply and "تهران" in reply and "پیگیری: 4321" in reply and "paid" in reply
     assert "پیدا نشد" in rig.run("telegram", "900", "/order 999")[1]
@@ -231,7 +234,9 @@ def test_owners_normal_messages_still_reach_the_ai(rig):
 
 def test_command_without_a_usable_id_gets_a_usage_hint_only_when_slashed(rig):
     rig.link_owner()
-    assert "شماره‌ی سفارش" in rig.run("telegram", "900", "/confirm")[1]
+    hint = rig.run("telegram", "900", "/confirm")[1]
+    assert "شماره‌ی سفارش" in hint and "دکمه" in hint, "راهنمایی که به دکمه اشاره می‌کند، نه به تایپِ فرمان"
+    assert "/confirm" not in hint and "/reject" not in hint
     assert "عدد" in rig.run("telegram", "900", "/confirm abc")[1]
     assert rig.run("telegram", "900", "تایید")[0] is False
 
@@ -246,7 +251,11 @@ def test_unlink_stops_commands_and_notifications(rig):
 
 def test_help_for_owner_only(rig):
     rig.link_owner()
-    assert "/confirm" in rig.run("telegram", "900", "/help")[1] and "/reject" in rig.run("telegram", "900", "راهنما")[1]
+    help_ = rig.run("telegram", "900", "/help")[1]
+    assert "/admin" in help_ and "/id" in help_, "فقط دو فرمانی که واقعاً لازم‌اند تبلیغ می‌شن"
+    for command in ("/confirm", "/reject", "/orders", "/stock", "/order"):
+        assert command not in help_, command
+    assert rig.run("telegram", "900", "راهنما")[0] is True
     assert rig.run("telegram", "123", "/help")[0] is False
 
 
@@ -276,7 +285,11 @@ def test_alert_texts_for_each_situation(rig):
     pid, oid = rig.paid_order()
     order = rig.orders.get(oid)
     needs = order_alert_text(order, "needs_confirm")
-    assert "منتظر تاییدته" in needs and f"/confirm {oid}" in needs and f"/reject {oid}" in needs
+    assert "منتظر تاییدته" in needs and f"#{oid}" in needs
+    # قلم ۲۲/۳: تصمیم با دکمه گرفته می‌شه، پس هیچ فرمانی در اعلان نیست
+    for command in (f"/confirm {oid}", f"/reject {oid}", "/confirm", "/reject"):
+        assert command not in needs, command
+    assert "دکمه" in needs, "متن باید به دکمه‌هایِ تأیید/رد اشاره کند"
     assert "واریز رو توی حسابت چک کن" in needs, "کارت‌به‌کارت: مالک باید حساب رو چک کنه"
     rig.orders.confirm(oid)
     sale = order_alert_text(rig.orders.get(oid), "sale")
@@ -287,6 +300,31 @@ def test_alert_texts_for_each_situation(rig):
     rig.orders.mark_paid(late, METHOD_BALE_PAY, "r")
     assert "بعد از پایان مهلت رزرو" in order_alert_text(rig.orders.get(late), "needs_confirm")
     assert "واریز رو توی حسابت" not in order_alert_text(rig.orders.get(late), "needs_confirm")
+
+
+def test_a_waiting_decision_alert_gets_buttons_without_its_sender_asking(tmp_path):
+    """۲۲/۳: فرستنده‌ای که فقط متن می‌فرستد (جریانِ فروشگاه) هم دکمه‌هایِ تأیید/رد می‌گیرد —
+    تا هیچ انسانی برای تصمیمِ ساده مجبور به تایپِ فرمان نشود. هشدارهایِ فنی دکمه نمی‌گیرند."""
+    rig = Rig(tmp_path)
+    rig.link_owner()
+    sent_ui = []
+
+    async def send_ui(platform, chat_id, text, rows):
+        sent_ui.append((platform, chat_id, text, rows))
+        return True
+
+    rig.console._send_ui = send_ui
+    pid, oid = rig.paid_order(chat_id="10")
+    text = order_alert_text(rig.orders.get(oid), "needs_confirm")
+    assert asyncio.run(rig.console.notify(text)) is True
+    data = [b.data for row in sent_ui[-1][3] for b in row]
+    assert f"adm:ok:{oid}" in data and f"adm:no:{oid}" in data and f"adm:od:{oid}" in data
+    sent_ui.clear()
+    assert asyncio.run(rig.console.notify("⚠️ سقفِ روزانه‌ی AI تموم شد")) is True
+    assert sent_ui == [], "هشدارِ فنی نباید دکمه‌ی سفارش بگیرد"
+    sent_ui.clear()
+    assert asyncio.run(rig.console.notify(f"⚠️ سفارش #{oid} تایید شده بود ولی اعمالِ موجودی نیمه‌کاره موند")) is True
+    assert sent_ui == [], "جمله‌ی «نیمه‌کاره موند» سرِ جمله‌ی منتظرِ تصمیم نیست"
 
 
 def test_alert_order_picks_the_right_kind_by_status(rig):
@@ -347,6 +385,17 @@ def tg():
     srv.stop()
 
 
+def got_buttons(tg, chat_id, needle) -> list:
+    """callback_dataهای دکمه‌هایِ همان پیامِ اعلانی که ``needle`` در متنش هست (نه تازه‌ترین پیام)."""
+    return [
+        b.get("callback_data")
+        for m in tg.sent
+        if m["chat_id"] == str(chat_id) and needle in m["text"]
+        for row in (m.get("reply_markup") or {}).get("inline_keyboard", [])
+        for b in row
+    ]
+
+
 def test_owner_links_via_messenger_gets_alerts_and_confirms_from_chat(tmp_path, tg, monkeypatch):
     settings = make_settings()
     settings.business_mode = "store"
@@ -369,9 +418,11 @@ def test_owner_links_via_messenger_gets_alerts_and_confirms_from_chat(tmp_path, 
         tap(tg, 40, f"c:paid:{oid}")
         assert wait_until(lambda: got(tg, 900, "منتظر تاییدته"), timeout=20)
         alert = [m for m in tg.sent_to(900) if "منتظر تاییدته" in m][0]
-        assert f"/confirm {oid}" in alert and "شیراز، خیابان زند" in alert and "کارت‌به‌کارت" in alert
-
-        # ۳) مالک از همون چت تایید می‌کنه ← مشتری تاییدیه می‌گیره و پیام‌ها قاطی نمی‌شن
+        assert "شیراز، خیابان زند" in alert and "کارت‌به‌کارت" in alert
+        # قلم ۲۲/۳: اعلانِ «منتظرِ تأیید» بدونِ هیچ فرمانِ متنی می‌آید و دکمه‌هایِ تصمیم دارد
+        assert f"/confirm {oid}" not in alert and f"/reject {oid}" not in alert
+        assert wait_until(lambda: f"adm:ok:{oid}" in got_buttons(tg, 900, "منتظر تاییدته"), timeout=20)
+        # فرمانِ متنی همچنان کار می‌کند (فقط تبلیغ نمی‌شه) ← مالک از همان چت تایید می‌کنه
         tg.push_message(900, f"/confirm {oid}")
         assert wait_until(lambda: got(tg, 900, "فاکتور برای مشتری ارسال شد"), timeout=20)
         assert wait_until(lambda: got(tg, 40, "سفارشتون تایید شد"), timeout=20)
@@ -450,7 +501,9 @@ def test_late_payment_alerts_owner_as_needs_confirm_not_sale(tmp_path, tg, bale,
         asyncio.run_coroutine_threadsafe(manager._notify_payment_confirmed(order), manager._loop).result(10)  # noqa: SLF001
         assert wait_until(lambda: got(tg, 900, "منتظر تاییدته"), timeout=20)
         alert = [m for m in tg.sent_to(900) if "منتظر تاییدته" in m][0]
-        assert "بعد از پایان مهلت رزرو" in alert and "/confirm 1" in alert
+        # قلم ۲۲/۳: پرداختِ دیررس هم با دکمه تصمیم می‌رسه، نه با فرمانِ متنی
+        assert "بعد از پایان مهلت رزرو" in alert and "/confirm 1" not in alert
+        assert wait_until(lambda: "adm:ok:1" in got_buttons(tg, 900, "منتظر تاییدته"), timeout=20)
         assert not got(tg, 900, "فروش جدید"), "پرداخت دیررس «فروش» نیست؛ تصمیم با مالکه"
         assert wait_until(lambda: got(tg, 40, "بعد از پایان مهلتِ رزرو رسید"), timeout=20), "مشتری هم می‌فهمه"
     finally:

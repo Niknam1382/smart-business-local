@@ -17,7 +17,8 @@ from app.core import ai_engine
 from app.core import checkout_fields as cf
 from app.core import custom_buttons as cb
 from app.core import modes, working_hours
-from app.screens import bot_profile_card, common, customer_preview, quick_setup_card, required_channels_card, texts_editor
+from app.screens import (bot_profile_card, common, customer_preview, gpu_card, quick_setup_card,
+                          required_channels_card, texts_editor)
 from app.screens.common import card, page_header
 
 _S = {
@@ -103,6 +104,7 @@ _S = {
     "l.kill": ("قطعِ اضطراریِ AI (دکمه‌ها و پرداخت کار می‌کنن)", "AI kill switch (buttons and payments keep working)"),
     "l.retention": ("نگه‌داریِ داده (روز؛ ۰ = برای همیشه)", "Data retention (days; 0 = forever)"),
     "l.perf": ("سرعت و هزینه‌ی پاسخ", "Answer speed and cost"),
+    "l.gpu": ("شتابِ گرافیکی", "GPU acceleration"),
     "p.note": ("این سه تنظیم، تعدادِ تماس‌های مدل را کم می‌کنند: کشیدنِ پاسخِ تکراری، صبر برای ادغامِ پیام‌هایِ پشتِ‌سرهم و پاسخِ کامل.",
                  "These three settings cut the number of model calls: cached repeat answers, merging a customer’s rapid messages, and complete answers."),
     "p.cache": ("پاسخِ تکراری چند دقیقه در حافظه بماند (مدل دوباره صدا زده نمی‌شه)", "Keep a repeat answer in memory for a few minutes (no second model call)"),
@@ -110,8 +112,8 @@ _S = {
     "p.wait": ("چند ثانیه از آخرین پیام صبر کنیم تا سؤال کامل بشه (۰ = هر پیام جدا)", "Seconds of silence before one request (0 = answer every message)"),
     "p.cap": ("حداکثرِ صبر برای مشتریِ پر‌پیام (ثانیه)", "Longest a busy customer is made to wait (seconds)"),
     "p.gpu": ("شتابِ گرافیکیِ واقعیِ همین بیلد", "Actual GPU acceleration of this build"),
-    "p.gpu_cpu": ("پردازنده (بیلدِ رسمیِ برنامه CPU است؛ برای GPU باید بیلدِ CUDA را نصب کنی)",
-                  "CPU only (the official build is CPU; install a CUDA build of llama-cpp for GPU)"),
+    "p.gpu_cpu": ("پردازنده (این نصب CPU است؛ اگر کارتِ NVIDIA داشته باشی، «شتابِ گرافیکی» در همین تب خودش بسته را نصب و فعال می‌کند)",
+                  "CPU (this build computes on CPU; with an NVIDIA card the “GPU acceleration” card in this tab installs and enables the pack itself)"),
     "p.gpu_on": ("موتورِ برنامه می‌تواند لایه روی گرافیک بگذارد ({layers})", "This engine can offload layers to the GPU ({layers})"),
     "p.saved_restart": ("✅ ذخیره شد و ربات با تنظیماتِ تازه روشن شد.", "✅ Saved; the bot restarted with the new settings."),
     "p.restart_failed": ("ذخیره شد، ولی ربات دوباره روشن نشد: {reason}", "Saved, but the bot did not restart: {reason}"),
@@ -603,6 +605,9 @@ def build(page: ft.Page, lang: str, settings, save_callback, product_store, orde
         ft.Row(spacing=10, wrap=True, controls=[p_minutes, p_wait, p_cap]),
         ft.Button(key="perf_save", content=S("save", lang), on_click=save_perf), p_note])
 
+    # ============================================ ۸.۵) شتابِ گرافیکی (قلم ۲ِ باگ‌هایِ تازه)
+    gpu_section = gpu_card.build(page, lang, settings, save_callback)
+
     # ================================================ ۹) پیش‌نمایش
     preview_section = tile("sec_preview", S("sec.preview", lang), [customer_preview.build(page, lang, settings, product_store, order_store)])
 
@@ -612,7 +617,8 @@ def build(page: ft.Page, lang: str, settings, save_callback, product_store, orde
         ("quick", S("tab.quick", lang), [wizard_section, mode_section, profile_section, preview_section]),
         ("shop", S("tab.shop", lang), [shop_hint, catalog_section, fields_section, buttons_section]),
         ("messages", S("tab.messages", lang), [texts_section, faq_section]),
-        ("advanced", S("tab.advanced", lang), [hours_section, channels_section, perf_section, limits_section, inbox_section]),
+        ("advanced", S("tab.advanced", lang),
+         [hours_section, channels_section, perf_section, gpu_section, limits_section, inbox_section]),
     ]
     panels = {tid: ft.Column(key=f"exp_panel_{tid}", spacing=14, visible=(tid == "quick"), controls=ctrls) for tid, _label, ctrls in tab_defs}
     tab_buttons: dict = {}

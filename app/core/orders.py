@@ -647,6 +647,9 @@ class OrderStore:
         کم شده) و هیچ داده‌ای پاک نمی‌شه — فقط از لیستِ کاریِ ادمین بیرون می‌رود و به
         «بسته‌شده» می‌ره، جایی که نگه‌داریِ محدود هم می‌تواند مشخصاتش را پاک کند. ``by`` فعلاً فقط برایِ لاگِ ممیزیِ پنل استفاده می‌شه (ستونِ تازه لازم ندارد)."""
         self._transition(order_id, STATUS_CLOSED)
+        # ممیزیِ بدونِ ستونِ تازه (هم‌خانواده با set_fulfillment): «چه کسی بست». نسخه‌ی اسکیمای
+        # میخ‌کوب‌شده در tests/test_migrations.py (۸ مهاجرت) عمداً بالا برده نمی‌شه.
+        logger.info("سفارش #%s بسته شد (توسط %s)", order_id, str(by or "")[:96] or "-")
 
     def confirmed_by(self, order_id: int) -> str:
         row = self._connection().execute("SELECT confirmed_by FROM orders WHERE id = ?", (int(order_id),)).fetchone()

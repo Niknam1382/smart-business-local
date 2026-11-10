@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing import Callable
+from typing import Callable, Optional
 
 import flet as ft
 
@@ -58,6 +58,34 @@ _P = {
     "export.pdf": ("خروجِ PDF", "PDF export"),
     "export.done": ("✅ گزارشِ {n} سطری ساخته شد: {path}", "✅ Report with {n} rows created: {path}"),
     "export.failed": ("ساختنِ فایل ناموفق بود: {error}", "Could not create the file: {error}"),
+    # ── قلم ۶: پرمصرف‌ها + کارتِ مشخصاتِ مشتری + مدیریتِ شخصی‌سازی‌شده (سقفِ AI) ──
+    # این کلیدها محلیِ همین صفحه‌اند (i18n.py دست‌نخورده). نام‌هایی که بعداً ارزشِ ارتقا به i18n دارند:
+    # chats.sort.*  chats.id.*  chats.limit.*  chats.open_customer
+    "sort.label": ("مرتب‌سازی", "Sort"),
+    "sort.recent": ("تازه‌ترین", "Recent"),
+    "sort.volume": ("پرمصرف‌ترین", "Most used"),
+    "id.title": ("مشخصاتِ مشتری", "Customer details"),
+    "id.name": ("نام", "Name"),
+    "id.username": ("نامِ کاربری", "Username"),
+    "id.id": ("شناسه", "ID"),
+    "id.platform": ("پیام‌رسان", "Messenger"),
+    "id.first": ("اولینِ دیدار", "First seen"),
+    "id.last": ("آخرینِ دیدار", "Last seen"),
+    "id.messages": ("مجموعِ پیام‌ها", "Total messages"),
+    "id.orders": ("سفارش‌ها", "Orders"),
+    "id.language": ("زبان", "Language"),
+    "id.tags": ("برچسب‌ها", "Tags"),
+    "id.blocked": ("بلاک", "Blocked"),
+    "id.unreachable": ("دست‌نیافتنی", "Unreachable"),
+    "id.yes": ("بله", "yes"),
+    "id.no": ("خیر", "no"),
+    "id.none": ("این گفتگو هنوز در فهرستِ مشتریان نیست؛ مشخصاتِ پایه از خودِ گفتگو نشان داده می‌شه.", "This chat isn’t in the customer list yet; basic details come from the chat itself."),
+    "limit.label": ("سقفِ پاسخِ AI در روز", "Daily AI answer limit"),
+    "limit.hint": ("خالی = سراسری · ۰ = بدونِ AI", "Empty = global cap · 0 = no AI"),
+    "limit.save": ("ذخیره‌ی سقف", "Save limit"),
+    "limit.saved": ("✅ سقفِ شخصی ذخیره شد.", "✅ Personal limit saved."),
+    "limit.bad": ("سقف باید عددی بین ۰ تا ۱۰۰۰ باشد (یا خالی).", "The limit must be a number between 0 and 1000 (or empty)."),
+    "open.customer": ("باز کردنِ پرونده‌ی مشتری", "Open customer record"),
 }
 
 
@@ -79,9 +107,10 @@ def _format_time(raw: str) -> str:
 
 
 def build(
-    page: ft.Page, lang: str, manager, on_open_bots: Callable[[], None]
+    page: ft.Page, lang: str, manager, on_open_bots: Callable[[], None],
+    on_open_customer: Optional[Callable[[str, str], None]] = None,
 ) -> tuple[ft.Control, Callable[[], None]]:
-    state = {"platform": None, "chat_id": None, "initialized": False}
+    state = {"platform": None, "chat_id": None, "initialized": False, "sort": "recent", "limit_for": None}
     last = {"list_snap": None, "detail_snap": None}
     clear_armed = {"key": None}  # کلید مکالمه‌ای که منتظر کلیک تاییدیه برای پاک‌کردن تاریخچه‌ست
 
@@ -265,6 +294,13 @@ def build(
                                 expand=True,
                             ),
                             ft.Icon(ft.Icons.BLOCK_ROUNDED, size=13, color=theme.DANGER) if c.blocked else ft.Container(),
+                            ft.Container(
+                                key=f"conv_count_{c.platform}_{c.chat_id}",
+                                padding=ft.Padding.symmetric(horizontal=6, vertical=1),
+                                border_radius=10,
+                                bgcolor=f"{theme.PRIMARY}1F",
+                                content=ft.Text(str(c.msg_count), size=10.5, color=theme.PRIMARY),
+                            ),
                         ],
                     ),
                     ft.Text(
@@ -283,6 +319,7 @@ def build(
         # دو درخت کنترل متفاوت در build) — وگرنه وقتی اولین مکالمه بعد از
         # ساخته‌شدن صفحه (لیست خالی) می‌رسه، تغییرش هیچ‌وقت روی صفحه دیده
         # نمی‌شه، چون کنترلِ نمایش‌داده‌شده از قبل «حالت خالی» بوده.
+        convs = apply_sort(convs)
         if not convs:
             list_view.controls = [
                 ft.Container(
@@ -346,6 +383,7 @@ def build(
         personal_input.value = ""  # پیامِ نیمه‌نوشته مالِ مشتریِ قبلی بود
         personal_template.value = None
         personal_result.visible = False
+        sync_limit_field(platform, chat_id)  # فیلدِ سقف با مقادیرِ همین مکالمه پر می‌شه
         refresh(force=True)
         page.update()
 
@@ -371,6 +409,133 @@ def build(
             clear_armed["key"] = key
             render_detail()
         page.update()
+
+    # ───────────────── قلم ۶: کنترل‌هایِ مرتب‌سازی و مدیریتِ شخصی‌سازی‌شده ─────────────────
+    # این کنترل‌ها یک‌بار ساخته می‌شن و بیرونِ بازسازیِ detail_area زنده می‌مونن تا متنِ نیمه‌نوشته‌ی
+    # فیلدِ سقف با هر پیامِ تازه پاک نشه (همان دلیلی که personal_box بیرونِ detail_area است).
+    sort_control = ft.Dropdown(
+        key="chats_sort", label=tp("sort.label", lang), value="recent", border_radius=10, width=220,
+        options=[ft.DropdownOption(key="recent", text=tp("sort.recent", lang)), ft.DropdownOption(key="volume", text=tp("sort.volume", lang))],
+    )
+    daily_limit_field = ft.TextField(
+        key="daily_limit_input", label=tp("limit.label", lang), hint_text=tp("limit.hint", lang),
+        width=150, border_radius=10, keyboard_type=ft.KeyboardType.NUMBER,
+    )
+    daily_limit_note = ft.Text(key="daily_limit_note", size=12, visible=False)
+    open_customer_button = ft.OutlinedButton(
+        key="open_customer_button", content=tp("open.customer", lang), icon=ft.Icons.PERSON_SEARCH_ROUNDED,
+        visible=on_open_customer is not None,
+    )
+
+    def apply_sort(convs: list[ConversationSummary]) -> list[ConversationSummary]:
+        # «پرمصرف‌ترین» = بیشترینِ تعدادِ پیام (از شمارشِ خودِ دیتابیس)؛ در تساوی، تازه‌ترین اول.
+        if state["sort"] == "volume":
+            return sorted(convs, key=lambda c: (-c.msg_count, c.platform, c.chat_id))
+        return convs
+
+    def _format_ts(ts: int) -> str:
+        return jalali.format_dt(ts) if ts else "—"
+
+    def sync_limit_field(platform: str, chat_id: str) -> None:
+        value = manager.store.get_limit_override(platform, chat_id)
+        daily_limit_field.value = "" if value is None else str(value)
+        daily_limit_note.visible = False
+        state["limit_for"] = (platform, chat_id)
+
+    def on_sort_change(e=None) -> None:
+        if e is not None:
+            state["sort"] = e.control.value or state["sort"]
+        refresh(force=True)
+        page.update()
+
+    def on_save_limit(e=None) -> None:
+        platform, chat_id = state["platform"], state["chat_id"]
+        if not chat_id:
+            return
+        try:
+            saved = manager.store.set_limit_override(platform, chat_id, daily_limit_field.value)
+        except ValueError:
+            daily_limit_note.value, daily_limit_note.color, daily_limit_note.visible = tp("limit.bad", lang), theme.DANGER, True
+            page.update()
+            return
+        daily_limit_field.value = "" if saved is None else str(saved)
+        daily_limit_note.value, daily_limit_note.color, daily_limit_note.visible = tp("limit.saved", lang), theme.SUCCESS, True
+        refresh(force=True)
+        page.update()
+
+    def open_customer_record(e=None) -> None:
+        platform, chat_id = state["platform"], state["chat_id"]
+        if chat_id and on_open_customer is not None:
+            on_open_customer(platform, chat_id)
+
+    sort_control.on_select = on_sort_change
+    open_customer_button.on_click = open_customer_record
+
+    def _id_fact(label_key: str, value: str, key: str = "") -> ft.Control:
+        return ft.Row(
+            spacing=8,
+            controls=[ft.Text(tp(label_key, lang) + ":", size=12, color=theme.text_secondary(page)),
+                      ft.Text(value or "—", size=12.5, selectable=True, key=key or None)],
+        )
+
+    def identity_card(conv: Optional[ConversationSummary]) -> ft.Control:
+        """کارتِ هویتِ مشتری: نام/یوزرنیم/شناسه/پلتفرم/اولین و آخرینِ دیدار/مجموعِ پیام‌ها/سفارش‌ها/زبان/
+        بلاک و دست‌نیافتنی/برچسب‌ها. هرچه از CRM در دسترس باشد از همان جا؛ بقیه از خودِ گفتگو (بدونِ حدس)."""
+        platform, chat_id = state["platform"], state["chat_id"]
+        customer = None
+        customers = getattr(manager, "customers", None)
+        if customers is not None:
+            try:
+                customer = customers.get(platform, chat_id)
+            except Exception:  # noqa: BLE001 — خرابیِ CRM هرگز نباید صفحه‌ی گفتگو را بخواباند
+                customer = None
+        is_blocked = bool(customer.blocked) if customer is not None else bool(conv and conv.blocked)
+        unreachable = bool(customer.unreachable) if customer is not None else False
+        name = customer.display_name if customer is not None and customer.display_name else (conv.display_name if conv and conv.display_name else chat_id)
+        messages = conv.msg_count if conv else 0
+        rows = [
+            ft.Text(tp("id.title", lang), size=13.5, weight=ft.FontWeight.W_700),
+            *([] if customer is not None else [ft.Text(tp("id.none", lang), size=11.5, color=theme.text_secondary(page), italic=True)]),
+            _id_fact("id.name", name),
+            _id_fact("id.username", f"@{customer.username}" if customer and customer.username else "—"),
+            _id_fact("id.id", chat_id),
+            _id_fact("id.platform", platform_label(platform)),
+            _id_fact("id.first", _format_ts(customer.first_seen_ts) if customer else "—"),
+            _id_fact("id.last", _format_ts(customer.last_seen_ts) if customer else "—"),
+            _id_fact("id.messages", str(messages)),
+            _id_fact("id.orders", str(customer.orders_count) if customer else "—"),
+            _id_fact("id.language", (customer.language_code if customer else "") or "—"),
+            _id_fact("id.tags", ", ".join(customer.tags) if customer and customer.tags else "—"),
+            _id_fact("id.blocked", tp("id.yes" if is_blocked else "id.no", lang)),
+            _id_fact("id.unreachable", tp("id.yes" if unreachable else "id.no", lang)),
+        ]
+        return ft.Container(
+            key="identity_card",
+            padding=12,
+            border_radius=10,
+            border=ft.Border.all(1, theme.border_color(page)),
+            bgcolor=theme.card_bgcolor(page),
+            content=ft.Column(spacing=3, controls=rows),
+        )
+
+    def management_row(conv: Optional[ConversationSummary]) -> ft.Control:
+        """ردیفِ مدیریتِ شخصی‌سازی: سقفِ روزانه‌ی AI + ذخیره + پرش به پرونده‌ی مشتری.
+        (بلاک/رفعِ بلاک و حافظه در همان هدرِ همیشگی با key ثابتِ ``block_button``/``memory_switch`` هستند.)"""
+        return ft.Container(
+            key="management_row",
+            padding=ft.Padding.symmetric(horizontal=12, vertical=10),
+            border_radius=10,
+            border=ft.Border.all(1, theme.border_color(page)),
+            content=ft.Row(
+                wrap=True, spacing=12, run_spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                controls=[
+                    daily_limit_field,
+                    ft.OutlinedButton(key="daily_limit_save", content=tp("limit.save", lang), icon=ft.Icons.SAVE_ROUNDED, on_click=on_save_limit),
+                    open_customer_button,
+                    daily_limit_note,
+                ],
+            ),
+        )
 
     def render_detail() -> None:
         platform, chat_id = state["platform"], state["chat_id"]
@@ -464,8 +629,14 @@ def build(
             ],
         )
 
+        # اگر برای این مکالمه هنوز فیلدِ سقف همگام نشده (مثلاً انتخابِ خودکارِ اولیه)، همین‌جا پر می‌شه.
+        if state["limit_for"] != (platform, chat_id):
+            sync_limit_field(platform, chat_id)
+
         detail_area.controls = [
             header,
+            identity_card(conv),
+            management_row(conv),
             ft.Text(t("chats.memory_help", lang), size=11, color=theme.text_secondary(page)),
             (
                 ft.Container(
@@ -490,7 +661,7 @@ def build(
             else ()
         )
         conv_now = next((c for c in convs if (c.platform, c.chat_id) == (platform, chat_id)), None)
-        list_snap = tuple((c.platform, c.chat_id, c.display_name, c.last_message_preview, c.blocked) for c in convs)
+        list_snap = tuple((c.platform, c.chat_id, c.display_name, c.last_message_preview, c.blocked, c.msg_count, c.daily_ai_limit) for c in convs)
         detail_snap = (detail, conv_now.memory_enabled if conv_now else None, conv_now.blocked if conv_now else None)
         return convs, list_snap, detail_snap
 
@@ -540,7 +711,13 @@ def build(
         spacing=16,
         vertical_alignment=ft.CrossAxisAlignment.STRETCH,
         controls=[
-            ft.Container(width=280, content=card(page, list_view, padding=8)),
+            ft.Container(
+                width=300,
+                content=ft.Column(
+                    spacing=8,
+                    controls=[ft.Row(controls=[sort_control], wrap=True), card(page, list_view, padding=8)],
+                ),
+            ),
             ft.Column(
                 expand=True,
                 spacing=12,

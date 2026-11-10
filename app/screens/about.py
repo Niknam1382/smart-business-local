@@ -22,13 +22,13 @@ def build(page: ft.Page, lang: str, state, save, checker=None, version: str = __
 
     # ------------------------------------------------------------ نسخه و به‌روزرسانی ----
     check_result = ft.Text("", key="about_check_result", size=12.5, color=secondary, visible=False)
-    update_link = ft.TextButton(
-        key="about_update_link", content=t("about.update_open", lang), visible=False,
+    update_link = common.text(
+        t("about.update_open", lang), key="about_update_link", visible=False,
         on_click=lambda e: common.open_url(page, str(update_link.data or "")),
     )
 
-    install_btn = ft.OutlinedButton(
-        key="about_update_install", content=t("update.install", lang), visible=False,
+    install_btn = common.secondary(
+        t("update.install", lang), key="about_update_install", visible=False,
         on_click=lambda e: on_install(install_btn.data) if on_install is not None and install_btn.data is not None else None,
     )
 
@@ -94,7 +94,8 @@ def build(page: ft.Page, lang: str, state, save, checker=None, version: str = __
                     wrap=True,
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     controls=[
-                        ft.OutlinedButton(key="about_check", content=t("about.check", lang), icon=ft.Icons.REFRESH_ROUNDED, on_click=on_check, disabled=checker is None),
+                        common.secondary(t("about.check", lang), key="about_check", icon=ft.Icons.REFRESH_ROUNDED,
+                                         size="sm", on_click=on_check, disabled=checker is None),
                         check_result,
                         update_link,
                         install_btn,
@@ -126,13 +127,11 @@ def build(page: ft.Page, lang: str, state, save, checker=None, version: str = __
                     spacing=8,
                     wrap=True,
                     controls=[
-                        ft.OutlinedButton(key="about_github", content=t("about.github", lang), icon=ft.Icons.CODE_ROUNDED, on_click=lambda e: common.open_url(page, branding.GITHUB_PROFILE)),
-                        ft.OutlinedButton(key="about_instagram", content=t("about.instagram", lang), icon=ft.Icons.OPEN_IN_NEW_ROUNDED, on_click=lambda e: common.open_url(page, branding.INSTAGRAM)),
-                        ft.OutlinedButton(key="about_email_copy", content=t("about.email_copy", lang), icon=ft.Icons.CONTENT_COPY_ROUNDED, on_click=on_copy_email),
-                        ft.OutlinedButton(
-                            key="about_report", content=t("about.report", lang), icon=ft.Icons.BUG_REPORT_OUTLINED,
-                            on_click=lambda e: common.open_url(page, about_info.issue_url(version)),
-                        ),
+                        common.secondary(t("about.github", lang), key="about_github", icon=ft.Icons.CODE_ROUNDED, size="sm", on_click=lambda e: common.open_url(page, branding.GITHUB_PROFILE)),
+                        common.secondary(t("about.instagram", lang), key="about_instagram", icon=ft.Icons.OPEN_IN_NEW_ROUNDED, size="sm", on_click=lambda e: common.open_url(page, branding.INSTAGRAM)),
+                        common.secondary(t("about.email_copy", lang), key="about_email_copy", icon=ft.Icons.CONTENT_COPY_ROUNDED, size="sm", on_click=on_copy_email),
+                        common.secondary(t("about.report", lang), key="about_report", icon=ft.Icons.BUG_REPORT_OUTLINED, size="sm",
+                                         on_click=lambda e: common.open_url(page, about_info.issue_url(version))),
                     ],
                 ),
                 ft.Text(branding.CONTACT_EMAIL, key="about_email", size=12.5, color=secondary, selectable=True),
@@ -149,7 +148,7 @@ def build(page: ft.Page, lang: str, state, save, checker=None, version: str = __
     error = ft.Text("", key="support_error", size=12.5, color=theme.DANGER, visible=False)
     link_ready = ft.Text(t("support.link_ready", lang), key="support_link_ready", size=12, color=theme.SUCCESS, visible=False)
     link_text = ft.Text("", key="support_link_text", size=11, color=secondary, selectable=True, visible=False)
-    copy_link = ft.TextButton(key="support_copy", content=t("support.copy_link", lang), visible=False, on_click=lambda e: common.copy_text(page, str(link_text.value or "")))
+    copy_link = common.text(t("support.copy_link", lang), key="support_copy", visible=False, on_click=lambda e: common.copy_text(page, str(link_text.value or "")))
 
     def on_message_change(e=None) -> None:
         counter.value = support_link.message_counter(message.value)
@@ -179,7 +178,7 @@ def build(page: ft.Page, lang: str, state, save, checker=None, version: str = __
             ft.Row(spacing=10, vertical_alignment=ft.CrossAxisAlignment.START, controls=[amount, message]),
             counter,
             error,
-            ft.Button(key="support_make", content=t("support.make", lang), icon=ft.Icons.FAVORITE_BORDER_ROUNDED, on_click=on_make),
+            common.primary(t("support.make", lang), key="support_make", icon=ft.Icons.FAVORITE_BORDER_ROUNDED, on_click=on_make),
             link_ready,
             link_text,
             copy_link,
@@ -187,7 +186,7 @@ def build(page: ft.Page, lang: str, state, save, checker=None, version: str = __
     else:  # دارمت وب‌اینتنت را نپذیرفت ⇒ فقط پروفایل
         support_controls = [
             ft.Text(t("support.note", lang), key="support_note", size=12.5, color=secondary),
-            ft.Button(key="support_profile", content=t("support.profile", lang), icon=ft.Icons.OPEN_IN_NEW_ROUNDED, on_click=lambda e: common.open_url(page, branding.daramet_profile_url())),
+            common.primary(t("support.profile", lang), key="support_profile", icon=ft.Icons.OPEN_IN_NEW_ROUNDED, on_click=lambda e: common.open_url(page, branding.daramet_profile_url())),
         ]
     support_tile = common.card(
         page,

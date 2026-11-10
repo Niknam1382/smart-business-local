@@ -97,9 +97,7 @@ def build(page: ft.Page, lang: str, settings, on_save, product_store=None, order
         preview_button.text = t("prompt.show_short", lang) if state["full"] else t("prompt.show_full", lang)
         refresh()
 
-    preview_button = ft.TextButton(
-        t("prompt.show_full", lang), key="ps_toggle", on_click=toggle_preview
-    )
+    preview_button = common.text(t("prompt.show_full", lang), key="ps_toggle", on_click=toggle_preview)
 
     template_cards = []
     for tpl in templates_for_category(getattr(settings, "business_mode", "")):
@@ -128,6 +126,7 @@ def build(page: ft.Page, lang: str, settings, on_save, product_store=None, order
                         ft.Text(blurb, size=11.5, color=theme.text_secondary(page)),
                         ft.Text(short, size=11.5, color=theme.text_secondary(page)),
                         ft.TextButton(
+                            height=theme.BTN_SM,
                             key=f"ps_use_{tpl['id']}",
                             content=ft.Row(
                                 tight=True,
@@ -178,7 +177,7 @@ def build(page: ft.Page, lang: str, settings, on_save, product_store=None, order
                     spacing=12,
                     controls=[
                         common.primary_button(t("common.save", lang), handle_save, icon=ft.Icons.SAVE_ROUNDED, width=150),
-                        ft.OutlinedButton(t("prompt.reset_default", lang), key="ps_reset", on_click=handle_reset),
+                        common.secondary(t("prompt.reset_default", lang), key="ps_reset", on_click=handle_reset),
                     ],
                 ),
             ],

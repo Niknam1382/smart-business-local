@@ -45,6 +45,23 @@ class UsageLimiter:
         total = getattr(s, "max_ai_messages_per_day_total", DEFAULT_TOTAL)
         return int(per_chat if per_chat is not None else DEFAULT_PER_CHAT), int(total if total is not None else DEFAULT_TOTAL)
 
+    def _override(self, platform: str, chat_id: str) -> Optional[int]:
+        """محدودیتِ شخصیِ این مکالمه (قلم ۶)؛ مقدارِ نامعتبر یا نبودِ متد → None (سقفِ سراسری).
+        fail-closed: هر خطا در خواندنِ مقدارِ دستی، محدودیتِ سراسری را سرِ جایش نگه می‌دارد."""
+        getter = getattr(self._conv, "get_limit_override", None)
+        if getter is None:
+            return None
+        try:
+            return getter(platform, chat_id)
+        except Exception:  # noqa: BLE001 — خرابیِ خواندنِ محدودیت هرگز نباید پاسخ‌دهی را بخواباند
+            return None
+
+    def chat_cap(self, platform: str, chat_id: str) -> Optional[int]:
+        """سقفِ مؤثرِ «به‌ازای هر چت» برای این مکالمه: محدودیتِ شخصی اگر تنظیم شده باشد،
+        وگرنه سقفِ سراسری (که ۰ یعنی بدونِ سقف). برای نمایش در UI."""
+        override = self._override(platform, chat_id)
+        return override if override is not None else self._caps()[0]
+
     # --------------------------------------------------------------- شمارش ----
 
     def chat_calls(self, platform: str, chat_id: str) -> int:
@@ -76,7 +93,14 @@ class UsageLimiter:
         if not getattr(settings, "ai_enabled_for", lambda _p: True)(platform):
             return "off"
         per_chat, total = self._caps()
-        if per_chat > 0 and self.chat_calls(platform, chat_id) >= per_chat:
+        override = self._override(platform, chat_id)
+        # محدودیتِ شخصی (قلم ۶) بر سقفِ سراسریِ هر-چت اولویت دارد: ۰ یعنی این مشتری کلاً AI ندارد
+        # (همان پیامِ سقفِ فارسیِ موجود، بی‌بن‌بستِ تازه) و N یعنی N پاسخ/۲۴ ساعت؛ None یعنی سراسری
+        # (که در آن ۰ = بدونِ سقف). سقفِ کلِ روزانه در هر دو حالت بر جایش می‌ماند.
+        if override is not None:
+            if override == 0 or self.chat_calls(platform, chat_id) >= override:
+                return "chat"
+        elif per_chat > 0 and self.chat_calls(platform, chat_id) >= per_chat:
             return "chat"
         if total > 0 and self.total_calls() >= total:
             return "total"

@@ -179,7 +179,8 @@ def test_the_owner_is_alarm_twice_and_can_confirm_afterwards(h):
     """آلارمِ فوری (hooks.payment_claim) هم موقعِ ادعا و هم موقعِ رسید؛ بعد /confirm مالک کار می‌کند."""
     oid = claim(h)
     assert h.claims[-1][1] == {"kind": "claim"} and h.claims[-1][0].id == oid  # ادعا
-    assert any("منتظر تاییدته" in a and f"/confirm {oid}" in a for a in h.owner_alerts)
+    # دعوتِ مالک به تصمیم (دکمه یا فرمانِ متنی) مالِ کنسولِ مالک است؛ این‌جا همان دو نشانه می‌بخشیم
+    assert any("منتظر تاییدته" in a and f"#{oid}" in a for a in h.owner_alerts)
     h.say(f"واریز {TOMAN} تومان")
     [row] = h.orders.receipts_for(oid)
     assert row["match_state"] == "amount_ok"

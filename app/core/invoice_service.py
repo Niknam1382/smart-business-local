@@ -1,5 +1,5 @@
 """
-سرویسِ فاکتور (N19): صدور + PDF + ارسالِ خودکار/دستی به مشتری و مالک.
+سرویسِ فاکتور (N19): صدور + PDF + ارسالِ خودکار/دستی به مشتری و مالک + «فاکتورِ تستی» (قلم ۸).
 
 - **idempotent:** وضعیتِ ارسال در ``invoices.sent_json``؛ فاکتورِ ارسال‌شده بدونِ ``force`` دوباره نمی‌رود (قفلِ هر فاکتور
   جلوی ارسالِ هم‌زمانِ دوبار را می‌گیره).
@@ -7,6 +7,9 @@
 - **شکست ⇒** «نیاز به توجه» + فاکتورِ متنی به‌عنوانِ جایگزین (یک‌بار) + دکمه‌ی «ارسالِ دوباره» در صفحه‌ی مالی؛
   حلقه‌ی نگهداری با فاصله‌ی افزایشی تا ۵ تلاش دوباره می‌سنجد.
 - PDFها مشتق‌اند (از snapshot، قطعی)؛ فقط کش‌اند و با ``/forget`` پاک می‌شن؛ هر زمان دوباره ساخته می‌شن.
+- **``preview()``:** فاکتورِ *نمونه* از تنظیماتِ جاری می‌سازد (هیچ سفارش/دیتابیس/شبکه‌ای در کار نیست) و همانِ
+  مسیرِ رندرِ فاکتورِ واقعی را می‌رود، تا مالک بعد از شخصی‌سازیِ متن‌ها نتیجه را روی کاغذ ببیند. فایل در همان
+  پوشه‌ی PDFها می‌نشیند و هر بار *بازنویسی* می‌شود (idempotent)؛ هیچ پیامی به مشتری نمی‌رود.
 """
 
 from __future__ import annotations
@@ -21,7 +24,7 @@ from pathlib import Path
 from typing import Awaitable, Callable, Optional
 
 from app.core import invoice_pdf, jalali
-from app.core.invoices import Invoice, InvoiceError, InvoiceStore
+from app.core.invoices import Invoice, InvoiceError, InvoiceStore, compute_totals, seller_snapshot
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +34,31 @@ CUSTOMER_COOLDOWN_SECONDS = 20  # «🧾 فاکتور»ِ مشتری: سقفِ �
 NEXT_TRY_BASE_SECONDS = 120
 MAX_TRACKED_ENTRIES = 2000  # سقفِ دیک‌هایِ حافظه (قفل/خاموشی): برنامه هفته‌ها روشن می‌ماند
 _SAFE_NUMBER = re.compile(r"[^A-Za-z0-9._-]+")
+
+# ---- فاکتورِ تستی (قلم ۸) ----
+# «-» در شماره‌ی صادرشده هرگز تولید نمی‌شود (``_prefix`` فقط [A-Za-z0-9] می‌گذارد)، پس این شماره با
+# هیچ فاکتورِ واقعی و هیچ ردیفی در دیتابیس قاطی نمی‌شود.
+PREVIEW_NUMBER = "TEST-000001"
+PREVIEW_ORDER_ID = 4287
+PREVIEW_DISCOUNT_IRR = 50_000
+PREVIEW_SHIPPING_IRR = 80_000
+# مبالغِ نمونه «با مالیات»ند (همان قراردادِ ریاضیِ فاکتورِ واقعی) تا خطِ مالیات هم درست دیده شود.
+PREVIEW_LINES = (
+    {"name": "کفشِ روزمره (نمونه)", "qty": 1, "unit_irr": 850_000, "total_irr": 850_000},
+    {"name": "جورابِ نخی (نمونه)", "qty": 3, "unit_irr": 90_000, "total_irr": 270_000},
+    {"name": "کمربِ چرمی (نمونه)", "qty": 1, "unit_irr": 430_000, "total_irr": 430_000},
+)
+PREVIEW_BUYER = {
+    # «نمونه» در نام و در شناسه هست تا اگر فاکتور گم شد، کسی آن را فاکتورِ واقعی نگیرد
+    "name": "مشتریِ نمونه (فاکتورِ تستی)",
+    "phone": "09120000000",
+    "address": "تهران، خیابانِ نمونه، پلاک ۱۲ (آدرسِ آزمایشی)",
+    "trace": "TR-000001",
+    "tracking": "",
+    "buyer_id": "sample-1",
+    "shipping_method": "پست پیشتاز (نمونه)",
+    "anonymized": False,
+}
 
 
 def safe_pdf_name(number: str) -> str:
@@ -49,25 +77,50 @@ def invoices_dir() -> Path:
 
 
 def invoice_text(inv: Invoice, digits: Optional[str] = None) -> str:
-    """فاکتورِ متنیِ ساده (جایگزینِ PDF) — همان ترتیب و همان معنایِ PDF: مالیات «از این مبلغ» است."""
+    """فاکتورِ متنیِ ساده (جایگزینِ PDF) — همان ترتیب و همان معنایِ PDF: مالیات «از این مبلغ» است.
+
+    متن‌هایِ شخصی‌سازی‌شده (برچسب‌ها/نامِ فروشگاه) اینجا هم اعمال می‌شن تا نسخه‌یِ متنی و PDFِ
+    یکِ فاکتور یکی باشند."""
     d = digits or inv.seller.get("digits", "fa")
     lang = "en" if getattr(inv, "lang", "fa") == "en" else "fa"
+    labels = inv.seller.get("labels") if isinstance(inv.seller.get("labels"), dict) else None
     rial = invoice_pdf.label("rial", lang)
     m = lambda n: f"{invoice_pdf.money(n, d)} {rial}"  # noqa: E731
-    title = invoice_pdf.label("credit" if inv.is_credit else "sale", lang)
-    lines = [f"🧾 {title} {inv.number}", jalali.format_ts(inv.issued_ts, digits=d), inv.seller.get("name", "")]
+    title = invoice_pdf.label("credit" if inv.is_credit else "sale", lang, labels)
+    lines = [f"🧾 {title} {inv.number}", jalali.format_ts(inv.issued_ts, digits=d), invoice_pdf.seller_name(inv.seller)]
     for it in inv.lines:
         lines.append(f"- {it.get('name', '')} ×{it.get('qty', 0)} = {m(it.get('total_irr', 0))}")
-    lines.append(f"{invoice_pdf.label('subtotal', lang)}: {m(inv.subtotal_irr)}")
+    lines.append(f"{invoice_pdf.label('subtotal', lang, labels)}: {m(inv.subtotal_irr)}")
     if inv.discount_irr:
-        lines.append(f"{invoice_pdf.label('discount', lang)}: −{m(inv.discount_irr)}")
+        lines.append(f"{invoice_pdf.label('discount', lang, labels)}: −{m(inv.discount_irr)}")
     if inv.shipping_irr:
-        lines.append(f"{invoice_pdf.label('shipping', lang)}: {m(inv.shipping_irr)}")
-    lines.append(f"{invoice_pdf.label('refund' if inv.is_credit else 'final', lang)}: {m(inv.total_irr)}")
+        lines.append(f"{invoice_pdf.label('shipping', lang, labels)}: {m(inv.shipping_irr)}")
+    lines.append(f"{invoice_pdf.label('refund' if inv.is_credit else 'final', lang, labels)}: {m(inv.total_irr)}")
     if inv.tax_irr:
         rate = (inv.seller.get("vat_rate_bp", 0) or 0) / 100
-        lines.append(f"{invoice_pdf.label('vat', lang)} {invoice_pdf._num(f'{rate:g}', d)}٪: {m(inv.tax_irr)}")
+        lines.append(f"{invoice_pdf.label('vat', lang, labels)} {invoice_pdf._num(f'{rate:g}', d)}٪: {m(inv.tax_irr)}")
+    thanks = invoice_pdf.clean(inv.seller.get("thanks", ""), 200)
+    if thanks:
+        lines.append(thanks)
     return "\n".join(x for x in lines if x)
+
+
+def preview_invoice(settings, lang: Optional[str] = None, issued_ts: Optional[int] = None) -> Invoice:
+    """``Invoice``ِ *ساختگیِ* فاکتورِ تستی — از تنظیماتِ جاری، بدونِ هیچ دیتابیسی.
+
+    همان ``seller_snapshot`` و همان ``compute_totals``ِ فاکتورِ واقعی خوانده می‌شن (مالیات/ارسال طبقِ
+    تنظیمات)، فقط اقلام و خریدار نمونه‌اند و ``seller["preview"]=True`` علامتِ «نمونه» است."""
+    seller = dict(seller_snapshot(settings))
+    seller["preview"] = True
+    lines = [dict(item) for item in PREVIEW_LINES]
+    total = sum(int(item["total_irr"]) for item in lines) - PREVIEW_DISCOUNT_IRR + PREVIEW_SHIPPING_IRR
+    totals = compute_totals(lines, total, PREVIEW_DISCOUNT_IRR, seller["vat_enabled"], seller["vat_rate_bp"])
+    lang = lang if lang in ("fa", "en") else ("en" if getattr(settings, "language", "fa") == "en" else "fa")
+    return Invoice(
+        0, PREVIEW_NUMBER, "sale", PREVIEW_ORDER_ID, 0, int(issued_ts if issued_ts is not None else time.time()),
+        seller, dict(PREVIEW_BUYER), lines, totals["subtotal_irr"], totals["discount_irr"], totals["shipping_irr"],
+        totals["tax_irr"], totals["total_irr"], "card_to_card", "paid", "", lang, {},
+    )
 
 
 class InvoiceService:
@@ -104,22 +157,44 @@ class InvoiceService:
     def path_of(self, inv: Invoice) -> Path:
         return Path(self._dir()) / safe_pdf_name(inv.number)
 
+    def render_bytes(self, inv: Invoice) -> bytes:
+        """همانِ یکِ مسیرِ رندر: فاکتورِ واقعی (از snapshot) و فاکتورِ تستی هر دو از این عبور می‌کنند."""
+        ref = ""
+        if inv.is_credit:
+            base = self.store.get(inv.ref_invoice_id)
+            ref = base.number if base else ""
+        return invoice_pdf.render(inv, ref_number=ref, order_label=f"سفارش #{inv.order_id}")
+
     def ensure_pdf(self, inv: Invoice) -> Path:
         """PDFِ ذخیره‌شده یا ساختِ دوباره از snapshot (قطعی). ``InvoicePdfError`` اگه ساخته نشه."""
         path = self.path_of(inv)
         if path.is_file() and path.stat().st_size > 0:
             return path
-        ref = ""
-        if inv.is_credit:
-            base = self.store.get(inv.ref_invoice_id)
-            ref = base.number if base else ""
-        data = invoice_pdf.render(inv, ref_number=ref, order_label=f"سفارش #{inv.order_id}")
+        data = self.render_bytes(inv)
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_name(path.name + ".tmp")
         tmp.write_bytes(data)
         os.replace(tmp, path)
         if not inv.pdf_sha256:
             self.store.set_pdf_hash(inv.id, hashlib.sha256(data).hexdigest())
+        return path
+
+    # ------------------------------------------------------- فاکتورِ تستی
+    def preview_bytes(self, lang: Optional[str] = None, now: Optional[int] = None) -> bytes:
+        """بایتِ PDFِ «فاکتورِ تستی» (قلم ۸): snapshotِ نمونه از تنظیمات جاری ← *همان* رندرِ فاکتورِ واقعی.
+
+        دیتابیس را نمی‌خواند و نمی‌نویسد، شمارنده را مصرف نمی‌کند و هیچ فرستنده‌ای صدا نمی‌زند."""
+        return self.render_bytes(preview_invoice(self._settings(), lang=lang, issued_ts=now))
+
+    def preview(self, lang: Optional[str] = None, now: Optional[int] = None) -> Path:
+        """فاکتورِ تستی در همان پوشه‌ی PDFها (``invoices_dir()``)؛ هر بار بازنویسیِ همان فایل ⇒ idempotent."""
+        data = self.preview_bytes(lang=lang, now=now)
+        folder = Path(self._dir())
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / safe_pdf_name(PREVIEW_NUMBER)
+        tmp = path.with_name(path.name + ".tmp")
+        tmp.write_bytes(data)
+        os.replace(tmp, path)
         return path
 
     def delete_files(self, numbers: list) -> None:

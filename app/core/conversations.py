@@ -17,6 +17,7 @@ Thread-safety: bot (روی ترد پس‌زمینه‌ی خودش) و UI (روی
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 import threading
 from dataclasses import dataclass, field
@@ -28,7 +29,65 @@ from app.core import migrations
 from app.core.ai_engine import ChatMessage
 from app.core.paths import get_app_data_dir
 
+logger = logging.getLogger(__name__)
+
 _DB_FILE_NAME = "conversations.db"
+
+# قلم ۶: سقفِ شخصیِ روزانه‌ی AI به‌ازای هر مکالمه. بازه‌ی مجازِ مقدارِ دستی (NULL = سقفِ سراسری،
+# ۰ = بدونِ AI برای این مشتری، ۱..۱۰۰۰ = تعدادِ پاسخِ AI در ۲۴ ساعت).
+MAX_DAILY_AI_LIMIT = 1000
+
+# رقم‌های فارسی/عربی که مالک ممکن است در فیلدِ عددی تایپ کند ← رقمِ لاتینِ معادل
+_DIGIT_MAP = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
+
+
+def _coerce_stored_limit(raw, platform: str = "", chat_id: str = "") -> Optional[int]:
+    """مقدارِ ذخیره‌شده در ستونِ ``daily_ai_limit`` ← عددِ معتبرِ ۰..۱۰۰۰ یا None (سقفِ سراسری).
+
+    fail-closed: هر مقدارِ نامعتبر (متن/ اعشاری/خارجِ بازه) بی‌صدا به None برمی‌گردد تا مصرف‌کننده
+    از سقفِ سراسری استفاده کند و فقط یک هشدار لاگ می‌شود — هرگز raise نمی‌کند، چون این مسیر
+    هم از سمتِ ربات ( تردِ پاسخ‌دهی) و هم از UI خوانده می‌شود و نباید گفتگو را بخواباند."""
+    if raw is None:
+        return None
+    value: Optional[int]
+    if isinstance(raw, bool):
+        value = None
+    elif isinstance(raw, int):
+        value = raw
+    elif isinstance(raw, float):
+        value = int(raw) if raw.is_integer() else None
+    elif isinstance(raw, str):
+        try:
+            value = int(raw.strip().translate(_DIGIT_MAP))
+        except ValueError:
+            value = None
+    else:
+        value = None
+    if value is None or not (0 <= value <= MAX_DAILY_AI_LIMIT):
+        logger.warning("مقدارِ نامعتبرِ محدودیتِ AI ذخیره‌شده (%r) برای %s/%s؛ از سقفِ سراسری استفاده می‌شه", raw, platform, chat_id)
+        return None
+    return value
+
+
+def _normalize_input_limit(value) -> Optional[int]:
+    """اعتبارسنجیِ ورودیِ نوشتن: None/'' = سقفِ سراسری، ۰..۱۰۰۰ = مقدارِ شخصی. مقدارِ بد → ValueError."""
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        raise ValueError("محدودیتِ AI باید عدد باشد، نه بله/خیر")
+    if isinstance(value, str):
+        text = value.strip().translate(_DIGIT_MAP)
+        if text == "":
+            return None
+        try:
+            value = int(text)
+        except ValueError as exc:
+            raise ValueError("محدودیتِ AI باید عددِ صحيح باشد") from exc
+    if not isinstance(value, int):
+        raise ValueError("محدودیتِ AI باید عددِ صحيح باشد")
+    if not (0 <= value <= MAX_DAILY_AI_LIMIT):
+        raise ValueError(f"محدودیتِ AI باید بین ۰ و {MAX_DAILY_AI_LIMIT} باشد")
+    return value
 
 def _m1_baseline(conn: sqlite3.Connection) -> None:
     """وضعیتِ پایه (idempotent)."""
@@ -292,7 +351,13 @@ def _m6_ai_calls(conn: sqlite3.Connection) -> None:
     )
 
 
-MIGRATIONS = [_m1_baseline, _m2_shop_schema, _m3_customers, _m4_admins, _m5_broadcasts, _m6_ai_calls]
+def _m7_customer_limit(conn: sqlite3.Connection) -> None:
+    """قلم ۶: محدودیتِ شخصیِ روزانه‌ی AI به‌ازای هر مکالمه (NULL = سقفِ سراسری، ۰ = بدونِ AI، N = N پاسخ/۲۴ ساعت).
+    فقط یک ستونِ افزوده (idempotent)؛ هیچ ستون یا جدولی حذف نمی‌شه و زنجیره همچنان یک سر است."""
+    migrations.add_column(conn, "conversations", "daily_ai_limit", "INTEGER")
+
+
+MIGRATIONS = [_m1_baseline, _m2_shop_schema, _m3_customers, _m4_admins, _m5_broadcasts, _m6_ai_calls, _m7_customer_limit]
 
 # N6: پیامِ شخصیِ مالک با نقشِ «owner» ذخیره می‌شه (در صفحه‌ی گفتگوها «شما»)؛ برای AI به‌صورتِ پیامِ فروشگاه (assistant) می‌رسه
 OWNER_ROLE = "owner"
@@ -308,6 +373,10 @@ class ConversationSummary:
     blocked: bool
     updated_at: str
     last_message_preview: str = ""
+    # قلم ۶: شمارشِ پیام‌ها (برای رتبه‌بندی «پرمصرف‌ترین») و سقفِ شخصیِ روزانه‌ی AI
+    # (None = سقفِ سراسری، ۰ = بدونِ AI، N = N پاسخ/۲۴ ساعت). پیش‌فرض‌دار تا سازگار بماند.
+    msg_count: int = 0
+    daily_ai_limit: Optional[int] = None
 
 
 @dataclass
@@ -393,6 +462,35 @@ class ConversationStore:
         )
         conn.commit()
 
+    # ---------------- محدودیتِ شخصیِ روزانه‌ی AI (قلم ۶) ----------------
+
+    def get_limit_override(self, platform: str, chat_id: str) -> Optional[int]:
+        """سقفِ شخصیِ این مکالمه: None = از سقفِ سراسری استفاده کن، ۰ = بدونِ AI برای این مشتری،
+        N = N پاسخِ AI در ۲۴ ساعت. مقدارِ نامعتبرِ ذخیره‌شده → None (سراسری) + لاگِ هشدار، هرگز raise
+        نمی‌کنه (fail-closed به سمتِ پیش‌فرضِ امن)؛ مکالمه‌ی ناموجود هم None می‌دهد."""
+        row = self._connection().execute(
+            "SELECT daily_ai_limit FROM conversations WHERE platform = ? AND chat_id = ?",
+            (platform, chat_id),
+        ).fetchone()
+        if row is None:
+            return None
+        return _coerce_stored_limit(row["daily_ai_limit"], platform, chat_id)
+
+    def set_limit_override(self, platform: str, chat_id: str, value) -> Optional[int]:
+        """مقدار را اعتبارسنجی و ذخیره می‌کند و مقدارِ نهایی (None/۰..۱۰۰۰) را برمی‌گرداند.
+        ورودی می‌تواند int/str/None باشد؛ مقدارِ بد → ValueError (تا UI بتواند پیامِ روشن بدهد). ردیفِ مکالمه
+        لازم است؛ در نبودش با ``ensure_conversation`` ساخته می‌شود تا محدودیت گم نشود."""
+        clean = _normalize_input_limit(value)
+        conn = self._connection()
+        conn.execute("INSERT OR IGNORE INTO conversations (platform, chat_id) VALUES (?, ?)", (platform, chat_id))
+        conn.execute(
+            "UPDATE conversations SET daily_ai_limit = ? WHERE platform = ? AND chat_id = ?",
+            (clean, platform, chat_id),
+        )
+        conn.commit()
+        logger.info("محدودیتِ روزانه‌ی AI برای %s/%s تنظیم شد: %s", platform, chat_id, "سراسری" if clean is None else clean)
+        return clean
+
     def list_conversations(self, platform: Optional[str] = None) -> list[ConversationSummary]:
         # چرا اینجوری پیچیده‌ست: ``updated_at`` فقط با دقت ثانیه‌ست
         # (``datetime('now')`` توی SQLite)، پس وقتی چند پیام توی یه ثانیه
@@ -407,7 +505,10 @@ class ConversationStore:
             SELECT c.*, (
                 SELECT MAX(m.id) FROM messages m
                 WHERE m.platform = c.platform AND m.chat_id = c.chat_id
-            ) AS last_msg_id
+            ) AS last_msg_id, (
+                SELECT COUNT(*) FROM messages m
+                WHERE m.platform = c.platform AND m.chat_id = c.chat_id
+            ) AS msg_count
             FROM conversations c
         """
         params: tuple = ()
@@ -431,6 +532,8 @@ class ConversationStore:
                     blocked=bool(r["blocked"]),
                     updated_at=r["updated_at"],
                     last_message_preview=(preview["content"] if preview else ""),
+                    msg_count=int(r["msg_count"]),
+                    daily_ai_limit=_coerce_stored_limit(r["daily_ai_limit"], r["platform"], r["chat_id"]),
                 )
             )
         return result

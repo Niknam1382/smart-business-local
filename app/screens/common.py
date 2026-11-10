@@ -136,7 +136,7 @@ def page_header(page: ft.Page, icon: str, title: str, subtitle: str = "") -> ft.
                         begin=ft.Alignment.TOP_LEFT, end=ft.Alignment.BOTTOM_RIGHT, colors=[theme.PRIMARY, theme.BRAND_WARM]
                     ),
                     alignment=ft.Alignment.CENTER,
-                    content=ft.Icon(icon=icon, color="#FFFFFF", size=22),
+                    content=ft.Icon(icon=icon, color=theme.ON_SOLID, size=22),
                 ),
                 ft.Text(title, size=23, weight=ft.FontWeight.W_700, expand=True),
             ],
@@ -193,12 +193,17 @@ def screen_frame(page: ft.Page, header: ft.Control, controls: list, key: Optiona
     """قابِ استانداردِ هر صفحه‌ی داخلِ پوسته: حاشیه‌ی یکسان + **اسکرولِ عمودیِ کامل** (محتوای بلند هیچ‌وقت بیرون نمی‌زنه).
 
     قبلاً بعضی صفحه‌ها (مشتریان، مدیران) بدونِ حاشیه و با ستونِ خام برگردانده می‌شدن؛ روی پنجره‌های کوچک
-    «جا نمی‌شد» و اسکرول درست کار نمی‌کرد. همه‌ی صفحه‌ی جدید باید از همین استفاده کنه."""
+    «جا نمی‌شد» و اسکرول درست کار نمی‌کرد. همه‌ی صفحه‌ی جدید باید از همین استفاده کنه.
+
+    قلم ۴ («صفحه انگار زوم شده»): روی پنجره‌ی کشیده با ``theme.content_side_gap`` حاشیه‌ی
+    مساویِ دو طرف اضافه می‌شه تا محتوا تا ``theme.CONTENT_MAX_WIDTH`` وسط بایسته؛ روی پنجره‌ی
+    کوچک صفر است، پس هیچ‌وقت بریدگیِ افقی نمی‌سازد.
+    """
     return ft.Container(
         key=key,
         expand=True,
-        padding=ft.Padding.symmetric(horizontal=28, vertical=20),
-        # قلم ۴: ALWAYS + scrollbar_themeِ رنگیِ theme.py یعنی نوارِ اسکرولِ سمتِ راست
+        padding=ft.Padding.symmetric(horizontal=theme.CONTENT_FRAME_PADDING + theme.content_side_gap(page), vertical=20),
+        # قلم ۴: ALWAYS + scrollbar_themeِ خنثیِ theme.py یعنی نوارِ اسکرولِ سمتِ راست
         # همیشه دیده می‌شه؛ کاربر برای فهمیدنِ «ادامه دارد؟» نباید حدس بزند.
         content=ft.Column(expand=True, spacing=16, scroll=ft.ScrollMode.ALWAYS, controls=[header, *controls]),
     )
@@ -227,7 +232,7 @@ def logo_badge(size: int = 44, icon: str = None) -> ft.Control:
             colors=[theme.ACCENT, theme.ACCENT_DARK],
         ),
         alignment=ft.Alignment.CENTER,
-        content=ft.Icon(icon or ft.Icons.AUTO_AWESOME_ROUNDED, color="#FFFFFF", size=size * 0.52),
+        content=ft.Icon(icon or ft.Icons.AUTO_AWESOME_ROUNDED, color=theme.ON_SOLID, size=size * 0.52),
     )
 
 
@@ -261,31 +266,160 @@ def step_dots(current: int, total: int, active_color: str = None) -> ft.Control:
                 width=22 if is_current else 8,
                 height=8,
                 border_radius=4,
-                bgcolor=color if (is_current or is_done) else "#D8D4C8",
+                bgcolor=color if (is_current or is_done) else theme.STEP_DOT_IDLE,
                 animate=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
             )
         )
     return ft.Row(spacing=6, alignment=ft.MainAxisAlignment.CENTER, controls=dots)
 
 
+def button_height(size: str) -> int:
+    """ارتفاعِ یکی از سه اندازه‌ی استاندارد (``lg`` / ``md`` / ``sm``).
+
+    صفحه‌ها عددِ دلخواه نمی‌نویسند (قلم ۱: «بعضی دکمه‌ها کوچک و بزرگ‌اند»); هر چیزِ
+    ناشناخت هم به پیش‌فرضِ ``md`` برمی‌گردد تا هیچ دکمه‌ی بی‌اندازه‌ای نماند."""
+    return theme.BTN_SIZES.get(size, theme.BTN_MD)
+
+
+def primary(
+    label: str,
+    on_click=None,
+    *,
+    key: Optional[str] = None,
+    icon: str = None,
+    size: str = "md",
+    width: Optional[int] = None,
+    disabled: bool = False,
+    visible: bool = True,
+    tooltip: Optional[str] = None,
+    bgcolor: Optional[str] = None,
+    color: Optional[str] = None,
+) -> ft.FilledButton:
+    """دکمه‌ی اصلیِ اکشن: نیویِ توپُر با متنِ سفید. همان چیزی که قبلاً ``primary_button``
+    بود، فقط با مقیاسِ سه‌اندازه. متن دقیقاً همان برچسبِ ارسالی است (تست‌ها با همین پیدا می‌شوند).
+
+    ``bgcolor``/``color`` فقط برای همان معنیِ پالت است: ``theme.DANGER`` روی کنشِ مخربِ
+    قطعی (ریست/حذف) — وگرنه پیش‌فرض نیویِ برند می‌ماند."""
+    return ft.FilledButton(
+        key=key,
+        content=label,
+        icon=icon,
+        bgcolor=bgcolor or theme.PRIMARY,
+        color=color or theme.ON_SOLID,
+        height=button_height(size),
+        width=width,
+        disabled=disabled,
+        visible=visible,
+        tooltip=tooltip,
+        on_click=on_click,
+    )
+
+
+def secondary(
+    label: str,
+    on_click=None,
+    *,
+    key: Optional[str] = None,
+    icon: str = None,
+    size: str = "md",
+    width: Optional[int] = None,
+    disabled: bool = False,
+    visible: bool = True,
+    tooltip: Optional[str] = None,
+    bgcolor: Optional[str] = None,
+) -> ft.OutlinedButton:
+    """دکمه‌ی دومردبی: خط‌کشدار با متنِ نیوی؛ برای «این»، «تغییر بده»، «خروجِ اکسل».
+    ``bgcolor`` فقط برای وضعیتِ «انتخاب‌شده» (رنگِ برند) است."""
+    return ft.OutlinedButton(
+        key=key,
+        content=label,
+        icon=icon,
+        style=ft.ButtonStyle(color=theme.PRIMARY, bgcolor=bgcolor),
+        height=button_height(size),
+        width=width,
+        disabled=disabled,
+        visible=visible,
+        tooltip=tooltip,
+        on_click=on_click,
+    )
+
+
+def ghost(
+    label: str,
+    on_click=None,
+    *,
+    key: Optional[str] = None,
+    icon: str = None,
+    size: str = "sm",
+    width: Optional[int] = None,
+    disabled: bool = False,
+    visible: bool = True,
+    tooltip: Optional[str] = None,
+) -> ft.Button:
+    """دکمه‌ی بی‌قاب (کم‌اهمیت ولی با سطحِ لمسیِ کامل): بدونِ پس‌زمینه، متنِ نیوی.
+    جایی که قبلاً یک ``ft.Container(ink=True)`` نقشِ دکمه را بازی می‌کرد."""
+    return ft.Button(
+        key=key,
+        content=label,
+        icon=icon,
+        bgcolor=None,
+        color=theme.PRIMARY,
+        height=button_height(size),
+        width=width,
+        disabled=disabled,
+        visible=visible,
+        tooltip=tooltip,
+        on_click=on_click,
+    )
+
+
+def text(
+    label: str,
+    on_click=None,
+    *,
+    key: Optional[str] = None,
+    icon: str = None,
+    size: str = "sm",
+    width: Optional[int] = None,
+    disabled: bool = False,
+    visible: bool = True,
+    tooltip: Optional[str] = None,
+) -> ft.TextButton:
+    """دکمه‌ی متنیِ کوچک (لغو، بعداً، کپی، «برو»)."""
+    return ft.TextButton(
+        key=key,
+        content=label,
+        icon=icon,
+        style=ft.ButtonStyle(color=theme.PRIMARY),
+        height=button_height(size),
+        width=width,
+        disabled=disabled,
+        visible=visible,
+        tooltip=tooltip,
+        on_click=on_click,
+    )
+
+
 def primary_button(
     text: str, on_click, icon: str = None, width: Optional[int] = None, disabled: bool = False
 ) -> ft.Button:
+    """دکمه‌ی اصلیِ بزرگِ صفحه (همان ``BTN_LG``). نگه‌داشته می‌شه چون ۱۲ جایِ برنامه و چند
+    تست به نام و به ساختارِ محتوای آن (ردیفِ آیکن+متن) وابسته‌اند؛ تازه‌کاربردها ``primary``."""
     return ft.Button(
         content=ft.Row(
             tight=True,
             alignment=ft.MainAxisAlignment.CENTER,
             spacing=8,
             controls=(
-                [ft.Icon(icon, size=17, color="#FFFFFF"), ft.Text(text, size=14, weight=ft.FontWeight.W_600)]
+                [ft.Icon(icon, size=17, color=theme.ON_SOLID), ft.Text(text, size=14, weight=ft.FontWeight.W_600)]
                 if icon
                 else [ft.Text(text, size=14, weight=ft.FontWeight.W_600)]
             ),
         ),
         bgcolor=theme.PRIMARY,
-        color="#FFFFFF",
+        color=theme.ON_SOLID,
         width=width,
-        height=46,
+        height=theme.BTN_LG,
         disabled=disabled,
         on_click=on_click,
     )

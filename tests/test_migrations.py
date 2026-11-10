@@ -13,7 +13,7 @@ from app.core.orders import MIGRATIONS as ORDERS_MIGRATIONS, OrderStore
 from app.core.products import ProductStore
 
 # نسخه‌هایِ میخ‌کوب‌شده: هر افزایشِ عمدی باید این‌جا ثبت بشه، وگرنه مهاجرت‌هایِ بی‌سروصدا رد می‌شن
-LATEST = {"products.db": 4, "orders.db": 8, "conversations.db": 6}
+LATEST = {"products.db": 4, "orders.db": 8, "conversations.db": 7}
 
 # ---- اسکیمای دقیقِ ۰.۵.۰ (inline، مستقل از کدِ فعلی) ----
 V05_PRODUCTS = """
@@ -88,7 +88,8 @@ def test_upgrade_from_v05_keeps_all_data(tmp_path):
 
 def test_schema_versions_are_pinned():
     """هر مهاجرتِ تازه باید همین‌جا اعلام بشه. محصولات ۴ است (مهاجرتِ ۴: خروجِ کاملِ محصولِ دیجیتال
-    از مدل) و سفارش‌ها ۸ (رسیدِ کارت‌به‌کارت + یکتاییِ شناسهٔ تراکنشِ درگاه + وضعیتِ ارسال + روش/هزینه‌ی ارسال)."""
+    از مدل) و سفارش‌ها ۸ (رسیدِ کارت‌به‌کارت + یکتاییِ شناسهٔ تراکنشِ درگاه + وضعیتِ ارسال + روش/هزینه‌ی ارسال) و
+    مکالمه‌ها ۷ (مهاجرتِ ۷ = ستونِ daily_ai_limit برای محدودیتِ شخصیِ روزانه‌ی AI، قلم ۶)."""
     assert migrations.latest_version("products.db") == LATEST["products.db"] == 4
     assert migrations.latest_version("conversations.db") == LATEST["conversations.db"]
     assert len(ORDERS_MIGRATIONS) == migrations.latest_version("orders.db") == LATEST["orders.db"] == 8

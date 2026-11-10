@@ -143,10 +143,10 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple:
     tag_tf = ft.TextField(key="bc_tag", label=S("tag", lang), border_radius=10, width=180, max_length=64)
     who_text = ft.Text("", key="bc_who", size=13.5, weight=ft.FontWeight.W_600)
     preview_box = ft.Container(key="bc_preview", padding=ft.Padding.symmetric(horizontal=14, vertical=10), border_radius=12, bgcolor=f"{theme.PRIMARY}14", width=420)
-    confirm_text = ft.Text("", key="bc_confirm_text", size=13, color=theme.ACCENT_DARK)
-    confirm_row = ft.Container(key="bc_confirm_row", visible=False, padding=12, border_radius=10, bgcolor=f"{theme.ACCENT}14")
+    confirm_text = ft.Text("", key="bc_confirm_text", size=13, color=theme.WARNING)
+    confirm_row = ft.Container(key="bc_confirm_row", visible=False, padding=12, border_radius=10, bgcolor=f"{theme.WARNING}14")
     history_col = ft.Column(key="bc_history", spacing=10)
-    bots_banner = ft.Container(key="bc_bots_off", visible=False, padding=ft.Padding.symmetric(horizontal=16, vertical=10), border_radius=10, bgcolor=f"{theme.ACCENT}14")
+    bots_banner = ft.Container(key="bc_bots_off", visible=False, padding=ft.Padding.symmetric(horizontal=16, vertical=10), border_radius=10, bgcolor=f"{theme.WARNING}14")
 
     def show(text: str, ok: bool = True) -> None:
         notice.value, notice.color, notice.visible = text, theme.SUCCESS if ok else theme.DANGER, bool(text)
@@ -184,14 +184,14 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple:
             lines.append(ft.Row(spacing=6, controls=[ft.Icon(ft.Icons.IMAGE_OUTLINED, size=16, color=secondary), ft.Text(photo_label.value, size=11.5, color=secondary)]))
         lines.append(ft.Text(bc.compose(bc.Content(text, footer=c.footer), settings, preview_lang) if text else S("preview_empty", lang), size=13, selectable=True))
         if c.button_label:
-            lines.append(ft.Container(padding=ft.Padding.symmetric(horizontal=12, vertical=6), border_radius=8, bgcolor=f"{theme.ACCENT}26", content=ft.Text(c.button_label, size=12.5, color=theme.ACCENT_DARK)))
+            lines.append(ft.Container(padding=ft.Padding.symmetric(horizontal=12, vertical=6), border_radius=8, bgcolor=f"{theme.PRIMARY}1E", content=ft.Text(c.button_label, size=12.5, color=theme.PRIMARY)))
         preview_box.content = ft.Column(spacing=6, tight=True, controls=lines)
 
     def refresh_photo_ui() -> None:
         photo_label.value = ui["photo"].replace("\\", "/").rsplit("/", 1)[-1] if ui["photo"] else S("photo_none", lang)
         photo_buttons.controls = [
-            ft.OutlinedButton(key="bc_photo_pick", content=S("photo_change" if ui["photo"] else "photo_add", lang), icon=ft.Icons.IMAGE_OUTLINED, on_click=pick_photo),
-            *([ft.TextButton(key="bc_photo_clear", content=S("photo_remove", lang), on_click=clear_photo)] if ui["photo"] else []),
+            common.secondary(S("photo_change" if ui["photo"] else "photo_add", lang), key="bc_photo_pick", icon=ft.Icons.IMAGE_OUTLINED, size="sm", on_click=pick_photo),
+            *([common.text(S("photo_remove", lang), key="bc_photo_clear", on_click=clear_photo)] if ui["photo"] else []),
             photo_label,
         ]
 
@@ -205,7 +205,7 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple:
     def refresh_banner() -> None:
         running = manager.is_running()
         bots_banner.visible = not running
-        bots_banner.content = ft.Row(spacing=8, controls=[ft.Icon(ft.Icons.INFO_OUTLINE_ROUNDED, color=theme.ACCENT_DARK, size=18), ft.Text(S("bots_off", lang), size=13, color=theme.ACCENT_DARK)])
+        bots_banner.content = ft.Row(spacing=8, controls=[ft.Icon(ft.Icons.INFO_OUTLINE_ROUNDED, color=theme.WARNING, size=18), ft.Text(S("bots_off", lang), size=13, color=theme.WARNING)])
 
     # ------------------------------------------------------------------- عکس ----
     def set_photo(path: str) -> bool:
@@ -325,15 +325,15 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple:
         for b in rows:
             c = {k: b.counts.get(k, 0) for k in bc.ROW_STATUSES}
             total = max(b.total, 1)
-            color = {bc.STATUS_RUNNING: theme.PRIMARY, bc.STATUS_PAUSED: theme.ACCENT_DARK, bc.STATUS_DONE: theme.SUCCESS, bc.STATUS_CANCELLED: secondary}.get(b.status, secondary)
+            color = {bc.STATUS_RUNNING: theme.PRIMARY, bc.STATUS_PAUSED: theme.WARNING, bc.STATUS_DONE: theme.SUCCESS, bc.STATUS_CANCELLED: secondary}.get(b.status, secondary)
             controls = []
             if b.status == bc.STATUS_RUNNING:
-                controls.append(ft.OutlinedButton(key=f"bc_pause_{b.id}", content=S("pause", lang), icon=ft.Icons.PAUSE_ROUNDED, on_click=lambda _e, bid=b.id: act(svc.pause, bid)))
+                controls.append(common.secondary(S("pause", lang), key=f"bc_pause_{b.id}", icon=ft.Icons.PAUSE_ROUNDED, size="sm", on_click=lambda _e, bid=b.id: act(svc.pause, bid)))
             if b.status == bc.STATUS_PAUSED:
-                controls.append(ft.FilledButton(key=f"bc_resume_{b.id}", content=S("resume", lang), icon=ft.Icons.PLAY_ARROW_ROUNDED, on_click=lambda _e, bid=b.id: act(svc.resume, bid)))
+                controls.append(common.primary(S("resume", lang), key=f"bc_resume_{b.id}", icon=ft.Icons.PLAY_ARROW_ROUNDED, size="sm", on_click=lambda _e, bid=b.id: act(svc.resume, bid)))
             if b.status in bc.ACTIVE_STATUSES:
                 armed = ui["armed"] == b.id
-                controls.append(ft.TextButton(key=f"bc_cancel_{b.id}", content=S("cancel_sure" if armed else "cancel", lang), icon=ft.Icons.CANCEL_OUTLINED, on_click=lambda _e, bid=b.id: cancel(bid)))
+                controls.append(common.text(S("cancel_sure" if armed else "cancel", lang), key=f"bc_cancel_{b.id}", icon=ft.Icons.CANCEL_OUTLINED, on_click=lambda _e, bid=b.id: cancel(bid)))
             errors = svc.store.errors(b.id, 3) if (c[bc.ROW_FAILED] or c[bc.ROW_UNREACHABLE]) else []
             snippet = " ".join(b.text.split())
             items.append(
@@ -417,7 +417,7 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple:
                         ft.Text(S("settings_note", lang), size=12, color=secondary),
                         ft.Row(spacing=10, wrap=True, controls=[cap_tf, rate_tg_tf, rate_bale_tf]),
                         footer_default_sw,
-                        ft.FilledButton(key="bc_settings_save", content=S("settings_save", lang), on_click=save_settings),
+                        common.primary(S("settings_save", lang), key="bc_settings_save", on_click=save_settings),
                         settings_note,
                     ]),
                 )
@@ -436,8 +436,8 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple:
     confirm_row.content = ft.Column(spacing=8, controls=[
         confirm_text,
         ft.Row(spacing=8, controls=[
-            ft.FilledButton(key="bc_confirm", content=S("confirm_yes", lang), icon=ft.Icons.SEND_ROUNDED, on_click=on_confirm),
-            ft.TextButton(key="bc_confirm_no", content=S("confirm_no", lang), on_click=on_cancel_confirm),
+            common.primary(S("confirm_yes", lang), key="bc_confirm", icon=ft.Icons.SEND_ROUNDED, on_click=on_confirm),
+            common.text(S("confirm_no", lang), key="bc_confirm_no", on_click=on_cancel_confirm),
         ]),
     ])
 
@@ -457,8 +457,8 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple:
             ft.Text(S("preview", lang), size=13.5, weight=ft.FontWeight.W_600),
             preview_box,
             ft.Row(spacing=10, wrap=True, controls=[
-                ft.OutlinedButton(key="bc_test", content=S("test", lang), icon=ft.Icons.SCIENCE_OUTLINED, on_click=on_test),
-                ft.FilledButton(key="bc_start", content=S("start", lang), icon=ft.Icons.CAMPAIGN_ROUNDED, on_click=on_start),
+                common.secondary(S("test", lang), key="bc_test", icon=ft.Icons.SCIENCE_OUTLINED, on_click=on_test),
+                common.primary(S("start", lang), key="bc_start", icon=ft.Icons.CAMPAIGN_ROUNDED, on_click=on_start),
             ]),
             confirm_row,
             notice,

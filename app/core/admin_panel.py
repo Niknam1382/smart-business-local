@@ -5,10 +5,15 @@
   توکنِ شناخته‌شده‌ی منقضی/استفاده‌شده پیامِ روشن می‌گیره (فقط دعوت‌شده‌ها آن را دارن).
 * اولین پیامِ یک شناسه‌ی «در انتظار» (افزوده‌شده با شناسه) دسترسی را فعال می‌کنه.
 * ``/admin`` — منوی دکمه‌ای؛ فقط برای مالک/مدیرانِ فعال. بقیه هیچ پاسخی نمی‌گیرن (قابلیت لو نمی‌ره).
+* ``adm:set`` — کنترل‌پنلِ تنظیماتِ عملیاتی (قلم ۳): جدولِ ``app/core/settings_fields.py``، گروه‌به‌گروه،
+  با مقدارِ فعلیِ هر تنظیم و دکمه‌هایِ روشن/خاموش و ‎+N/−N و «تایپِ مقدار».
 
 **امنیت:** هر دکمه (``adm:<عمل>[:آرگومان]``) سمتِ سرور با ``role_of`` + جدولِ قابلیت‌ها (``ROUTES``) سنجیده می‌شه؛ مجوز هرگز از
 متنِ callback خوانده نمی‌شه. callbackِ جعلی از غیرمدیر بی‌اثر و بی‌صداست؛ از مدیرِ فاقدِ قابلیت «دسترسی نداری» می‌گیره.
 ردِ سفارش یک مرحله تأیید دارد (چون به مشتری خبر می‌ده).
+**نوشتنِ تنظیمات** هم همین قاعده را دارد: قابلیتِ هر فیلد از *جدول* خوانده می‌شه (نه از callback)، مقدارِ
+ارسال‌شده یک‌بار در ``settings_fields.validate`` سنجیده می‌شه، بعد ذخیره و در ممیزی ثبت می‌شه؛ اگر هر یک از
+این‌ها نشود، هیچ مقداری عوض نمی‌شه.
 """
 
 from __future__ import annotations
@@ -21,6 +26,8 @@ import time
 from typing import Callable, Optional
 
 from app.core import admins as am
+from app.core import settings as settings_module
+from app.core import settings_fields as sfields
 from app.core.handoff import parse_ref as handoff_ref
 from app.core.admins import AdminStore
 from app.core.orders import STATUS_CONFIRMED, STATUS_PAID, STATUS_PENDING_PAYMENT
@@ -35,6 +42,12 @@ _INVITE_RE = re.compile(r"/start(?:@\w+)?\s+admin_([A-Za-z0-9_-]{8,64})")
 _PAGE = 8
 _STOCK_STEPS = (1, 5, 10)
 _LOW_STOCK = 3
+_SETTINGS_LIMIT = 3800  # سقفِ امنِ طولِ پیامِ تنظیمات (تلگرام ۴۰۹۶ کاراکتر است)
+
+# ------------------------------------------------------------------ متنِ مشترک ----
+
+_NO_WRITE = "⛔ نقشِ تو به عوض‌کردنِ این تنظیم دسترسی نداره."
+_NO_SETTINGS = "⚙️ تنظیماتِ برنامه به این پنل وصل نیست؛ از برنامه‌ی دسکتاپ استفاده کن."
 
 _INVITE_TEXTS = {
     "expired": "⌛ این لینک دعوت منقضی شده. از مالکِ فروشگاه بخواه لینکِ تازه بسازه.",
@@ -86,6 +99,7 @@ class AdminPanel:
         finance=None,
         invoices=None,
         get_settings: Callable[[], object] = lambda: None,
+        save_settings: Optional[Callable[[], None]] = None,
     ):
         self._admins = admins
         self._console = console
@@ -97,8 +111,14 @@ class AdminPanel:
         self._finance = finance  # N19 (اختیاری)
         self._invoices = invoices  # N19 (اختیاری)
         self._get_settings = get_settings
+        # قلم ۳: ذخیره‌ی تنظیمات روی دیسک. تزریق نشده ⇒ خودِ ``settings.save_settings`` (همان
+        # نمونه‌ای که ``get_settings`` می‌دهد) — پس بدونِ تغییرِ BotManager هم نوشتن پایدار می‌ماند.
+        self._save_settings = save_settings
         # ۲۲: «حالتِ پاسخِ دکمه‌ای» — برای هر مدیر، گفتگویی که منتظرِ متنِ پاسخ است
         self._reply_target: dict = {}
+        # قلم ۳: «حالتِ تایپِ مقدار» (کلیدِ تنظیم) و «مقدارِ تایپ‌شدهٔ منتظرِ ذخیره» — هر دو به (پلتفرم، چت)
+        self._entry_target: dict = {}
+        self._entry_pending: dict = {}
         # عمل → (قابلیتِ لازم, هندلر, تعدادِ دقیقِ آرگومان). **تنها منبعِ مجوزِ دکمه‌ها** — عملِ ناشناخته یا تعدادِ آرگومانِ
         # نادرست بی‌اثره (callbackِ دست‌ساز با آرگومانِ اضافه هم رد می‌شه).
         self._routes: dict = {
@@ -122,6 +142,17 @@ class AdminPanel:
             "dtg": (am.CAP_DISCOUNTS_TOGGLE, self._discount_toggle, 1),
             "fin": (am.CAP_FINANCE_VIEW, self._finance_summary, 0),
             "inv": (am.CAP_INVOICE_RESEND, self._invoice_resend, 1),
+            # --- قلم ۳: کنترل‌پنلِ تنظیماتِ عملیاتی (دیدن = settings.view، نوشتن = settings.edit +
+            # مجوزِ خودِ فیلد؛ جدولِ فیلدها در ``settings_fields`` است و ``permission`` آن از callback خوانده نمی‌شه) ---
+            "set": (am.CAP_SETTINGS_VIEW, self._settings_menu, 0),
+            "sg": (am.CAP_SETTINGS_VIEW, self._settings_group, 1),
+            "sf": (am.CAP_SETTINGS_VIEW, self._setting_field, 1),
+            "sb": (am.CAP_SETTINGS_EDIT, self._setting_toggle, 1),
+            "sn": (am.CAP_SETTINGS_EDIT, self._setting_step, 2),
+            "so": (am.CAP_SETTINGS_EDIT, self._setting_choice, 2),
+            "se": (am.CAP_SETTINGS_EDIT, self._setting_entry, 1),
+            "ssv": (am.CAP_SETTINGS_EDIT, self._setting_save, 0),
+            "ssc": (am.CAP_SETTINGS_EDIT, self._setting_cancel, 0),
         }
 
     # ------------------------------------------------------------- ورودی ----
@@ -214,8 +245,13 @@ class AdminPanel:
         self._finance, self._invoices = finance, invoices
 
     def _can(self, role: str, capability: str) -> bool:
-        grant = bool(getattr(self._get_settings(), "finance_manager_access", False))
-        return am.can_effective(role, capability, grant)
+        """قابلیتِ نقش + دو اعطایِ اختیاریِ مالک (هر دو از *تنظیماتِ سرور* خوانده می‌شن، نه از callback)."""
+        settings = self._get_settings()
+        return am.can_effective(
+            role, capability,
+            bool(getattr(settings, "finance_manager_access", False)),
+            bool(getattr(settings, "managers_can_edit_settings", False)),
+        )
 
     @staticmethod
     def _edit(text: str, rows: Optional[list] = None) -> FlowResult:
@@ -239,6 +275,8 @@ class AdminPanel:
             rows.append([Btn("🎟 کدهای تخفیف", CB + "dsc")])
         if self._finance is not None and self._can(role, am.CAP_FINANCE_VIEW):
             rows.append([Btn("💰 خلاصه‌ی مالی", CB + "fin")])
+        if self._can(role, am.CAP_SETTINGS_VIEW):  # قلم ۳: کنترل‌پنلِ تنظیماتِ عملیاتی (دیدن برای مدیر هم مجاز است)
+            rows.append([Btn("⚙️ تنظیماتِ عملیاتی", CB + "set")])
         head = f"🛠 پنلِ مدیریت — نقش: {am.ROLE_LABEL_FA.get(role, role)}"
         # قلم ۲۲: پنل با دکمه است، نه دستورِ متنی — پس دیگر /orders و /stock تبلیغ نمی‌شن.
         text = (intro + "\n\n" if intro else "") + head + _hint(role)
@@ -467,6 +505,7 @@ class AdminPanel:
         target = handoff_ref(args[0])
         if target is None or self._handoff.get(*target) is None:
             return FlowResult(answer="این گفتگو دیگر باز نیست.", alert=True)
+        self._entry_target.pop((platform, chat_id), None)  # دو حالتِ «منتظرِ متن» هم‌زمان معنا ندارد
         self._reply_target[(platform, chat_id)] = target
         return self._edit(
             f"💬 حالتِ پاسخ به «{self._label_of(target)}» روشن شد.\n\n"
@@ -494,13 +533,303 @@ class AdminPanel:
         return session.customer_label if session else target[1]
 
     async def pending_reply(self, message) -> Optional[FlowResult]:
-        """۲۲: متنِ آزادِ مدیر، وقتی حالتِ پاسخ روشن است، به همان مشتری می‌رسه — بدونِ /reply."""
-        target = self._reply_target.get((message.platform, str(message.chat_id)))
+        """۲۲: متنِ آزادِ مدیر، وقتی حالتِ پاسخ روشن است، به همان مشتری می‌رسه — بدونِ /reply.
+        قلم ۳: همان حالتِ «منتظرِ متن» برایِ تایپِ مقدارِ یک تنظیم هم کار می‌کنه (بدونِ هیچ دستوری)."""
+        where = (message.platform, str(message.chat_id))
+        typed = (message.text or "").strip()
+        key = self._entry_target.get(where)
+        if key is not None:
+            return await self._setting_typed(message, key, typed)
+        target = self._reply_target.get(where)
         if target is None or self._handoff is None:
             return None
-        text = (message.text or "").strip()
+        text = typed
         if not text or text.startswith("/"):
             return None  # مدیر دارد دستورِ دیگری می‌دهد؛ حالتِ پاسخ دست‌نخورده می‌ماند
         answer = await self._handoff.owner_reply(*target, text)
-        self._reply_target.pop((message.platform, str(message.chat_id)), None)
+        self._reply_target.pop(where, None)
         return FlowResult(messages=[UiMessage(answer + "\n\nبرای پاسخِ بعدی دوباره از «پشتیبانی» دکمه را بزن.")])
+
+    # ================== ۳) کنترل‌پنلِ تنظیماتِ عملیاتی (جدول: settings_fields.py) ==================
+    #
+    # هر مسیرِ نوشتن یک قاعده دارد: ``find_field`` (کلید از جدول، نه از callback) → ``_can(role,
+    # field.permission)`` → ``validate`` → نوشتن → ``save`` → ممیزی → قلابِ تغییر. اگر یکی از
+    # این‌ها نشود، آلارمِ فارسی می‌آید و **هیچ مقداری عوض نمی‌شود**.
+
+    def _settings(self):
+        return self._get_settings()
+
+    def _alert(self, text: str) -> FlowResult:
+        return FlowResult(answer=text, alert=True)
+
+    def _actor(self, platform: str, chat_id: str) -> str:
+        return self._console.actor_of(platform, chat_id)
+
+    def _persist_settings(self) -> bool:
+        """ذخیره روی دیسک: ``save_settings`` تزریق‌شده (BotManager) وگرنه خودِ ماژولِ تنظیمات."""
+        settings = self._settings()
+        if settings is None:
+            return False
+        try:
+            if self._save_settings is not None:
+                self._save_settings()
+            else:
+                settings_module.save_settings(settings)
+        except Exception:  # noqa: BLE001 — پنل نباید به‌خاطرِ دیسک/رمزنگاری بشکنه
+            logger.exception("ذخیره‌ی تنظیمات از پنلِ مدیریت ناموفق بود")
+            return False
+        return True
+
+    def _field_of(self, key: str):
+        """فیلدِ جدول با این کلید؛ ``(None, آلارم)`` اگر نبود یا تنظیمات در دسترس نیست."""
+        settings = self._settings()
+        if settings is None:
+            return None, self._alert(_NO_SETTINGS)
+        return sfields.find_field(settings, key), None
+
+    # ------------------------------------------------------------- نمایشِ فهرست ----
+
+    def _settings_menu_view(self, role: str, note: str = "") -> FlowResult:
+        settings = self._settings()
+        if settings is None:
+            return self._edit(_NO_SETTINGS, [_back()])
+        can_write = self._can(role, sfields.PERM_WRITE)
+        lines = [
+            "⚙️ کنترل‌پنلِ تنظیماتِ عملیاتی",
+            f"نقشِ تو: {am.ROLE_LABEL_FA.get(role, role)} — " + ("دیدن و عوض‌کردن ✅" if can_write else "فقط دیدن 👁 (عوض‌کردن را مالک باید روشن کند)"),
+        ]
+        rows: list = []
+        for gid, fa, _en in sfields.groups():
+            fields = sfields.fields_for(settings, gid)
+            if not fields and gid != "ship":
+                continue
+            lines.append("")
+            lines.append(fa)
+            if gid == "ship":
+                lines.append("  " + sfields.shipping_summary(settings))
+            for f in fields:
+                lines.append(f"  • {f.label()}: {sfields.chip(f, sfields.read(settings, f))}")
+            rows.append([Btn(fa[:32], f"{CB}sg:{gid}")])
+        text = "\n".join(lines)
+        if len(text) > _SETTINGS_LIMIT:
+            text = text[:_SETTINGS_LIMIT] + "\n…"
+        return self._edit((note + "\n\n" + text) if note else text, rows + [_back()])
+
+    async def _settings_menu(self, role, platform, chat_id, args) -> FlowResult:
+        return self._settings_menu_view(role)
+
+    def _settings_group_view(self, role: str, gid: str, note: str = "") -> FlowResult:
+        settings = self._settings()
+        if settings is None:
+            return self._edit(_NO_SETTINGS, [_back(data=CB + "set")])
+        fields = sfields.fields_for(settings, gid)
+        title = sfields.group_label(gid)
+        lines = [title]
+        if gid == "ship":
+            lines.append(sfields.shipping_summary(settings))
+        if not fields:
+            lines.append("اینجا چیزی برای تنظیم نیست.")
+        rows: list = []
+        for f in fields:
+            value = sfields.read(settings, f)
+            lines.append(f"  • {f.label()}: {sfields.chip(f, value)}")
+            rows.append([Btn(f"{f.label()[:28]} — {sfields.chip(f, value)[:18]}", f"{CB}sf:{f.key}")])
+        rows.append(_back("◀️ تنظیمات", CB + "set"))
+        text = "\n".join(lines)
+        return self._edit((note + "\n\n" + text) if note else text, rows)
+
+    async def _settings_group(self, role, platform, chat_id, args) -> FlowResult:
+        gid = args[0]
+        if gid not in sfields.GROUP_IDS:
+            return self._alert("این بخشِ تنظیمات شناخته‌شده نیست.")
+        return self._settings_group_view(role, gid)
+
+    def _field_view(self, role: str, f, note: str = "", mode_note: str = "") -> FlowResult:
+        """کارتِ یک تنظیم: مقدارِ فعلی + کنترل‌هایِ مناسبِ نوعش (دکمه، نه دستور)."""
+        settings = self._settings()
+        value = sfields.read(settings, f)
+        can_write = self._can(role, f.permission)
+        lines = [f"🔧 {f.label()}", f"مقدارِ فعلی: {sfields.chip(f, value)}"]
+        if note:
+            lines.append(note)
+        if mode_note:
+            lines.append(mode_note)
+        bounds = f.bounds()
+        if bounds:
+            lines.append(bounds)
+        if f.hint_fa:
+            lines.append("ℹ️ " + f.hint_fa)
+        if f.needs_restart:
+            lines.append("♻️ این مقدار با راه‌اندازیِ دوباره‌ی ربات کامل اثر می‌کند.")
+        if f.permission == sfields.PERM_GRANT:
+            lines.append("🔐 فقط مالک: این تنظیم دسترسیِ نقشِ «مدیر» را عوض می‌کند.")
+        if not can_write:
+            lines.append("👁 نقشِ تو فقط دیدنِ این تنظیم را دارد.")
+        rows: list = []
+        if can_write:
+            if f.kind == sfields.KIND_BOOL:
+                rows.append([Btn("⛔ خاموش کن" if value else "✅ روشن کن", f"{CB}sb:{f.key}")])
+            elif f.kind in (sfields.KIND_INT, sfields.KIND_FLOAT):
+                rows.append([Btn(f"➕{s:g}", f"{CB}sn:{f.key}:{s}") for s in f.steps])
+                rows.append([Btn(f"➖{s:g}", f"{CB}sn:{f.key}:{-s}") for s in f.steps])
+            elif f.kind == sfields.KIND_CHOICE:
+                rows.append([Btn(("✅ " if option == value else "") + label, f"{CB}so:{f.key}:{option}") for option, label in f.choices])
+            if f.kind != sfields.KIND_BOOL:
+                rows.append([Btn("✏️ تایپِ مقدار", f"{CB}se:{f.key}")])
+        rows.append([Btn("◀️ " + sfields.group_label(f.group)[:26], f"{CB}sg:{f.group}")])
+        rows.append(_back("◀️ تنظیمات", CB + "set"))
+        return self._edit("\n".join(lines), rows)
+
+    async def _setting_field(self, role, platform, chat_id, args) -> FlowResult:
+        f, denied = self._field_of(args[0])
+        if denied is not None:
+            return denied
+        if f is None:
+            return self._alert("این تنظیم در فهرستِ تنظیماتِ پنل نیست.")
+        self._entry_target.pop((platform, chat_id), None)
+        self._entry_pending.pop((platform, chat_id), None)
+        return self._field_view(role, f)
+
+    # ------------------------------------------------------------------ نوشتن ----
+
+    def _commit(self, role, platform, chat_id, f, candidate) -> FlowResult:
+        """سنجشِ نهایی ⇒ اعمال ⇒ ذخیره ⇒ ممیزی ⇒ قلابِ تغییر (همه‌ی مسیرهایِ نوشتن از اینجا رد می‌شن)."""
+        settings = self._settings()
+        if not self._can(role, f.permission):
+            return self._alert(_NO_WRITE)
+        try:
+            value = sfields.apply(settings, f, candidate)
+        except sfields.FieldError as exc:
+            return self._alert("⛔ " + str(exc))
+        except Exception:  # noqa: BLE001 — دادهٔ غیرمنتظرهٔ دیسک/فیلد مشتق
+            logger.exception("اعمالِ تنظیمِ %s ناموفق بود", f.key)
+            return self._alert("⛔ این تنظیم عوض نشد؛ بعداً دوباره امتحان کن.")
+        if not self._persist_settings():
+            return self._alert("⛔ مقدار عوض شد ولی روی دیسک ذخیره نشد؛ از برنامه‌ی دسکتاپ استفاده کن.")
+        self._admins.audit("settings_changed", actor=self._actor(platform, chat_id), detail=sfields.audit_detail(f, value))
+        restarted = sfields.after_change(f, settings)
+        fresh = sfields.read(settings, f)
+        note = f"✅ {f.label()} شد: {sfields.chip(f, fresh)}" + (" — ربات هم راه‌اندازیِ دوباره شد." if restarted else "")
+        return self._field_view(role, f, note=note)
+
+    async def _setting_toggle(self, role, platform, chat_id, args) -> FlowResult:
+        f, denied = self._field_of(args[0])
+        if denied is not None:
+            return denied
+        if f is None:
+            return self._alert("این تنظیم در فهرستِ تنظیماتِ پنل نیست.")
+        if f.kind != sfields.KIND_BOOL:
+            return self._alert("این تنظیم دکمهٔ روشن/خاموش ندارد.")
+        return self._commit(role, platform, chat_id, f, not bool(sfields.read(self._settings(), f)))
+
+    async def _setting_step(self, role, platform, chat_id, args) -> FlowResult:
+        f, denied = self._field_of(args[0])
+        if denied is not None:
+            return denied
+        if f is None:
+            return self._alert("این تنظیم در فهرستِ تنظیماتِ پنل نیست.")
+        settings = self._settings()
+        try:
+            # گام باید یکی از گام‌هایِ خودِ فیلد باشد (دکمهٔ جعلیِ ‎+9999 رد می‌شه) و مقدارِ بعدی
+            # از *تنظیماتِ سرور* حساب می‌شه، نه از مقدارِ ارسالیِ callback.
+            candidate = sfields.next_value(settings, f, sfields.parse_step(f, args[1]))
+        except sfields.FieldError as exc:
+            return self._alert("⛔ " + str(exc))
+        return self._commit(role, platform, chat_id, f, candidate)
+
+    async def _setting_choice(self, role, platform, chat_id, args) -> FlowResult:
+        f, denied = self._field_of(args[0])
+        if denied is not None:
+            return denied
+        if f is None or f.kind != sfields.KIND_CHOICE:
+            return self._alert("این تنظیم گزینه‌هایِ فهرست‌شده ندارد.")
+        return self._commit(role, platform, chat_id, f, args[1])
+
+    async def _setting_entry(self, role, platform, chat_id, args) -> FlowResult:
+        """✏️ «تایپِ مقدار»: همان ماشینِ حالتِ پاسخِ ۲۲ — بعد از این دکمه، یک پیامِ متنیِ ساده
+        (بدونِ /) مقدارِ تازه است؛ نه دستوری و نه فرمتِ خاص."""
+        f, denied = self._field_of(args[0])
+        if denied is not None:
+            return denied
+        if f is None:
+            return self._alert("این تنظیم در فهرستِ تنظیماتِ پنل نیست.")
+        if not self._can(role, f.permission):
+            return self._alert(_NO_WRITE)
+        self._reply_target.pop((platform, chat_id), None)
+        self._entry_pending.pop((platform, chat_id), None)
+        self._entry_target[(platform, chat_id)] = f.key
+        return self._field_view(role, f, mode_note="✏️ حالتِ تایپ روشن شد: فقط مقدار را بنویس (مثلاً " + self._sample(f) + ")؛ بدونِ / و بدونِ نامِ تنظیم.")
+
+    @staticmethod
+    def _sample(f) -> str:
+        if f.kind == sfields.KIND_TEXT:
+            return "۰۲۱۸۸۰۰۰۰۰۰" if f.pattern else "متنِ دلخواه"
+        if f.kind == sfields.KIND_FLOAT:
+            return "12.5"
+        if f.kind == sfields.KIND_CHOICE and f.choices:
+            return str(f.choices[0][0])
+        return str(int(f.minimum or 0) + 5)
+
+    async def _setting_typed(self, message, key: str, typed: str) -> Optional[FlowResult]:
+        """متنِ آزادِ مدیر در حالتِ تایپِ مقدار → سنجشِ کامل → «منتظرِ ذخیره» (یک بار تأییدِ دکمه‌ای)."""
+        platform, chat_id = message.platform, str(message.chat_id)
+        where = (platform, chat_id)
+        if not typed or typed.startswith("/"):
+            return None  # دارد دستورِ دیگری می‌دهد؛ حالتِ تایپ دست‌نخورده می‌ماند
+        role = self._admins.role_of(platform, chat_id)
+        settings = self._settings()
+        f = sfields.find_field(settings, key) if (role and settings is not None) else None
+        if f is None:
+            self._entry_target.pop(where, None)
+            return FlowResult(messages=[UiMessage(_NO_SETTINGS if settings is None else "⚙️ آن تنظیم دیگر در فهرست نیست؛ از «تنظیماتِ عملیاتی» دوباره شروع کن.")])
+        if not self._can(role, f.permission):
+            self._entry_target.pop(where, None)
+            return FlowResult(messages=[UiMessage(_NO_WRITE)])
+        try:
+            staged = sfields.validate(settings, f, typed)
+        except sfields.FieldError as exc:
+            # حالتِ تایپ **روشن می‌ماند** تا همان‌جا دوباره بنویسد (کرانه‌ها در کارتِ پایین آمده).
+            return FlowResult(
+                messages=[UiMessage(
+                    f"🔧 {f.label()}\n⛔ {exc}\n"
+                    f"مقدارِ فعلی دست‌نخورده ماند: {sfields.chip(f, sfields.read(settings, f))}\n"
+                    f"{f.bounds()}\nهمین‌جا دوباره فقط مقدار را بنویس.",
+                    [[Btn("انصراف", CB + "ssc"), Btn("✏️ تایپِ مقدار", f"{CB}se:{f.key}")]],
+                )]
+            )
+        self._entry_target.pop(where, None)
+        self._entry_pending[where] = (f.key, staged)
+        return FlowResult(
+            messages=[UiMessage(
+                f"🔧 {f.label()}\nمقدارِ فعلی: {sfields.chip(f, sfields.read(settings, f))}\n"
+                f"مقدارِ تازه: {sfields.chip(f, staged)}\n\nذخیره بشه؟",
+                [[Btn("✅ بله، ذخیره کن", CB + "ssv"), Btn("انصراف", CB + "ssc")]],
+            )]
+        )
+
+    async def _setting_save(self, role, platform, chat_id, args) -> FlowResult:
+        """``ssv`` — مقدارِ تایپ‌شدهٔ *سنجیده‌شده* را می‌نویسد (دوباره سنجیده می‌شه، چون ممکن است
+        تنظیمِ دیگری در همین فاصله عوض شده باشد و قاعدهٔ مشترکشان دیگر نخواند)."""
+        where = (platform, chat_id)
+        pending = self._entry_pending.pop(where, None)
+        if pending is None:
+            return self._alert("چیزی برای ذخیره نمانده؛ «تایپِ مقدار» را بزن و مقدار را بنویس.")
+        key, staged = pending
+        f, denied = self._field_of(key)
+        if denied is not None:
+            return denied
+        if f is None:
+            return self._alert("آن تنظیم دیگر در فهرستِ تنظیماتِ پنل نیست.")
+        if not self._can(role, f.permission):
+            return self._alert(_NO_WRITE)
+        try:
+            staged = sfields.validate(self._settings(), f, staged)
+        except sfields.FieldError as exc:
+            return self._alert("⛔ " + str(exc))
+        return self._commit(role, platform, chat_id, f, staged)
+
+    async def _setting_cancel(self, role, platform, chat_id, args) -> FlowResult:
+        where = (platform, chat_id)
+        self._entry_pending.pop(where, None)
+        self._entry_target.pop(where, None)
+        return self._settings_menu_view(role, note="↩️ انصراف؛ هیچ مقداری عوض نشد.")

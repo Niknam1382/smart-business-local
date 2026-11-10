@@ -73,7 +73,7 @@ def build(page: ft.Page, lang: str, state, manager, order_store, product_store, 
 
     # ------------------------------------------------------------ نوار وضعیت
     def pill(key: str, icon: str, label: str, ok: bool, target: str) -> ft.Control:
-        color = theme.SUCCESS if ok else theme.DANGER
+        color = theme.SUCCESS if ok else theme.WARNING
         return ft.Container(
             key=key,
             border_radius=theme.RADIUS_PILL,
@@ -96,6 +96,10 @@ def build(page: ft.Page, lang: str, state, manager, order_store, product_store, 
     status_row = ft.Row(
         spacing=10,
         wrap=True,
+        # START: در راست‌چین ردیفِ wrap‌شونده بدونِ alignment باقیمانده را به لبه‌ی چپ
+        # می‌چسباند (قلم ۴: «از سمتِ چپ از کادر بیرون رفته»)؛ اینجا صریح START است.
+        alignment=ft.MainAxisAlignment.START,
+        vertical_alignment=ft.CrossAxisAlignment.START,
         controls=[
             pill(
                 "home_pill_bot",
@@ -116,10 +120,12 @@ def build(page: ft.Page, lang: str, state, manager, order_store, product_store, 
     )
 
     # ---------------------------------------------------------------- کارت‌های KPI
+    # قلم ۴: کارت‌ها عرضِ پیکسلیِ ثابت ندارند (۴×۲۱۰ + فاصله‌ها = ۸۷۶ پیکسل روی پنجره‌ی
+    # ۹۶۰ از کادر بیرون می‌زد); در ردیفِ واکنش‌گرا با سهمِ درصدی می‌آیند، پس همیشه جا می‌شن.
     def kpi(key: str, icon: str, label: str, value: str, hint: str, target: str) -> ft.Control:
         return ft.Container(
             key=key,
-            width=210,
+            col={"xs": 12, "sm": 6, "md": 6, "lg": 3, "xl": 3},
             border_radius=theme.RADIUS_CARD,
             bgcolor=theme.card_bgcolor(page),
             border=ft.Border.all(1, theme.border_color(page)),
@@ -220,7 +226,7 @@ def build(page: ft.Page, lang: str, state, manager, order_store, product_store, 
                     ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, size=15, color=theme.WARNING),
                     ft.Text(item.detail or item.type, size=12.5, expand=True,
                             color=theme.text_primary(page), max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
-                    ft.TextButton(t("home.open", lang), on_click=lambda e: on_goto("experience")),
+                    common.text(t("home.open", lang), on_click=lambda e: on_goto("experience")),
                 ],
             )
         )
@@ -245,7 +251,7 @@ def build(page: ft.Page, lang: str, state, manager, order_store, product_store, 
                         size=12.5, expand=True, color=theme.text_primary(page),
                         max_lines=2, overflow=ft.TextOverflow.ELLIPSIS,
                     ),
-                    ft.TextButton(t("home.check", lang), on_click=lambda e: on_goto("orders")),
+                    common.text(t("home.check", lang), on_click=lambda e: on_goto("orders")),
                 ],
             )
         )
@@ -277,10 +283,12 @@ def build(page: ft.Page, lang: str, state, manager, order_store, product_store, 
             height = max(4, int(74 * abs(int(value or 0)) / peak))
             bars.append(
                 ft.Container(
-                    width=16,
+                    # قلم ۴: ستون‌ها عرضِ ثابت (۱۴×۱۶ پیکسل) ندارند؛ با expand تقسیم
+                    # می‌شن، پس هر پنجره‌ای سرِ خودش جا می‌شن و بیرون نمی‌زنن.
+                    expand=True,
                     height=height,
                     border_radius=4,
-                    bgcolor=theme.ACCENT if int(value or 0) > 0 else "#D8D5CC",
+                    bgcolor=theme.PRIMARY if int(value or 0) > 0 else theme.CHART_BAR_EMPTY,
                     tooltip=f"{jalali.fa_digits(label)} · {money_of(int(value or 0))}",
                 )
             )
@@ -290,7 +298,7 @@ def build(page: ft.Page, lang: str, state, manager, order_store, product_store, 
                 spacing=10,
                 controls=[
                     ft.Text(t("home.week_chart", lang), size=14, weight=ft.FontWeight.W_600),
-                    ft.Row(spacing=6, alignment=ft.MainAxisAlignment.SPACE_BETWEEN, controls=bars,
+                    ft.Row(spacing=6, alignment=ft.MainAxisAlignment.START, controls=bars,
                            vertical_alignment=ft.CrossAxisAlignment.END),
                     ft.Text(t("home.week_hint", lang), size=11, color=theme.text_secondary(page)),
                 ],
@@ -299,7 +307,16 @@ def build(page: ft.Page, lang: str, state, manager, order_store, product_store, 
 
     controls = [status_row]
     if kpis:
-        controls.append(ft.Row(spacing=12, wrap=True, controls=kpis))
+        controls.append(
+            ft.ResponsiveRow(
+                key="home_kpi_row",
+                columns=12,
+                spacing=12,
+                run_spacing=12,
+                alignment=ft.MainAxisAlignment.START,
+                controls=kpis,
+            )
+        )
     controls.append(check_card)
     if not isinstance(chart, ft.Container) or chart.height != 0:
         controls.append(chart)

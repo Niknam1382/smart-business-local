@@ -369,10 +369,16 @@ def test_disabled_removed_and_pending_admins_are_plain_customers(rig):
 
 
 def test_help_shows_only_what_the_role_may_do():
+    """۲۲/۳: راهنما پنل‌محور است — فقط ``/admin`` و ``/id`` (و ``/unlink`` برای مالک) تبلیغ می‌شن؛
+    فرمان‌هایِ متنیِ سفارش هنوز کار می‌کنن (تست‌هایِ پایینِ همین فایل) ولی دیگر نوشته نمی‌شن."""
     owner, manager, viewer, support = (help_text(r) for r in (am.ROLE_OWNER, am.ROLE_MANAGER, am.ROLE_VIEWER, am.ROLE_SUPPORT))
-    assert "/unlink" in owner and "/unlink" not in manager and "/confirm" in manager
-    assert "/confirm" not in viewer and "/orders" in viewer and "/orders" not in support
-    assert "/id" in support and "/admin" in support and "پشتیبان" in support
+    assert "/unlink" in owner and "/unlink" not in manager
+    for text in (owner, manager, viewer, support):
+        assert "/admin" in text and "/id" in text, text
+        for command in ("/confirm", "/reject", "/orders", "/order", "/stock", "/handoffs", "/reply", "/close"):
+            assert command not in text, (command, text[:40])
+    assert "تنظیمات" in owner and "پشتیبانی" in owner  # وعدهٔ پنل: همان چیزهایی که دکمه دارند
+    assert "/admin" in support and "پشتیبان" in support
 
 
 class FakeHandoff:
@@ -436,8 +442,10 @@ def test_slash_admin_opens_a_menu_with_only_the_buttons_of_the_role(rig):
     assert rig.t.buttons() == ["adm:sup"] and "پشتیبان" in rig.t.texts()
     rig.say("3", "/admin")
     assert "adm:ord" in rig.t.buttons() and "مدیر" in rig.t.texts()
+    # قلم ۳: «تنظیماتِ عملیاتی» برایِ نقشِ دارایِ settings.view می‌آید (مالک و مدیر) و برایِ بقیه نه
+    assert "adm:set" in rig.t.buttons()
     rig.say("900", "/admin")
-    assert len(rig.t.buttons()) == 5
+    assert len(rig.t.buttons()) == 6 and "adm:set" in rig.t.buttons()
 
 
 def test_strangers_get_nothing_from_admin_commands(rig):

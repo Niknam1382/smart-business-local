@@ -1,9 +1,11 @@
 """R1 — فروشگاهِ دکمه‌ای: کاتالوگ، سبد، چک‌اوت، پرداخت، پیگیری (بدونِ پلتفرم)."""
 
+import time
+
 import pytest
 
 from app.core.orders import STATUS_CANCELLED, STATUS_PAID, STATUS_PENDING_PAYMENT
-from tests.shop_harness import Harness, datas, find, labels, texts
+from tests.shop_harness import Harness, datas, find, labels, menu, texts
 
 
 @pytest.fixture
@@ -129,6 +131,14 @@ def answer_all(h, name="علی رضایی", phone="۰۹۱۲۳۴۵۶۷۸۹", addr
     return h.say(address)
 
 
+def assert_awaiting_owner_alert(alert: str, oid: int) -> None:
+    """مالک در آخرین آلارمش می‌فهمد «این سفارش منتظر تأییدِ من است» و شماره‌اش را می‌بیند.
+
+    شکلِ دعوت به تصمیم (دکمه یا فرمانِ متنی) به کنسولِ مالک وابسته است، پس این‌جا فقط همان
+    دو نشانه سنجیده می‌شود تا تستِ فروشگاه به واژه‌هایِ پنل گیر نکند."""
+    assert "منتظر تاییدته" in alert and f"#{oid}" in alert, alert
+
+
 def test_physical_checkout_wizard_end_to_end(h):
     [pid] = add_products(h, 1)
     res = start_checkout(h, pid, 2)
@@ -153,7 +163,11 @@ def test_physical_checkout_wizard_end_to_end(h):
     assert order.customer_name == "علی رضایی" and order.customer_phone == "09123456789" and "پلاک" in order.customer_address
     assert order.customer_info["phone"] == "09123456789" and order.payment_method == "card_to_card"
     assert "6037991234567890" in texts(res) and f"c:paid:{order.id}" in datas(res)
-    assert h.flow.carts.count("telegram", "1") == 0 and h.flow.sessions.get("telegram", "1") is None
+    assert h.flow.carts.count("telegram", "1") == 0
+    # ۱.۰.۰ (F4): پس از انتخابِ کارت‌به‌کارت، مرحله‌ی «رسید» باز است تا مشتری بدونِ هیچ دکمه‌ای
+    # بتواند رسید را بفرستد؛ ویزاردِ چک‌اوت بسته شده و سبد خالی است.
+    session = h.flow.sessions.get("telegram", "1")
+    assert session is not None and session.step == "receipt" and session.data["order_id"] == order.id
 
 
 def test_double_tap_on_pay_method_creates_one_order(h):
@@ -273,7 +287,8 @@ def test_card_claim_asks_a_receipt_and_never_confirms_the_order(h):
     answer_all(h); h.tap("c:ck:s"); h.tap("c:ck:s"); h.tap("c:ck:ok"); h.tap("c:pm:card_to_card")
     oid = h.orders.list()[0].id
     res = h.tap(f"c:paid:{oid}")
-    assert h.orders.get(oid).status == STATUS_PAID and h.owner_alerts and f"/confirm {oid}" in h.owner_alerts[-1]
+    assert h.orders.get(oid).status == STATUS_PAID and h.owner_alerts
+    assert_awaiting_owner_alert(h.owner_alerts[-1], oid)
     assert "رسید" in texts(res), "بعد از اعلامِ پرداخت، برنامه رسید می‌خواهد"
     assert h.flow.sessions.get("telegram", "1").step == "receipt"
     assert h.claims and h.claims[-1][0].id == oid and h.claims[-1][1]["kind"] == "claim"
@@ -289,7 +304,8 @@ def test_reference_step_is_used_when_the_receipt_ask_is_off(tmp_path):
     answer_all(h); h.tap("c:ck:s"); h.tap("c:ck:s"); h.tap("c:ck:ok"); h.tap("c:pm:card_to_card")
     oid = h.orders.list()[0].id
     res = h.tap(f"c:paid:{oid}")
-    assert h.orders.get(oid).status == STATUS_PAID and h.owner_alerts and f"/confirm {oid}" in h.owner_alerts[-1]
+    assert h.orders.get(oid).status == STATUS_PAID and h.owner_alerts
+    assert_awaiting_owner_alert(h.owner_alerts[-1], oid)
     assert "منتظر" in texts(res)
     assert h.flow.sessions.get("telegram", "1").step == "ref"
     res = h.say("پیگیری 123456")
@@ -408,3 +424,157 @@ def test_support_direct_text_is_registered_in_the_text_catalog(h):
     from app.core import shop_texts
 
     assert "support.direct" in set(shop_texts.keys())
+
+
+# ------------------- ۱۶) کارت‌به‌کارت: فقط «رسید را بفرست» + بازگشتِ یک‌لمسی (F4) ====
+
+
+def card_instruction(h):
+    """خریدِ کامل تا انتخابِ «کارت‌به‌کارت»؛ نتیجه‌ی پیامِ دستورِ پرداخت را برگردان."""
+    [pid] = add_products(h, 1)
+    start_checkout(h, pid)
+    answer_all(h); h.tap("c:ck:s"); h.tap("c:ck:s"); h.tap("c:ck:ok")
+    return h.tap("c:pm:card_to_card")
+
+
+def instruction_message(res):
+    return [m for m in res.messages if "6037991234567890" in m.text][0]
+
+
+def test_card_to_card_message_only_asks_for_the_receipt_and_carries_no_menu(h):
+    """مشتریِ کارت‌به‌کارت فقط یک تکلیف می‌بیند: فرستادنِ رسید. نه جمله‌ی «پرداخت کردم بنویس»،
+    نه پاراگرافِ توضیحی و نه هیچ منوی دیگری که با «رسید بفرست» رقابت کند."""
+    res = card_instruction(h)
+    body = texts(res)
+    assert "6037991234567890" in body and "علی رضایی" in body, body
+    assert "پرداخت کردم" not in body, "دستورِ دوم حذف شده؛ تنها خواسته، رسید است"
+    assert "تأیید نمی‌شود" not in body and "تا رسید را نبینم" not in body, "پاراگرافِ بلندِ قدیمی نیست"
+
+    lines = [line for line in instruction_message(res).text.splitlines() if line.strip()]
+    assert len(lines) == 6, lines  # عنوان · مبلغ · شماره‌کارت · به‌نام · رسید بفرست · مهلتِ رزرو
+    assert sum(1 for line in lines if "رسید" in line and "بفرست" in line) == 1, lines
+
+    assert menu(res) == [], "هیچ کیبوردِ پایداری (منوی مشتری) به این پیام نمی‌چسبد"
+    assert all(not m.menu for m in res.messages)
+    # دکمه‌های شیشه‌ای هم فقط ادامه‌ی همین مسیرند؛ «محصولات/سبد/پشتیبانی» این‌جا نیست
+    assert set(labels(res)) <= {"✅ پرداخت کردم", "📦 سفارش‌های من"}, labels(res)
+
+
+def test_the_receipt_prompt_after_the_claim_button_has_no_menu_either(h):
+    """«پرداخت کردم» هم همان‌جا فقط رسید می‌خواهد و منوی مشتری را زیرِ پیام نمی‌چسباند."""
+    card_instruction(h)
+    oid = h.orders.list()[0].id
+    prompt = h.tap(f"c:paid:{oid}")
+    assert "رسید" in texts(prompt)
+    assert menu(prompt) == [] and all(not m.menu for m in prompt.messages)
+    assert h.flow.sessions.get("telegram", "1").step == "receipt"
+
+
+def test_a_text_receipt_sent_before_the_claim_is_recorded_and_pays_the_order(h):
+    """بعد از دستورِ پرداخت، مشتری می‌تواند بی‌زدنِ هیچ دکمه‌ای رسید را بفرستد؛
+    همان رسید ادعایِ پرداخت است (سفارش «پرداخت‌شده» و مالک باخبر می‌شود) ولی تأیید نهایی نیست."""
+    card_instruction(h)
+    oid = h.orders.list()[0].id
+    assert h.flow.sessions.get("telegram", "1").step == "receipt"
+    saved = h.say("واریز 1,000 ریال — کد پیگیری 987654321")
+    assert "رسید ثبت شد" in texts(saved), texts(saved)
+    assert h.orders.get(oid).status == STATUS_PAID, "رسید روی سفارشِ «در انتظارِ پرداخت» گیر نمی‌کند"
+    assert h.orders.get(oid).payment_reference == "987654321"
+    assert [c[1]["kind"] for c in h.claims] == ["claim", "text"]
+    alert = " ".join(h.owner_alerts)
+    assert "✅ تأیید" in alert and "❌ رد" in alert, "آلارمِ مالک به دکمه‌هایِ همین پیام ارجاع می‌ده"
+    assert "/confirm" not in alert and "/reject" not in alert, "دستورِ اسلش به مالک پیشنهاد نمی‌شه (قلم ۳)"
+
+
+def test_a_photo_receipt_sent_before_the_claim_is_recorded_too(h):
+    card_instruction(h)
+    oid = h.orders.list()[0].id
+    h.attachment_paths = ["/data/receipts/r.jpg"]
+    res2 = h.say("", attachment={"kind": "photo", "file_id": "X1", "size": 10, "mime": "image/jpeg"})
+    assert "عکسِ رسید" in texts(res2), texts(res2)
+    assert h.orders.get(oid).status == STATUS_PAID
+    assert [row["kind"] for row in h.orders.receipts_for(oid)] == ["image"]
+
+
+def test_free_text_is_not_mistaken_for_a_receipt_while_the_order_is_unpaid(h):
+    """«سلام» رسید نیست: سفارشِ پرداخت‌نشده بی‌دلیل «پرداخت‌شده» نمی‌شود و پیام به AI می‌رود."""
+    card_instruction(h)
+    oid = h.orders.list()[0].id
+    res = h.say("سلام، بسته‌بندی‌تون چطوره؟")
+    assert res.consumed is False
+    assert h.orders.receipts_for(oid) == []
+    assert h.orders.get(oid).status == STATUS_PENDING_PAYMENT
+    assert h.flow.sessions.get("telegram", "1") is None
+
+
+def test_pending_card_order_stays_resumable_after_pressing_other_buttons(h):
+    """دستِ مشتری به دکمه‌های دیگر می‌خورد: سفارش و مسیرِ رسید گم نمی‌شوند.
+    از «📦 سفارش‌های من» دقیقاً دو کار می‌شود کرد — فرستادنِ رسید یا انصراف — و مهلت هم می‌ماند."""
+    card_instruction(h)
+    oid = h.orders.list()[0].id
+
+    h.say("🛍 محصولات")  # مرحله‌ی رسید بسته می‌شه و پیام به جریانِ عادی می‌ره (نه رسید)
+    assert h.flow.sessions.get("telegram", "1") is None
+    assert h.say("🛍 محصولات").consumed  # حالا همان دکمه مثلِ قبل کار می‌کنه
+    h.say("🙋 ارتباط با پشتیبانی")
+    assert h.orders.get(oid).status == STATUS_PENDING_PAYMENT, "هیچ دکمه‌ی دیگری سفارش را نمی‌بندد"
+
+    lst = h.say("📦 سفارش‌های من")
+    detail = h.tap(find(lst, "c:od:"))
+    assert datas(detail) == [f"c:rc:{oid}", f"c:oc:{oid}", "c:o"], labels(detail)
+    assert "دقیقه" in texts(detail), "مهلتِ رزرو هنوز روی همان سفارش نشان داده می‌شه"
+
+    again = h.tap(f"c:rc:{oid}")
+    assert "6037991234567890" in texts(again) and menu(again) == []
+    assert h.flow.sessions.get("telegram", "1").step == "receipt"
+    assert h.say("واریز 1,000 ریال — کد رهگیری 456789012").consumed
+    assert h.orders.get(oid).status == STATUS_PAID
+
+
+def test_the_order_card_of_a_claimed_card_order_still_offers_the_receipt(h):
+    """پس از «پرداخت کردم» هم درِ رسید از همان کارتِ سفارش باز می‌ماند (بدونِ دکمه‌های دیگر)."""
+    card_instruction(h)
+    oid = h.orders.list()[0].id
+    h.tap(f"c:paid:{oid}")
+    detail = h.tap(f"c:od:{oid}")
+    assert datas(detail) == [f"c:rc:{oid}", "c:o"]
+    assert menu(h.tap(f"c:rc:{oid}")) == []
+    assert h.flow.sessions.get("telegram", "1").step == "receipt"
+
+
+def test_cancel_from_the_pending_card_order_releases_the_reserved_stock(h):
+    pid = h.products.add("کالا", 1000, 2)
+    oid = h.orders.create("telegram", "1", [(pid, 2)])
+    h.orders.set_payment_info(oid, "card_to_card")
+    assert h.orders.available_quantity(pid) == 0, "رزروِ موجودی تا مهلت"
+
+    detail = h.tap(f"c:od:{oid}")
+    assert f"c:rc:{oid}" in datas(detail) and f"c:oc:{oid}" in datas(detail)
+    ask = h.tap(f"c:oc:{oid}")
+    assert f"c:oc:{oid}:y" in datas(ask)
+    res = h.tap(f"c:oc:{oid}:y")
+
+    assert h.orders.get(oid).status == STATUS_CANCELLED
+    assert h.orders.available_quantity(pid) == 2, "انصراف، رزرو را آزاد می‌کند"
+    assert "لغو شد" in texts(res)
+
+
+def test_the_receipt_button_never_touches_another_customers_order(h):
+    pid = h.products.add("کالا", 1000, 2)
+    theirs = h.orders.create("telegram", "2", [(pid, 1)])
+    h.orders.set_payment_info(theirs, "card_to_card")
+    assert h.tap(f"c:rc:{theirs}").answer, "سؤالِ stale + منو، نه نشتِ اطلاعات"
+    assert h.orders.get(theirs).status == STATUS_PENDING_PAYMENT
+    assert h.flow.sessions.get("telegram", "1") is None
+    mine = h.orders.create("telegram", "1", [(pid, 1)])
+    h.orders.set_payment_info(mine, "card_to_card")  # همان چیزی که مشتری در چک‌اوت انتخاب می‌کنه
+    assert h.tap(f"c:rc:{mine}").answer == ""  # مالِ خودش: دستورِ پرداخت را می‌گیرد
+    assert "6037991234567890" in texts(h.tap(f"c:rc:{mine}"))
+
+
+def test_the_receipt_step_stays_open_as_long_as_the_reservation_does(h):
+    """F4: مهلتِ مرحله‌ی «رسید» از همان تنظیمِ برنامه (دقیقه‌ی رزرو) حساب می‌شه."""
+    card_instruction(h)
+    session = h.flow.sessions.get("telegram", "1")
+    assert session is not None and session.step == "receipt"
+    assert session.expires_ts - time.time() > 15 * 60, "پنجره‌ی رسید کوتاه‌تر از رزرو نیست"

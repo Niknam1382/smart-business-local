@@ -5,14 +5,23 @@ PDFِ فارسیِ (راست‌به‌چپ) فاکتور — ``fpdf2`` + ``uharf
   *تأییدنشده* است؛ هر خطا ``InvoicePdfError`` می‌شود و سرویس فاکتور به فاکتور متنی fallback می‌کند.
 - خروجی **قطعی** است (تاریخ ساخت = تاریخ صدور، بدون شناسه تصادفی): از snapshot هر وقت بخواهیم
   دقیقاً همان بایت‌ها می‌سازیم، پس PDF لازم نیست در پشتیبان باشد.
-- متن خریدار/فروشنده/نام کالا نامطمئن است: نویسه‌های کنترلی و bidi-override حذف و هر نویسه‌ای که
-  فونت ندارد (ایموجی و…) دور ریخته می‌شود.
-- چیدمان: سربرگ رنگی با لوگو، کارت شماره/تاریخ، جدول اقلام با **شکست خط نام کالا** (هیچ واژه‌ای
-  بی‌صدا حذف نمی‌شود)، ردیف‌های یک‌درمیان، تکرار سرستون در صفحه بعد، کادر جمع‌ها، QR راستی‌آزمایی
-  و شماره صفحه.
+- متن خریدار/فروشنده/نام کالا و هر متنِ شخصی‌سازی‌شده (برچسب‌ها، تشکر، سلبِ مسئولیت) نامطمئن است:
+  نویسه‌های کنترلی و bidi-override حذف و هر نویسه‌ای که فونت ندارد (ایموجی و…) دور ریخته می‌شود.
+- چیدمان: سربرگ رنگی با لوگو، **پنلِ همیشه‌مرئیِ «مشخصات خریدار» در ستونِ چپ** (هر ردیف با «—» وقتی
+  مقدار نیست، تا هیچ فاکتوری بی‌نامِ خریدار نماند) و کارتِ شماره/تاریخ در ستونِ راست، جدول اقلام با
+  **شکست خط نام کالا** (هیچ واژه‌ای بی‌صدا حذف نمی‌شود)، ردیف‌های یک‌درمیان، تکرار سرستون در صفحه بعد،
+  کادر جمع‌ها، QR راستی‌آزمایی و شماره صفحه.
 - **ریاضیِ فاکتور (قلم ۱۰):** قیمت‌ها «با مالیات» هستند، پس مالیات بر ارزش افزوده *جمعِ اضافه* نیست؛
   به‌صورتِ یک خطِ اطلاعاتیِ جدا زیرِ «جمع کل» نشان داده می‌شود. ترتیبِ نمایش دقیقاً همین است:
   جمع اقلام − تخفیف + ارسال = جمع کل، و «از این مبلغ، مالیات …».
+- **متن‌هایِ شخصی‌سازی‌شده (قلم ۸):** نامِ فروشگاه از snapshot با همان زنجیره‌یِ ``invoices.seller_name_of``
+  حل می‌شود و در *هر سه* جا یکی است: نوارِ رنگی، پابرگِ شماره‌ی صفحه و کنارِ QR (``seller_name()``).
+  متنِ تشکر (``thanks``)، سلبِ مسئولیت (``disclaimer``) و پاورقی (``footer``) از snapshot می‌آیند و
+  خالی بودنشان یعنی «متنِ پیش‌فرضِ همین برنامه»؛ برچسب‌هایِ مهم (``labels``) هم override می‌شوند.
+  همه‌ی این متن‌ها مثلِ بقیه‌یِ ورودی‌هایِ نامطمئن ``clean()`` می‌شوند و فقط از snapshot خوانده می‌شوند،
+  پس «همان ورودی ⇒ همان بایت» هنوز برقرار است.
+- **فاکتورِ تستی (``invoice_service.preview``):** snapshotِ ``preview=True`` دارد و همان فاکتورِ واقعی
+  را می‌سازد؛ فقط یکِ سطرِ «نمونه» به سربرگ اضافه می‌شود و هیچ چیز دیگری از چیدمان فرق نمی‌کند.
 """
 
 from __future__ import annotations
@@ -27,7 +36,7 @@ from pathlib import Path
 from typing import Optional
 
 from app.core import jalali
-from app.core.invoices import ANON_NAME, Invoice
+from app.core.invoices import ANON_NAME, DEFAULT_SELLER_NAME, Invoice
 
 MAX_LOGO_BYTES = 300 * 1024
 _PAY_LABEL = {"card_to_card": ("کارت‌به‌کارت", "Card to card"), "bale_pay": ("بله‌پی", "Bale Pay")}
@@ -51,10 +60,13 @@ LABELS = {
     "date": ("تاریخ", "Date"),
     "order": ("سفارش", "Order"),
     "buyer": ("خریدار", "Customer"),
+    "buyer_details": ("مشخصات خریدار", "Customer details"),
+    "buyer_id": ("شناسه مشتری", "Customer id"),
     "phone": ("تلفن", "Phone"),
     "address": ("نشانی", "Address"),
     "pay_method": ("روش پرداخت", "Payment method"),
     "trace": ("کد پیگیری/تراکنش", "Tracking / transaction code"),
+    "tracking": ("کد رهگیری مرسوله", "Shipment tracking"),
     "ref_invoice": ("مربوط به فاکتور", "Against invoice"),
     "seller_address": ("نشانی", "Address"),
     "national_id": ("شناسه ملی/اقتصادی", "National / economic ID"),
@@ -72,6 +84,7 @@ LABELS = {
     "refund": ("مبلغ برگشتی", "Refund amount"),
     "vat": ("که از این مبلغ، مالیات بر ارزش افزوده", "of which VAT"),
     "verify": ("راستی‌آزمایی فاکتور", "Invoice verification"),
+    "preview": ("نمونه — فاکتورِ تستی؛ برای هیچ مشتری‌ای ارسال نمی‌شود", "Sample — test invoice; never sent to a customer"),
     "page": ("صفحه", "Page"),
     "of": ("از", "of"),
     "rial": ("ریال", "IRR"),
@@ -85,11 +98,55 @@ LABELS = {
 _COLUMN_RATIOS = (0.055, 0.43, 0.09, 0.205, 0.22)
 _COLUMN_KEYS = ("col_row", "col_item", "col_qty", "col_unit", "col_total")
 _BOTTOM_GUARD = 22.0  # میلی‌مترِ امنِ پایینِ صفحه — هیچ کادری روی پابرگ نمی‌افتد
+_MARGIN_X = 12.0  # مارجینِ چپ/راست (همه‌ی xها از همین‌جا شمارش می‌شوند تا چیدمان قابل‌سنجش بماند)
+
+# چیدمانِ بلوکِ «مشخصات خریدار» (قلم ۸): پنلِ خریدار ستونِ *چپ* است و کارتِ شماره/تاریخ ستونِ *راست*؛
+# هر کدام دقیقاً نصفِ عرضِ مفید (منهای فاصله) را می‌گیرند، پس پنل همه‌جا در نیمهٔ چپِ صفحه می‌افتد و
+# کارت همه‌جا در نیمهٔ راست. ترتیبِ هر ردیف از راست به چپ خوانده می‌شود: برچسب به لبهٔ راستِ پنل چسبیده
+# و مقدار ادامه‌اش به سمتِ چپ است (نه ستونِ چپِ LTR، که باعث می‌شد فاکتورِ فارسی «برعکس» به نظر برسد).
+_META_GAP = 5.0  # فاصله‌یِ پنل تا کارت
+_META_PAD = 2.5  # فاصله‌یِ متن از دیواره‌یِ پنل
+_META_HEAD_H = 8.0  # ارتفاعِ سطرِ «مشخصات خریدار»
+_META_ROW_H = 5.6  # ارتفاعِ هر ردیفِ فیلد
+_META_LABEL_RATIO = 0.30  # سهمِ برچسب از عرضِ پنل (باقی برایِ مقدار)
+_META_MAX_LINES = 3  # سقفِ خطِ هر مقدار (آدرسِ بلند با «…» بسته می‌شود، ردیف هیچ‌وقت حذف نمی‌شود)
+_META_MIN_H = 25.0  # کارتِ شماره/تاریخ همیشه همین ارتفاع را دارد
+_PLACEHOLDER = "—"  # فیلدِ خالی هم *دیده* می‌شود؛ ردیف حذف نمی‌شود
 
 
-def label(key: str, lang: str) -> str:
+def label(key: str, lang: str, overrides: Optional[dict] = None) -> str:
+    """متنِ یکِ برچسب؛ ``overrides`` = ``seller["labels"]`` (یعنی ``{زبان: {کلید: متنِ مالک}}``).
+
+    override فقط وقتی اعمال می‌شود که رشته باشد، بعد از ``clean()`` چیزی باقی بماند و برایِ همانِ
+    زبان باشد؛ وگرنه متنِ پیش‌فرضِ ``LABELS`` برمی‌گردد — پس بدافزاری/پشتیبانِ خراب فاکتور را نمی‌شکند."""
     fa, en = LABELS[key]
-    return en if lang == "en" else fa
+    text = en if lang == "en" else fa
+    if isinstance(overrides, dict):
+        table = overrides.get("en" if lang == "en" else "fa")
+        value = clean(table.get(key, ""), 60) if isinstance(table, dict) else ""
+        if value:
+            return value
+    return text
+
+
+def meta_layout(width: float) -> dict:
+    """مربع‌هایِ بلوکِ اطلاعاتِ فاکتور از رویِ ``عرضِ مفیدِ`` صفحه (تستِ چیدمان همین را می‌سنجد).
+
+    ``panel_*`` کادرِ «مشخصات خریدار» و ``card_*`` کارتِ عنوان/شماره/تاریخ است؛ جمعِ عرض‌ها با
+    فاصله برابرِ ``width`` می‌شود، پس پنل از مارجینِ چپ شروع شده و کارت به مارجینِ راست می‌رسد."""
+    half = width / 2.0
+    panel_w = card_w = half - _META_GAP / 2.0
+    label_w = panel_w * _META_LABEL_RATIO
+    panel_x = _MARGIN_X
+    card_x = panel_x + panel_w + _META_GAP
+    label_x = panel_x + panel_w - label_w - _META_PAD
+    value_x = panel_x + _META_PAD
+    return {
+        "panel_x": panel_x, "panel_w": panel_w,
+        "card_x": card_x, "card_w": card_w,
+        "label_x": label_x, "label_w": label_w,
+        "value_x": value_x, "value_w": label_x - value_x - 2.0,
+    }
 
 
 def _pyinstaller_hint() -> None:  # pragma: no cover — فقط برای تحلیل ایستای PyInstaller (ایمپورت تنبل)
@@ -178,7 +235,16 @@ def wrap_lines(pdf, text: str, width: float, max_lines: int = 3) -> list:
 
 
 def seller_name(seller: dict) -> str:
-    return clean(seller.get("name", ""), 40)
+    """نامِ فروشگاهِ چاپ‌شده روی فاکتور — **همانِ یک نام** برای نوارِ رنگی، پابرگ و کنارِ QR.
+
+    نام در snapshot با زنجیرهٔ ``invoices.seller_name_of`` حل شده است؛ این‌جا فقط لایه‌هایِ
+     پشتیبان باقی می‌مانند (نامِ خالی/بی‌فونت ⇒ ``fallback_name`` ⇒ «فروشگاه»). هیچ‌وقت عنوانِ
+    «فاکتور فروش» جایِ نام نمی‌نشیند — آن عنوان در کارتِ فاکتور چاپ می‌شود، نه در سربرگ."""
+    for value in (seller.get("name"), seller.get("fallback_name"), DEFAULT_SELLER_NAME):
+        name = clean(value, 40)
+        if name:
+            return name
+    return DEFAULT_SELLER_NAME
 
 
 def _verify_payload(inv: Invoice) -> str:
@@ -226,6 +292,9 @@ class _InvoicePDF:
         self.inv = inv
         self.digits = "en" if inv.seller.get("digits") == "en" else "fa"
         self.lang = "en" if getattr(inv, "lang", "fa") == "en" else "fa"
+        # overrideهایِ مالک برایِ «متن‌های مهم»؛ هرگز رویِ متنِ پیش‌فرضِ LABELS اثرِ نیمه‌کاره نمی‌گذارد
+        labels = inv.seller.get("labels")
+        self.labels = labels if isinstance(labels, dict) else {}
         self.brand = _hex_rgb(inv.seller.get("color", ""))
         paper = inv.seller.get("paper") if inv.seller.get("paper") in ("A4", "A5") else "A4"
         self.paper = paper
@@ -252,13 +321,13 @@ class _InvoicePDF:
         self.small = 8 if paper == "A5" else 9
         self.body = 9.5 if paper == "A5" else 10.5
         self.row_h = 6.4 if paper == "A5" else 7.0
-        self.columns = [(label(key, self.lang), self.w * ratio) for key, ratio in zip(_COLUMN_KEYS, _COLUMN_RATIOS, strict=True)]
+        self.columns = [(self._l(key), self.w * ratio) for key, ratio in zip(_COLUMN_KEYS, _COLUMN_RATIOS, strict=True)]
         self.widths = [width for _label, width in self.columns]
 
     # ------------------------------------------------------------------ helpers
 
     def _l(self, key: str) -> str:
-        return label(key, self.lang)
+        return label(key, self.lang, self.labels)
 
     def _money_line(self, value: int) -> str:
         return f"{money(value, self.digits)} {self._l('rial')}"
@@ -308,13 +377,16 @@ class _InvoicePDF:
         pdf.set_xy(12, top + 4.5)
         pdf.set_font("V", "B", 15 if self.paper == "A4" else 13)
         pdf.set_text_color(255, 255, 255)
-        pdf.cell(self.w - 6, 8, clean(seller.get("name", "") or self._l("sale")), align="R", new_x="LMARGIN", new_y="NEXT")
+        # نامِ حل‌شده (زنجیره‌یِ seller_name_of)؛ هرگز «فاکتور فروش» جایِ نامِ خالی چاپ نمی‌شود
+        pdf.cell(self.w - 6, 8, seller_name(seller), align="R", new_x="LMARGIN", new_y="NEXT")
         sub = " · ".join(clean(x, 60) for x in (seller.get("legal_name", ""), seller.get("phone", "")) if x)
         if sub:
             pdf.set_xy(12, top + 13)
             pdf.set_font("V", "", self.small)
             pdf.cell(self.w - 6, 5, sub, align="R", new_x="LMARGIN", new_y="NEXT")
         pdf.set_y(top + 23)
+        if seller.get("preview"):  # فاکتورِ تستی: رویِ همانِ فاکتور هم معلوم باشد که نمونه است
+            self.text(self._l("preview"), self.small, bold=True, color=self.brand, height=5.4)
         details = [(self._l("seller_address"), seller.get("address", "")),
                    (self._l("national_id"), _num(seller.get("national_id", ""), self.digits) if seller.get("national_id") else "")]
         for name, value in details:
@@ -324,62 +396,84 @@ class _InvoicePDF:
 
     # ---------------------------------------------------------------- meta cards
 
+    def meta_geometry(self) -> dict:
+        """مربع‌هایِ بلوکِ اطلاعات — همان عددهایی که ``meta_block`` با آن‌ها رسم می‌کند (برایِ تستِ چیدمان)."""
+        return meta_layout(self.w)
+
+    def buyer_rows(self, order_label: str, ref_number: str) -> list:
+        """ردیف‌هایِ «مشخصات خریدار» به شکلِ ``(برچسب، مقدار، برجسته)``.
+
+        هر هفتِ فیلدِ مهم همیشه ردیف دارد و جایی که مقدار نیست ``—`` می‌خورد؛ قبلاً ردیف‌هایِ خالی
+        حذف می‌شدند و فاکتورِ خریدارِ بی‌نام عملاً *هیچ* مشخصاتی در بالایِ صفحه نداشت. سه ردیفِ آخر
+        (کد رهگیری مرسوله، روش ارسال، فاکتورِ مرجع) فقط وقتی معنا دارند که مقدارشان باشد."""
+        inv, buyer = self.inv, self.inv.buyer or {}
+        # «فراموش‌شده» (``/forget``) هم مثلِ خریدارِ گمنام: نامِ جایگزین *صریحاً* چاپ می‌شود، نه «—»
+        name = ANON_NAME if buyer.get("anonymized") else clean(buyer.get("name", ""), 80)
+        method = _PAY_LABEL.get(inv.pay_method)
+        rows = [
+            (self._l("buyer"), name or _PLACEHOLDER, True),
+            (self._l("phone"), _num(clean(buyer.get("phone", ""), 30), self.digits) or _PLACEHOLDER, False),
+            (self._l("address"), clean(buyer.get("address", ""), 120) or _PLACEHOLDER, False),
+            (self._l("order"), clean(order_label, 60) or _PLACEHOLDER, False),
+            (self._l("pay_method"), (method[1] if self.lang == "en" else method[0]) if method else _PLACEHOLDER, False),
+            (self._l("trace"), _num(clean(buyer.get("trace", ""), 40), self.digits) or _PLACEHOLDER, False),
+            (self._l("buyer_id"), _num(clean(buyer.get("buyer_id", ""), 40), self.digits) or _PLACEHOLDER, False),
+        ]
+        for key, value in (
+            ("tracking", _num(clean(buyer.get("tracking", ""), 40), self.digits)),
+            ("shipping_note", clean(buyer.get("shipping_method", ""), 40)),
+            ("ref_invoice", clean(ref_number, 40) if inv.is_credit else ""),
+        ):
+            if value:
+                rows.append((self._l(key), value, False))
+        return rows
+
     def meta_block(self, order_label: str, ref_number: str):
-        pdf, inv, _seller = self.pdf, self.inv, self.inv.seller
+        pdf, inv = self.pdf, self.inv
+        geo, y0 = self.meta_geometry(), pdf.get_y()
         title = self._l("credit" if inv.is_credit else "sale")
-        card_w = self.w * 0.38
-        info_w = self.w - card_w - 5
-        y0 = pdf.get_y()
-        card_x = 12 + info_w + 5
+        rows = [
+            (name, bold, wrap_lines(pdf, value, geo["value_w"], max_lines=_META_MAX_LINES))
+            for name, value, bold in self.buyer_rows(order_label, ref_number)
+        ]
+        panel_h = _META_HEAD_H + sum(_META_ROW_H * len(lines) for _n, _b, lines in rows) + _META_PAD
         pdf.set_fill_color(*_ZEBRA)
         pdf.set_draw_color(*_LINE)
-        pdf.rect(card_x, y0, card_w, 25, style="FD")
-        pdf.set_xy(card_x + 4, y0 + 3)
-        pdf.set_font("V", "B", 12)
+
+        # ۱) پنلِ «مشخصات خریدار» — نیمهٔ چپِ صفحه، عنوانِ دارد و هیچ ردیفی از آن حذف نمی‌شود
+        pdf.rect(geo["panel_x"], y0, geo["panel_w"], panel_h, style="FD")
+        pdf.set_xy(geo["value_x"], y0 + 1.6)
+        pdf.set_font("V", "B", self.small + 1)
         pdf.set_text_color(*self.brand)
-        pdf.cell(card_w - 8, 6, clean(title), align="R")
-        pdf.set_xy(card_x + 4, y0 + 11)
-        pdf.set_font("V", "", self.small)
-        pdf.set_text_color(*_INK)
-        pdf.cell(card_w - 8, 5, f"{self._l('number')}: {clean(inv.number, 32)}", align="R", new_x="LMARGIN", new_y="NEXT")
-        pdf.set_xy(card_x + 4, y0 + 17)
-        pdf.cell(card_w - 8, 5, f"{self._l('date')}: " + jalali.format_ts(inv.issued_ts, with_time=True, digits=self.digits),
-                 align="R", new_x="LMARGIN", new_y="NEXT")
-
-        buyer = inv.buyer or {}
-        name = ANON_NAME if buyer.get("anonymized") else (buyer.get("name") or "")
-        rows = []
-        if order_label:
-            rows.append((self._l("order"), clean(order_label, 60)))
-        rows.append((self._l("buyer"), clean(name, 80) or "—"))
-        if buyer.get("phone"):
-            rows.append((self._l("phone"), _num(clean(buyer["phone"], 30), self.digits)))
-        if buyer.get("address"):
-            rows.append((self._l("address"), clean(buyer["address"], 120)))
-        shipping_note = clean(buyer.get("shipping_method", ""), 40)
-        if shipping_note:
-            rows.append((self._l("shipping_note"), shipping_note))
-        method = _PAY_LABEL.get(inv.pay_method)
-        if method:
-            rows.append((self._l("pay_method"), method[1] if self.lang == "en" else method[0]))
-        if buyer.get("trace"):
-            rows.append((self._l("trace"), _num(clean(buyer["trace"], 40), self.digits)))
-        if inv.is_credit and ref_number:
-            rows.append((self._l("ref_invoice"), clean(ref_number, 40)))
-
-        yy = y0 + 2
-        for field_name, value in rows:
-            if not value:
-                continue
-            pdf.set_xy(12, yy)
+        pdf.cell(geo["panel_w"] - 2 * _META_PAD, _META_HEAD_H - 2.4, self._l("buyer_details"), align="R")
+        yy = y0 + _META_HEAD_H
+        for name, bold, lines in rows:
+            pdf.set_xy(geo["label_x"], yy)
             pdf.set_font("V", "", self.small)
             pdf.set_text_color(*_MUTED)
-            pdf.cell(info_w * 0.34, 5.4, clean(field_name, 32), align="R", new_x="RIGHT", new_y="TOP")
-            pdf.set_font("V", "B" if field_name == self._l("buyer") else "", self.small)
-            pdf.set_text_color(*_INK)
-            pdf.cell(info_w * 0.66, 5.4, value, align="R", new_x="LMARGIN", new_y="NEXT")
-            yy += 5.6
-        pdf.set_y(max(y0 + 25, yy) + 3)
+            pdf.cell(geo["label_w"], _META_ROW_H - 0.4, name, align="R")
+            for offset, line_text in enumerate(lines):  # مقدارِ بلند (نشانی) شکست خط می‌خورد، بریده نمی‌شود
+                pdf.set_xy(geo["value_x"], yy + offset * _META_ROW_H)
+                pdf.set_font("V", "B" if bold else "", self.small)
+                pdf.set_text_color(*(_MUTED if line_text == _PLACEHOLDER else _INK))
+                pdf.cell(geo["value_w"], _META_ROW_H - 0.4, line_text, align="R")
+            yy += _META_ROW_H * len(lines)
+
+        # ۲) کارتِ عنوان/شماره/تاریخ — نیمهٔ راستِ صفحه
+        pdf.rect(geo["card_x"], y0, geo["card_w"], _META_MIN_H, style="FD")
+        pdf.set_xy(geo["card_x"] + 4, y0 + 3)
+        pdf.set_font("V", "B", 12)
+        pdf.set_text_color(*self.brand)
+        pdf.cell(geo["card_w"] - 8, 6, clean(title), align="R")
+        pdf.set_xy(geo["card_x"] + 4, y0 + 11)
+        pdf.set_font("V", "", self.small)
+        pdf.set_text_color(*_INK)
+        pdf.cell(geo["card_w"] - 8, 5, f"{self._l('number')}: {clean(inv.number, 32)}", align="R", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_xy(geo["card_x"] + 4, y0 + 17)
+        pdf.cell(geo["card_w"] - 8, 5, f"{self._l('date')}: " + jalali.format_ts(inv.issued_ts, with_time=True, digits=self.digits),
+                 align="R", new_x="LMARGIN", new_y="NEXT")
+
+        pdf.set_y(max(y0 + panel_h, y0 + _META_MIN_H) + 3)
         self.rule(_LINE)
         pdf.ln(3)
 
@@ -481,24 +575,30 @@ class _InvoicePDF:
 
     def closing(self):
         pdf, seller = self.pdf, self.inv.seller
-        self._need_page(24)
+        self._need_page(30)
         footer_top = pdf.get_y()
         qr = _qr_png(_verify_payload(self.inv))
         if qr:
             try:
                 pdf.image(BytesIO(qr), x=12, y=footer_top, h=19)
-                pdf.set_xy(33, footer_top + 3)
+                pdf.set_xy(33, footer_top + 2)
                 pdf.set_font("V", "", 7.5)
                 pdf.set_text_color(*_MUTED)
                 pdf.cell(60, 4, self._l("verify"), new_x="LMARGIN", new_y="NEXT")
-                pdf.set_xy(33, footer_top + 8)
+                pdf.set_xy(33, footer_top + 7)
                 pdf.cell(60, 4, clean(self.inv.number, 40), new_x="LMARGIN", new_y="NEXT")
+                pdf.set_xy(33, footer_top + 12)
+                pdf.cell(60, 4, seller_name(seller), new_x="LMARGIN", new_y="NEXT")  # همان نامِ سربرگ/پابرگ
                 pdf.set_y(footer_top + 21)
             except Exception:  # noqa: BLE001
                 pdf.set_y(footer_top)
+        # سه متنِ پایانیِ قابلِ شخصی‌سازی (قلم ۸): تشکرِ مالک، پاورقیِ مالک، سلبِ مسئولیتِ مالک یا پیش‌فرض
+        thanks = clean(seller.get("thanks", ""), 200)
+        if thanks:
+            self.text(thanks, self.body, color=_INK, height=5.8)
         if seller.get("footer"):
             self.text(seller["footer"], self.small, color=_MUTED, height=5.4)
-        self.text(self._l("disclaimer"), 7.5, color=_MUTED, height=5)
+        self.text(clean(seller.get("disclaimer", ""), 300) or self._l("disclaimer"), 7.5, color=_MUTED, height=5)
 
     # --------------------------------------------------------------------- build
 
@@ -511,7 +611,7 @@ class _InvoicePDF:
         self.pdf.ln(3)
         self.totals()
         self.closing()
-        self.pdf.stamp_ctx = {"name": clean(seller_name(self.inv.seller), 40), "digits": self.digits, "lang": self.lang}
+        self.pdf.stamp_ctx = {"name": seller_name(self.inv.seller), "digits": self.digits, "lang": self.lang}
         return bytes(self.pdf.output())
 
 

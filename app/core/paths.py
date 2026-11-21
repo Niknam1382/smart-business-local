@@ -47,13 +47,39 @@ def _system_default_dir() -> Path:
     return Path(base) / APP_DIR_NAME
 
 
+# نشانه‌های «داده‌ی واقعیِ کاربر». فقط وجودِ یک پوشه/فایلِ جانبی (لاگ، فایلِ موقتِ آپدیت،
+# پوشه‌ی خالیِ models و…) داده حساب نمی‌شود؛ وگرنه ساخته‌شدنِ یک فایلِ بی‌اهمیت در
+# %APPDATA% کافی بود تا برنامه بی‌صدا به یک پوشه‌ی خالی بپرد و تنظیمات «گم» شوند.
+USER_DATA_MARKERS = ("settings.json", "secret.key", "products.db", "orders.db", "conversations.db")
+
+
 def _has_user_data(directory: Path) -> bool:
-    """آیا این پوشه از قبل داده‌ی کاربر دارد؟ نصبِ تازه به درایوِ محلِ نصب می‌رود، ولی کاربرِ
-    قدیمی هرگز نباید داده‌اش را در دو جا پیدا کند."""
+    """آیا این پوشه از قبل داده‌ی واقعیِ کاربر دارد؟ نصبِ تازه به درایوِ محلِ نصب می‌رود، ولی
+    کاربرِ قدیمی هرگز نباید داده‌اش را در دو جا پیدا کند."""
     try:
-        return directory.is_dir() and any(directory.iterdir())
+        return directory.is_dir() and any((directory / name).is_file() for name in USER_DATA_MARKERS)
     except OSError:
         return False
+
+
+def known_data_dirs() -> list:
+    """همه‌ی جاهایی که یک نسخه‌ی این برنامه ممکن است داده را گذاشته باشد (برای یافتنِ مدل/داده‌ی قبلی)."""
+    found: list = []
+    override = os.environ.get(ENV_DATA_DIR, "").strip()
+    if override:
+        found.append(Path(override).expanduser())
+    found.append(_system_default_dir())
+    try:
+        drive = app_anchor().drive
+    except OSError:
+        drive = ""
+    if drive and sys.platform == "win32":
+        found.append(Path(drive + os.sep) / APP_DIR_NAME)
+    unique: list = []
+    for item in found:
+        if item not in unique:
+            unique.append(item)
+    return unique
 
 
 def resolve_data_dir() -> tuple:

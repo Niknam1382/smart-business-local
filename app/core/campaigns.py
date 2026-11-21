@@ -133,7 +133,7 @@ class CampaignService:
         if c.code_id:
             row = self._conn().execute(
                 """SELECT COUNT(*) AS n, COALESCE(SUM(o.total_irr),0) AS rev FROM discount_usage u JOIN orders o ON o.id=u.order_id
-                   WHERE u.code_id=? AND u.released=0 AND o.status IN ('paid','confirmed') AND u.created_ts>=?""",
+                   WHERE u.code_id=? AND u.released=0 AND o.status IN ('paid','confirmed','closed') AND u.created_ts>=?""",
                 (c.code_id, c.launched_ts),
             ).fetchone()
             out.code_uses, out.revenue_irr = int(row["n"]), int(row["rev"])

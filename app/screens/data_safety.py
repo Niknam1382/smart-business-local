@@ -20,6 +20,7 @@ import flet as ft
 
 from app import theme
 from app.core import backup, paths
+from app.core.friendly_errors import friendly_error
 from app.core import settings as settings_module
 from app.core.backup import BackupError
 from app.i18n import t
@@ -58,7 +59,7 @@ def build(
         page.update()
 
     def fail(exc: Exception) -> None:
-        say(str(exc) if isinstance(exc, BackupError) else t("data.error", lang, error=str(exc)[:160]), False)
+        say(str(exc) if isinstance(exc, BackupError) else t("data.error", lang, error=friendly_error(exc, lang)), False)
 
     def stop_bots() -> None:
         if manager is not None and manager.is_running():

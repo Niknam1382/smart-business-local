@@ -148,13 +148,32 @@ def download(
             raise  # اثرانگشت از هیچ آینه‌ای درست نمی‌شه اگه خودِ فایل باطل باشه؛ ولی اول بعدی را امتحان می‌کنیم
         except (urllib.error.URLError, OSError, TimeoutError, ValueError) as exc:
             _drop_meta(part)
-            failures.append(f"{host}: {_reason(exc)}")
+            failures.append(f"{host}: {_reason(exc)}" + (f" ← {_hint(exc)}" if _hint(exc) else ""))
             continue
     raise DownloadError(
         "دانلود از هیچ منبعی ممکن نشد (" + " · ".join(failures)[:300] + ")."
         " اتصال اینترنت/VPN را چک کن؛ اگر به این منابع دسترسی نداری، فایلِ GGUF را از جایِ مطمئن بگیر"
         " و با «وارد کردن فایلِ مدل» به برنامه نشان بده."
     )
+
+
+def _hint(exc: Exception) -> str:
+    """قدمِ بعدیِ پیشنهادی برای رایج‌ترین علت‌ها (۱٫۲٫۰)؛ به متنِ خامِ ``_reason`` اضافه می‌شود، جایگزینش نمی‌شود."""
+    if isinstance(exc, urllib.error.HTTPError):
+        return {
+            401: "نیاز به ورود/دسترسی دارد",
+            403: "دسترسی ممنوع است (احتمالاً فیلتر/تحریم؛ VPN یا منبعِ دیگر را امتحان کن)",
+            404: "فایل روی این منبع پیدا نشد",
+            429: "درخواست‌ها زیاد است؛ چند دقیقه بعد دوباره امتحان کن",
+        }.get(exc.code, "")
+    lowered = str(exc).lower()
+    if isinstance(exc, TimeoutError) or "timed out" in lowered:
+        return "پاسخی نیامد؛ اینترنت/VPN را بررسی کن"
+    if "certificate" in lowered or "ssl" in lowered:
+        return "خطای گواهیِ امنیتی؛ ساعتِ سیستم، VPN یا آنتی‌ویروس را بررسی کن"
+    if "getaddrinfo" in lowered or "name or service not known" in lowered:
+        return "آدرسِ سرور پیدا نشد؛ اینترنت یا VPN را بررسی کن"
+    return ""
 
 
 def _reason(exc: Exception) -> str:
@@ -279,6 +298,8 @@ def verify_file(path: Path, expected_sha256: str) -> tuple:
     if not path.is_file():
         return False, "فایل پیدا نشد."
     actual = sha256_file(path)
+    if not expected_sha256:  # مدلِ تأییدنشده: هشِ مرجع نداریم؛ هشِ واقعی را نشان می‌دهیم تا با صفحه‌ی مخزن مقایسه شود
+        return True, f"SHA-256: {actual}"
     if actual.lower() != expected_sha256.lower():
         return False, "اثرانگشتِ فایل با نسخه‌ی اصلی نمی‌خونه؛ باید دوباره دانلودش کنی."
     return True, ""

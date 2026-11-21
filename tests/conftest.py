@@ -49,6 +49,8 @@ def isolated_appdata(tmp_path, monkeypatch):
 def _no_network_update_check(monkeypatch):
     """بررسیِ خودکارِ نسخه‌ی تازه (GitHub) در تست‌ها هرگز نباید شبکه بزنه؛ تست‌های خودش ``UpdateChecker`` جعلی می‌دن."""
     monkeypatch.setenv("SMART_BUSINESS_NO_UPDATE_CHECK", "1")
+    # ۱٫۲٫۰: پیشنهادِ خودکارِ شتابِ گرافیکی روی ماشینِ توسعه‌دهنده (دارایِ کارتِ NVIDIA) در تست‌ها دیالوگ نشان ندهد
+    monkeypatch.setenv("SMART_BUSINESS_NO_GPU_OFFER", "1")
 
 
 @pytest.fixture(autouse=True)

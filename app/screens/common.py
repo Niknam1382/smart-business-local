@@ -103,48 +103,86 @@ def get_or_create_file_picker(page: ft.Page) -> ft.FilePicker:
 def card(page: ft.Page, content: ft.Control, padding: int = 20) -> ft.Container:
     return ft.Container(
         padding=padding,
-        border_radius=14,
+        border_radius=theme.RADIUS_CARD,
         bgcolor=theme.card_bgcolor(page),
         border=ft.Border.all(1, theme.border_color(page)),
-        shadow=ft.BoxShadow(blur_radius=18, color="#00000014", offset=ft.Offset(0, 4)),
+        shadow=theme.card_shadow(page),
         content=content,
     )
 
 
 def section_header(icon: str, text: str) -> ft.Control:
     return ft.Row(
-        spacing=8,
+        spacing=10,
+        vertical_alignment=ft.CrossAxisAlignment.CENTER,
         controls=[
-            ft.Icon(icon=icon, color=theme.PRIMARY, size=20),
+            ft.Container(
+                width=30,
+                height=30,
+                border_radius=9,
+                bgcolor=f"{theme.PRIMARY}14",
+                alignment=ft.Alignment.CENTER,
+                content=ft.Icon(icon=icon, color=theme.PRIMARY, size=17),
+            ),
             ft.Text(text, size=15, weight=ft.FontWeight.W_600),
         ],
     )
 
 
-def page_header(page: ft.Page, icon: str, title: str, subtitle: str = "") -> ft.Control:
-    """سرتیتر یکسان برای هر صفحه‌ی داخل پوسته: نشان آیکون‌دار + عنوان + زیرعنوان."""
-    controls: list[ft.Control] = [
-        ft.Row(
-            spacing=12,
+def page_header(page: ft.Page, icon: str, title: str, subtitle: str = "", hero: bool = False) -> ft.Control:
+    """سرتیترِ یکسانِ هر صفحه (۱٫۲٫۰، هویتِ «Aurora»).
+
+    پیش‌فرض: ردیفِ تمیز با نشانِ گرادیانیِ آیکن‌دار، عنوانِ درشت و زیرعنوانِ کم‌رنگ (حرفه‌ای و کم‌شلوغ).
+    ``hero=True`` (فقط خانه): بنرِ گرادیانیِ ایندیگو←بنفش با متنِ سفید و آیکنِ تزئینیِ بزرگ."""
+    if hero:
+        texts: list[ft.Control] = [ft.Text(title, size=24, weight=ft.FontWeight.W_700, color=theme.ON_SOLID)]
+        if subtitle:
+            texts.append(ft.Text(subtitle, size=13, color=f"{theme.ON_SOLID}CC"))
+        return ft.Container(
+            key="page_hero",
+            padding=ft.Padding.symmetric(horizontal=26, vertical=24),
+            border_radius=theme.RADIUS_CARD + 4,
+            gradient=theme.hero_gradient(),
+            shadow=ft.BoxShadow(blur_radius=30, color=f"{theme.PRIMARY}40", offset=ft.Offset(0, 12)),
+            content=ft.Row(
+                spacing=18,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                controls=[
+                    ft.Column(spacing=6, tight=True, expand=True, controls=texts),
+                    ft.Container(
+                        width=76,
+                        height=76,
+                        border_radius=24,
+                        bgcolor=f"{theme.ON_SOLID}1F",
+                        border=ft.Border.all(1, f"{theme.ON_SOLID}33"),
+                        alignment=ft.Alignment.CENTER,
+                        content=ft.Icon(icon=icon, color=theme.ON_SOLID, size=38),
+                    ),
+                ],
+            ),
+        )
+    texts = [ft.Text(title, size=24, weight=ft.FontWeight.W_700, color=theme.text_primary(page))]
+    if subtitle:
+        texts.append(ft.Text(subtitle, size=13, color=theme.text_secondary(page)))
+    return ft.Container(
+        padding=ft.Padding(left=0, right=0, top=2, bottom=6),
+        content=ft.Row(
+            spacing=16,
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
             controls=[
                 ft.Container(
-                    width=44,
-                    height=44,
-                    border_radius=13,
-                    gradient=ft.LinearGradient(
-                        begin=ft.Alignment.TOP_LEFT, end=ft.Alignment.BOTTOM_RIGHT, colors=[theme.PRIMARY, theme.BRAND_WARM]
-                    ),
+                    width=52,
+                    height=52,
+                    border_radius=16,
+                    gradient=theme.hero_gradient(),
+                    shadow=ft.BoxShadow(blur_radius=16, color=f"{theme.PRIMARY}33", offset=ft.Offset(0, 6)),
                     alignment=ft.Alignment.CENTER,
-                    content=ft.Icon(icon=icon, color=theme.ON_SOLID, size=22),
+                    content=ft.Icon(icon=icon, color=theme.ON_SOLID, size=26),
                 ),
-                ft.Text(title, size=23, weight=ft.FontWeight.W_700, expand=True),
+                ft.Column(spacing=3, tight=True, expand=True, controls=texts),
             ],
-        )
-    ]
-    if subtitle:
-        controls.append(ft.Text(subtitle, size=13, color=theme.text_secondary(page)))
-    return ft.Column(spacing=6, controls=controls)
+        ),
+    )
 
 
 def _mounted(owner: ft.Control) -> bool:
@@ -205,7 +243,7 @@ def screen_frame(page: ft.Page, header: ft.Control, controls: list, key: Optiona
         padding=ft.Padding.symmetric(horizontal=theme.CONTENT_FRAME_PADDING + theme.content_side_gap(page), vertical=20),
         # قلم ۴: ALWAYS + scrollbar_themeِ خنثیِ theme.py یعنی نوارِ اسکرولِ سمتِ راست
         # همیشه دیده می‌شه؛ کاربر برای فهمیدنِ «ادامه دارد؟» نباید حدس بزند.
-        content=ft.Column(expand=True, spacing=16, scroll=ft.ScrollMode.ALWAYS, controls=[header, *controls]),
+        content=ft.Column(expand=True, spacing=20, scroll=ft.ScrollMode.ALWAYS, controls=[header, *controls]),
     )
 
 
@@ -229,7 +267,7 @@ def logo_badge(size: int = 44, icon: str = None) -> ft.Control:
         gradient=ft.LinearGradient(
             begin=ft.Alignment.TOP_LEFT,
             end=ft.Alignment.BOTTOM_RIGHT,
-            colors=[theme.ACCENT, theme.ACCENT_DARK],
+            colors=[theme.PRIMARY, theme.HERO_END],
         ),
         alignment=ft.Alignment.CENTER,
         content=ft.Icon(icon or ft.Icons.AUTO_AWESOME_ROUNDED, color=theme.ON_SOLID, size=size * 0.52),
@@ -273,6 +311,24 @@ def step_dots(current: int, total: int, active_color: str = None) -> ft.Control:
     return ft.Row(spacing=6, alignment=ft.MainAxisAlignment.CENTER, controls=dots)
 
 
+def fit_width(page: ft.Page, preferred: int, reserve: int = 300, minimum: int = 280) -> int:
+    """عرضِ دلخواه را به پنجره‌ی فعلی می‌چسباند (۱٫۲٫۰): در پنجره‌ی کوچک یا مقیاسِ ۱۵۰٪ ویندوز کادرِ ثابت‌عرض از صفحه بیرون
+    نمی‌زند. ``reserve`` = نوارِ کناری + حاشیه‌ها. اگر پهنای صفحه ناشناخته بود، همان مقدارِ دلخواه."""
+    width = getattr(page, "width", None)
+    if not isinstance(width, (int, float)) or width <= 0:
+        return preferred
+    return int(min(preferred, max(minimum, width - reserve)))
+
+
+def _shape_style(**extra):
+    """گوشه‌ی گردِ یکسان برای دکمه‌ها (۱٫۲٫۰). اگر نسخه‌ی Flet پارامتری را نپذیرد، به ظاهرِ پیش‌فرض برمی‌گردد
+    تا هیچ‌وقت ساختِ دکمه نشکند."""
+    try:
+        return ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=theme.RADIUS_FIELD), **extra)
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def button_height(size: str) -> int:
     """ارتفاعِ یکی از سه اندازه‌ی استاندارد (``lg`` / ``md`` / ``sm``).
 
@@ -306,6 +362,7 @@ def primary(
         icon=icon,
         bgcolor=bgcolor or theme.PRIMARY,
         color=color or theme.ON_SOLID,
+        style=_shape_style(),
         height=button_height(size),
         width=width,
         disabled=disabled,
@@ -334,7 +391,7 @@ def secondary(
         key=key,
         content=label,
         icon=icon,
-        style=ft.ButtonStyle(color=theme.PRIMARY, bgcolor=bgcolor),
+        style=_shape_style(color=theme.PRIMARY, bgcolor=bgcolor) or ft.ButtonStyle(color=theme.PRIMARY, bgcolor=bgcolor),
         height=button_height(size),
         width=width,
         disabled=disabled,
@@ -441,7 +498,7 @@ def option_card(
     return ft.Container(
         width=width,
         padding=18,
-        border_radius=14,
+        border_radius=theme.RADIUS_CARD - 2,
         bgcolor=f"{accent}0F" if is_selected else theme.card_bgcolor(page),
         border=ft.Border.all(2 if is_selected else 1, accent if is_selected else theme.border_color(page)),
         shadow=(

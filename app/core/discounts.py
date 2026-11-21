@@ -294,7 +294,7 @@ def _usage_counts(conn: sqlite3.Connection, code_id: int, platform: str, chat_id
 
 def _prior_paid_orders(conn: sqlite3.Connection, platform: str, chat_id: str) -> int:
     return int(conn.execute(
-        "SELECT COUNT(*) FROM orders WHERE platform=? AND chat_id=? AND status IN ('paid','confirmed')", (platform, str(chat_id))
+        "SELECT COUNT(*) FROM orders WHERE platform=? AND chat_id=? AND status IN ('paid','confirmed','closed')", (platform, str(chat_id))
     ).fetchone()[0])
 
 
@@ -521,7 +521,7 @@ class DiscountStore:
         row = self._conn().execute(
             """SELECT COUNT(*) AS n, COALESCE(SUM(o.total_irr), 0) AS rev, COALESCE(SUM(u.amount_irr), 0) AS disc
                FROM discount_usage u JOIN orders o ON o.id = u.order_id
-               WHERE u.code_id=? AND u.released=0 AND o.status IN ('paid','confirmed')""",
+               WHERE u.code_id=? AND u.released=0 AND o.status IN ('paid','confirmed','closed')""",
             (code_id,),
         ).fetchone()
         return CodeStats(uses=int(row["n"]), revenue_irr=int(row["rev"]), discount_irr=int(row["disc"]))

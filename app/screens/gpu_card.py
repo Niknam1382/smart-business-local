@@ -52,6 +52,18 @@ _S = {
     "removed": ("بسته برداشته شد؛ محاسبه دوباره روی CPU است.", "Pack removed; computing is back on CPU."),
     "saved": ("ذخیره شد.", "Saved."),
     "failed": ("⚠️ {detail}", "⚠️ {detail}"),
+    "offer_title": ("کارتِ گرافیکِ NVIDIA پیدا شد", "An NVIDIA graphics card was found"),
+    "offer_body": (
+        "کارتِ «{gpu}» روی این سیستم هست. برایِ پاسخ‌هایِ سریع‌تر و فشارِ کمترِ پردازنده می‌توانیم «بسته‌یِ شتاب» را "
+        "دانلود و فعال کنیم (حدود {mb} مگابایت، از انتشارِ رسمیِ llama.cpp، با راستی‌آزمایی). بدونِ اجازه‌یِ تو چیزی دانلود "
+        "نمی‌شود؛ اگر الان نخواهی، همان پردازنده کار می‌کند و هر وقت خواستی از «تجربه‌یِ ربات» می‌توانی نصبش کنی.",
+        "Your “{gpu}” card is available. For faster answers and less CPU load we can download and enable the acceleration "
+        "pack (about {mb} MB, from the official llama.cpp release, verified). Nothing downloads without your permission; "
+        "if you say no, the CPU keeps working and you can install it later from the bot experience page.",
+    ),
+    "offer_yes": ("دانلود و فعال‌سازی ({mb} MB)", "Download and enable ({mb} MB)"),
+    "offer_later": ("بعداً", "Later"),
+    "offer_never": ("دیگر نپرس", "Don't ask again"),
     "not_supported": ("بستهٔ شتاب فقط روی ویندوزِ دارایِ کارتِ NVIDIA معنا دارد.",
                       "The acceleration pack only makes sense on Windows with an NVIDIA card."),
 }

@@ -10,6 +10,7 @@ import flet as ft
 
 from app import theme
 from app.core.data_probe import DataFootprint
+from app.core.friendly_errors import friendly_error
 from app.i18n import t
 from app.screens import common
 
@@ -32,7 +33,16 @@ def build(page: ft.Page, lang: str, footprint: DataFootprint, on_continue, on_fr
     def handle_continue(e=None) -> None:
         on_continue()
 
+    armed = {"value": False}
+
     def handle_fresh(e=None) -> None:
+        # ۱٫۲٫۰: «شروعِ تازه» تنها با دو کلیکِ آگاهانه؛ یک کلیکِ اشتباه هرگز چیزی پاک نمی‌کند
+        if not armed["value"]:
+            armed["value"] = True
+            fresh.content = t("found.fresh_confirm", lang)
+            fresh.icon = ft.Icons.WARNING_AMBER_ROUNDED
+            page.update()
+            return
         lock(True)
         set_status(t("found.working", lang), ok=True)
 
@@ -41,7 +51,7 @@ def build(page: ft.Page, lang: str, footprint: DataFootprint, on_continue, on_fr
                 on_fresh_start(set_status)
             except Exception as exc:  # noqa: BLE001 — پیامِ روشن، نه کرش
                 lock(False)
-                set_status(t("found.error", lang, error=str(exc)[:160]), ok=False)
+                set_status(t("found.error", lang, error=friendly_error(exc, lang)), ok=False)
 
         page.run_thread(work)
 

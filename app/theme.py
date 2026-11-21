@@ -1,35 +1,35 @@
 """
-طرح رنگی و تایپوگرافی «کسب‌وکار هوشمند» (نسخه محلی).
+طرح رنگی و تایپوگرافی «کسب‌وکار هوشمند» (نسخه محلی) — هویتِ «Aurora» (۱٫۲٫۰).
 
-پالت به‌جای آبی/سبز پیش‌فرض معمول ابزارهای SaaS، حول یک نیوی تیره
-(اعتماد و ثبات) و یک کهربایی گرم (فقط برای اکشن‌های اصلی) ساخته شده تا
-هم حرفه‌ای باشد و هم با فضای یک ابزار کسب‌وکار کوچک ایرانی بیگانه نباشد.
+ایندیگو←بنفش برای برند و اکشن‌های اصلی، خنثی‌هایِ سردِ آبی‌خاکستری برای سطح‌ها (روشن و تیره)،
+یک کهربایی فقط برای «انتخاب‌شده»، و رنگ‌هایِ معنایی (موفق/هشدار/خطا/اطلاع) با کنتراستِ خوانا.
 فونت هر دو زبان: Vazirmatn (طراحی‌شده برای فارسی و لاتین با هم).
 """
 
 import flet as ft
 
-# --- پالت ---
-PRIMARY = "#1F2D50"
-PRIMARY_LIGHT = "#33456F"
-ACCENT = "#C68E3D"
-ACCENT_DARK = "#9C6F2C"
-BRAND_WARM = "#B0424A"  # سرِ دیگرِ گرادیانِ برند — هم‌رنگِ پایینِ آیکنِ ۱.۰.۰ (اناری)
+# --- پالت (۱٫۲٫۰: هویتِ بصریِ تازه «Aurora») ---
+# ایندیگو → بنفش برای برند، خنثی‌هایِ سردِ آبی-خاکستری برای سطح‌ها، و کهربایی فقط برای «انتخاب‌شده».
+PRIMARY = "#4F46E5"
+PRIMARY_LIGHT = "#818CF8"
+ACCENT = "#F59E0B"
+ACCENT_DARK = "#B45309"
+BRAND_WARM = "#C026D3"  # سرِ دیگرِ گرادیانِ برند (بنفش-سرخابی)
 
-SURFACE_LIGHT = "#F6F5F2"
-SURFACE_DARKMODE = "#15130F"
+SURFACE_LIGHT = "#F3F5FB"
+SURFACE_DARKMODE = "#0B1020"
 CARD_LIGHT = "#FFFFFF"
-CARD_DARKMODE = "#211F1A"
+CARD_DARKMODE = "#131A2F"
 
-TEXT_PRIMARY_LIGHT = "#1C1B18"
-TEXT_PRIMARY_DARKMODE = "#F1EFE9"
-TEXT_SECONDARY_LIGHT = "#6B6862"
-TEXT_SECONDARY_DARKMODE = "#A9A69D"
+TEXT_PRIMARY_LIGHT = "#0F172A"
+TEXT_PRIMARY_DARKMODE = "#EEF2FF"
+TEXT_SECONDARY_LIGHT = "#56627F"
+TEXT_SECONDARY_DARKMODE = "#A3AECB"
 
-SUCCESS = "#3B7A57"
-DANGER = "#B4432F"
-WARNING = "#B4802F"  # هشدارِ غیرخطرناک (مبلغِ رسید نمی‌خونه، موجودیِ کم)
-INFO = "#3A6EA5"  # نکته‌ی خنثی (راهنمایی، وضعیتِ عادی)
+SUCCESS = "#15803D"
+DANGER = "#DC2626"
+WARNING = "#B45309"  # هشدارِ غیرخطرناک (مبلغِ رسید نمی‌خونه، موجودیِ کم)
+INFO = "#0369A1"  # نکته‌ی خنثی (راهنمایی، وضعیتِ عادی)
 
 # ---- قاعده‌ی رنگِ «توجه» (قلم ۳ — شکایتِ مالک: «قهوه‌ایِ بی‌مورد برای جلبِ توجه») ----
 # ACCENT / ACCENT_DARK فقط هویتِ برند و وضعیتِ «انتخاب‌شده» هستند: لوگو، نقطه‌ی آیتمِ
@@ -42,13 +42,13 @@ INFO = "#3A6EA5"  # نکته‌ی خنثی (راهنمایی، وضعیتِ عا
 # پس هیچ صفحه‌ای برای «باید دیده بشه چون مشکلی هست» حق ندارد از ACCENT استفاده کند.
 
 # مقیاس‌هایِ طراحی — تا صفحه‌ها به‌جای عددِ دلخواه، از یک‌جا وزن/فاصله/گردی بگیرن
-RADIUS_CARD = 14
-RADIUS_FIELD = 12
+RADIUS_CARD = 20  # ۱٫۲٫۰: گردیِ نرم‌تر برای کارت/سرتیتر
+RADIUS_FIELD = 14
 RADIUS_PILL = 999
 SPACE_XS, SPACE_SM, SPACE_MD, SPACE_LG, SPACE_XL = 6, 10, 16, 24, 32
 FONT_CAPTION, FONT_BODY, FONT_SUBTITLE, FONT_TITLE, FONT_DISPLAY = 11.5, 13.5, 15, 18, 24
-BORDER_LIGHT = "#E4E1D8"
-BORDER_DARKMODE = "#3A382F"
+BORDER_LIGHT = "#E2E8F4"
+BORDER_DARKMODE = "#25304D"
 
 # رنگِ روشنی که روی آن متنِ سفید می‌نشیند (دکمه‌ی توپُر، بنرهای تیره) — تا #FFFFFF
 # در هر صفحه‌ای جدا نوشته نشه و یک‌جا عوض بشه
@@ -56,13 +56,13 @@ ON_SOLID = "#FFFFFF"
 
 # خنثی‌هایِ بی‌رنگِ همان پالتِ کاغذی (قهوه‌ایِ روشنِ بسیار کم‌اشباع) — قبلاً همین
 # مقدارها به‌صورت هگزِ خام در home/common/sidebar نوشته شده بود
-CHART_BAR_EMPTY = "#D8D5CC"  # ستونِ خالیِ نمودارِ فروش (روزِ بی‌فروش)
-STEP_DOT_IDLE = "#D8D4C8"  # نقطه‌ی مرحله‌ی «هنوز نرسیده» در آنبوردینگ
-SIDEBAR_ON_DARK = "#93E6B7"  # نشانِ نسخه روی نوارِ کناریِ نیوی
-SIDEBAR_TEXT_DIM = "#C7CCDA"  # متن/آیکنِ آیتمِ عادیِ منو
-SIDEBAR_TEXT_FAINT = "#8B92A8"  # سرتیترِ گروه و زیرنویسِ منو
-SIDEBAR_ACTIVE_BG = "#FFFFFF2B"  # پس‌زمینه‌ی نیمه‌شفافِ آیتمِ فعالِ منو
-SIDEBAR_DIVIDER = "#FFFFFF1F"  # خطِ جداکننده‌ی گروه‌ها روی نیوی
+CHART_BAR_EMPTY = "#E2E8F4"  # ستونِ خالیِ نمودارِ فروش (روزِ بی‌فروش)
+STEP_DOT_IDLE = "#CBD3E6"  # نقطه‌ی مرحله‌ی «هنوز نرسیده» در آنبوردینگ
+SIDEBAR_ON_DARK = "#86EFAC"  # نشانِ نسخه روی نوارِ کناریِ نیوی
+SIDEBAR_TEXT_DIM = "#C7CEEA"  # متن/آیکنِ آیتمِ عادیِ منو
+SIDEBAR_TEXT_FAINT = "#8590B3"  # سرتیترِ گروه و زیرنویسِ منو
+SIDEBAR_ACTIVE_BG = "#FFFFFF1F"  # پس‌زمینه‌ی نیمه‌شفافِ آیتمِ فعالِ منو
+SIDEBAR_DIVIDER = "#FFFFFF14"  # خطِ جداکننده‌ی گروه‌ها روی نیوی
 
 # ---- مقیاسِ دکمه (قلم ۱ — شکایتِ مالک: «بعضی دکمه‌ها کوچک و بزرگ‌اند») ----
 # فقط همین سه ارتفاع در کل برنامه وجود دارد؛ صفحه‌ها عددِ دلخواه نمی‌نویسند
@@ -73,11 +73,12 @@ BTN_SIZES = {"lg": BTN_LG, "md": BTN_MD, "sm": BTN_SM}
 
 # ---- مقیاسِ محتوا ----
 CONTENT_MAX_WIDTH = 1040  # سقفِ عرضِ ستونِ محتوا؛ پنجره‌ی بزرگ‌شده متن را لبه‌به‌لبه نکِشَد
-CONTENT_SIDE_CHROME = 288  # نوارِ کناری (۲۳۲) + حاشیه‌ی قابِ صفحه (۲×۲۸)
+CONTENT_SIDE_CHROME = 328  # نوارِ کناری (۲۴۸) + حاشیه‌ی شناورِ آن (۲×۱۲) + حاشیه‌ی قابِ صفحه (۲×۲۸)
 CONTENT_FRAME_PADDING = 28  # حاشیه‌ی پیش‌فرضِ screen_frame در هر طرف
 
 # نیوی تیره‌تر برای گرادیان نوار کناری — همون PRIMARY ولی با عمق، نه یه رنگ تخت
-SIDEBAR_GRADIENT_END = "#121A30"
+SIDEBAR_GRADIENT_START = "#10132B"
+SIDEBAR_GRADIENT_END = "#1E1B4B"
 
 FONT_FAMILY = "Vazirmatn"
 
@@ -91,8 +92,8 @@ FONT_PATHS = {
 # ---- پالتِ خنثیِ نوارِ اسکرول (قلم ۱/۴ — شکایتِ مالک: «رنگِ اسکرول‌ها به UI نمی‌خورد») ----
 # thumb دیگر PRIMARY (نیویِ تقریباً مشکی) نیست: از میانه‌ی BORDER_* و TEXT_SECONDARY_*
 # می‌آید، یعنی همان خاکستریِ گرمِ سطحِ کارت، فقط کمی تیره‌تر تا دیده شود.
-SCROLL_THUMB_LIGHT = "#B7B3A8"
-SCROLL_THUMB_DARK = "#6E6B61"
+SCROLL_THUMB_LIGHT = "#B4BDD6"
+SCROLL_THUMB_DARK = "#5A6690"
 SCROLL_TRACK_LIGHT = f"{BORDER_LIGHT}33"  # نیمه‌شفاف: بک‌گراندِ کاغذی از زیرش معلوم باشه
 SCROLL_TRACK_DARK = f"{BORDER_DARKMODE}4D"
 
@@ -173,11 +174,29 @@ def text_secondary(page: ft.Page) -> str:
     return TEXT_SECONDARY_DARKMODE if page.theme_mode == ft.ThemeMode.DARK else TEXT_SECONDARY_LIGHT
 
 
+HERO_END = "#7C3AED"  # سرِ بنفشِ گرادیانِ برند (بنرِ خانه، آیکنِ سرتیتر، آیتمِ فعالِ منو)
+
+
+def card_shadow(page: ft.Page) -> ft.BoxShadow:
+    """سایه‌ی نرمِ یکسان برای کارت‌ها و سرتیتر؛ در تمِ تیره غلیظ‌تر تا سطح از زمینه جدا بماند."""
+    dark = page.theme_mode == ft.ThemeMode.DARK
+    return ft.BoxShadow(blur_radius=24, color="#00000066" if dark else "#4F46E514", offset=ft.Offset(0, 8))
+
+
+def hero_gradient() -> ft.LinearGradient:
+    """گرادیانِ برندِ ایندیگو←بنفش (متنِ سفید روی آن همیشه خوانا است، در هر دو تم)."""
+    return ft.LinearGradient(
+        begin=ft.Alignment.TOP_LEFT,
+        end=ft.Alignment.BOTTOM_RIGHT,
+        colors=[PRIMARY, HERO_END],
+    )
+
+
 def sidebar_gradient() -> ft.LinearGradient:
     """گرادیان ظریف نیوی برای نوار کناری — یه رنگ تخت خیلی «فلت»/جنریک به
     نظر می‌رسه؛ یه گرادیان خیلی کم‌جزئیات همون پالت رو عمیق‌تر نشون می‌ده."""
     return ft.LinearGradient(
         begin=ft.Alignment.TOP_CENTER,
         end=ft.Alignment.BOTTOM_CENTER,
-        colors=[PRIMARY, SIDEBAR_GRADIENT_END],
+        colors=[SIDEBAR_GRADIENT_START, SIDEBAR_GRADIENT_END],
     )

@@ -256,6 +256,23 @@ def stream_to(
     return done
 
 
+SPACE_MARGIN_BYTES = 64 * 1024 * 1024
+
+
+def ensure_space(folder: Path, asset_size: int) -> None:
+    """۱٫۲٫۰: پیش از دانلودِ فایلِ بزرگ، فضای خالیِ پوشه‌ی موقت سنجیده می‌شود (فایل + بازکردن/آماده‌سازی + حاشیه)؛
+    کمبودِ فضا همان‌جا با پیامِ روشن (``update.error.disk``) رد می‌شود، نه وسطِ دانلود. اندازه‌ی ناشناخته ⇒ بی‌اثر."""
+    if asset_size <= 0:
+        return
+    try:
+        free = shutil.disk_usage(folder).free
+    except OSError:
+        return
+    need = int(asset_size * 2.2) + SPACE_MARGIN_BYTES
+    if free < need:
+        raise InstallError("disk", f"no_space free={free} need={need}")
+
+
 def download_bytes(url: str, *, max_bytes: int, **kwargs) -> bytes:
     buffer = io.BytesIO()
     stream_to(url, buffer.write, max_bytes=max_bytes, **kwargs)
@@ -514,6 +531,7 @@ class UpdateInstaller:
         handed_off = False
         try:
             staging = Path(tempfile.mkdtemp(prefix=STAGING_PREFIX, dir=str(self._temp_root) if self._temp_root else None))
+            ensure_space(staging, av.asset.size)
             sha = self._fetch_verified(info, av, staging / av.asset.name, progress)
             if av.mode == MODE_DOWNLOAD:
                 folder = self._downloads_target()

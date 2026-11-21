@@ -20,13 +20,18 @@ def hw(ram=None, cores=None, disk=None, gpu=""):
 
 def test_entries_are_complete_and_ids_unique():
     ids = [e.id for e in mc.entries()]
-    assert len(ids) == len(set(ids)) == 6
+    assert len(ids) == len(set(ids))
+    assert len([e for e in mc.entries() if e.verified]) == 6  # مدل‌هایِ تأییدشده
     for e in mc.entries():
-        assert len(e.sha256) == 64 and e.size_bytes > 0 and 0 < e.min_ram_gb < e.good_ram_gb
+        assert e.size_bytes > 0 and 0 < e.min_ram_gb < e.good_ram_gb
         assert e.label["fa"] and e.label["en"] and e.blurb["fa"] and e.blurb["en"]
-        assert e.urls[0].startswith("https://huggingface.co/") and len(e.urls) >= 2  # منبعِ اصلی + آینه
-        assert e.urls[0].endswith(e.filename)
-        assert e.license == "apache-2.0"
+        assert e.urls[0].startswith("https://huggingface.co/") and e.urls[0].endswith(e.filename)
+        if e.verified:
+            assert len(e.sha256) == 64 and len(e.urls) >= 2  # منبعِ اصلی + آینه
+            assert e.license == "apache-2.0" or e.id == "qwen25-3b"
+            assert e.expected_size == e.size_bytes
+        else:  # ۱٫۲٫۰: بدونِ هشِ مرجع: فقط منبعِ رسمی، حجمِ تقریبی ⇒ بررسیِ حجم خاموش
+            assert e.sha256 == "" and e.expected_size == 0 and len(e.urls) == 1
 
 
 def test_the_catalog_declares_every_host_a_real_download_redirects_to():
@@ -37,7 +42,10 @@ def test_the_catalog_declares_every_host_a_real_download_redirects_to():
         hosts = {u.split("/")[2] for u in e.urls}
         assert hosts and hosts <= e.allowed_hosts
         assert "hf.co" in e.allowed_hosts
-        assert e.allowed_hosts == set(mc.SOURCE_HOSTS) | set(mc.CDN_DOMAINS)
+        if e.verified:
+            assert e.allowed_hosts == set(mc.SOURCE_HOSTS) | set(mc.CDN_DOMAINS)
+        else:
+            assert "hf-mirror.com" not in e.allowed_hosts  # آینه‌ی ثالث برای فایلِ بی‌هشِ مرجع نه
 
 
 def test_the_unreachable_third_mirror_is_no_longer_offered():
@@ -101,10 +109,15 @@ def test_ranked_for_is_best_first_and_marks_every_state():
     ranked = mc.ranked_for(hw(ram=16), path_free_gb=100)
     assert {e.id for e, _s in ranked} == {e.id for e in mc.entries()}  # هیچ مدلی حذف نمی‌شه
     order = {"recommended": 0, "ok": 1, "tight": 2, "no": 3}
-    states = [order[s] for _e, s in ranked]
-    assert states == sorted(states) and all(s in order for _e, s in ranked)
+    flags = [e.verified for e, _s in ranked]
+    assert flags == sorted(flags, reverse=True)  # اول تأییدشده‌ها، بعد تأییدنشده‌ها
+    for group in (True, False):
+        names = [s for e, s in ranked if e.verified is group]
+        states = [order[s] for s in names]
+        assert states == sorted(states) and all(s in order for s in names)
     # در یک رده، باکیفیت‌تر جلو می‌آید
-    assert ranked[0][1] == "recommended" and max(e.quality for e, s in ranked if s == "recommended") == ranked[0][0].quality
+    assert ranked[0][1] == "recommended" and ranked[0][0].verified
+    assert max(e.quality for e, s in ranked if s == "recommended" and e.verified) == ranked[0][0].quality
 
 
 def test_recommend_picks_comfortable_quality_then_the_smallest_tight_option():
@@ -198,3 +211,17 @@ def test_no_api_or_tier_left_in_the_catalog_surface():
     for entry in mc.entries():
         blob = repr(entry)
         assert "api.openai" not in blob and "sk-" not in blob
+
+
+def test_unverified_models_are_never_auto_recommended_and_use_only_the_official_host():
+    for ram in (4, 8, 16, 32, 64):
+        picked = mc.recommend(hw(ram=ram, disk=200))
+        assert picked is None or picked.verified
+    extra = mc.get_entry("gemma2-9b").urls_with(["my-mirror.example.org"])
+    assert extra[0].startswith("https://huggingface.co/") and extra[-1].startswith("https://my-mirror.example.org/")
+
+
+def test_personal_mirror_hosts_are_sanitized():
+    assert mc.parse_mirror_hosts("https://Mirror.Example.com/\nhf.fast.example.org, 192.168.1.5") == ["mirror.example.com", "hf.fast.example.org"]
+    assert mc.parse_mirror_hosts("localhost, http://x/y, a:80, bad host") == []
+    assert len(mc.parse_mirror_hosts("a.aa.com b.bb.com c.cc.com d.dd.com")) == 3

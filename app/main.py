@@ -14,12 +14,14 @@ from typing import Optional
 import flet as ft
 
 from app import theme
-from app.core import backup, bot_manager, data_probe, update_install, updater, window_close
+from app.core import backup, bot_manager, data_guard, data_probe, update_install, update_selfcheck, updater, window_close
 from app.core import guide as guide_core
 from app.core import settings as settings_module
 from app.core.orders import OrderStore
 from app.core.products import ProductStore
 from app.i18n import t
+from app.version import __version__
+from app.screens import gpu_offer
 from app.screens import (
     about,
     ai_select,
@@ -126,7 +128,21 @@ def main(
     def save() -> None:
         settings_module.save_settings(state)
 
-    window_close.bind(page, state, save)  # قلم ۱۶: ✕ = انتخابِ خودِ کاربر
+    def shutdown_for_exit() -> None:
+        """قبل از «خروج کامل»: ربات‌ها را با سقفِ زمان متوقف و تنظیمات را ذخیره کن (بدون انتظارِ بی‌نهایت)."""
+        try:
+            if manager.is_running():
+                manager.stop(timeout=8)
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            save()
+        except Exception:  # noqa: BLE001
+            pass
+
+    window_close.bind(page, state, save, on_quit=shutdown_for_exit)  # قلم ۱۶: ✕ = انتخابِ خودِ کاربر
+    data_guard.backup_on_version_change(state, save, __version__)  # اولین اجرای هر نسخه: پشتیبانِ خودکار
+    update_selfcheck.record_startup(state)  # اثرانگشتِ داده برایِ مقایسه‌یِ قبل/بعدِ آپدیت (فقط شمارش)
 
     # ---------------- بررسیِ نسخه‌ی تازه (N14a) ----------------
     update_checker = checker or updater.UpdateChecker(lambda: state, save)
@@ -219,11 +235,14 @@ def main(
         if not state.data_acknowledged:
             # N2: پوشه‌ی داده از قبل استفاده شده؟ پیش از هر چیز یک‌بار از کاربر بپرس (ادامه / شروعِ تازه)
             footprint = data_probe.probe()
-            if footprint.has_data:
+            if footprint.has_data and not data_guard.is_established_install(footprint):
                 show_data_found(footprint)
                 return
-            state.data_acknowledged = True  # نصبِ تازه: دیگه هرگز نپرس
+            # نصبِ تازه یا کاربرِ موجود که آپدیت کرده: هرگز پرسشِ «شروعِ تازه» نمی‌آید (۱٫۲٫۰)
+            state.data_acknowledged = True
             save()
+        # مدلِ موجود روی دیسک (حتی اگر انتخابش از تنظیمات افتاده یا در پوشه‌ی دیگری است) دوباره وصل شود
+        data_guard.adopt_existing_model(state, save)
         if not state.user_name:
             show_welcome()
         elif not state.business_mode:
@@ -236,6 +255,8 @@ def main(
                 state.ensure_default_prompt()
                 save()
             show_home()
+            # پیشنهادِ خودکارِ شتابِ گرافیکی (فقط اگر کارتِ NVIDIA هست و بسته نصب نیست؛ با اجازه‌ی صریح)
+            gpu_offer.maybe_offer(page, state.language, state, save)
 
     def show_data_found(footprint: data_probe.DataFootprint) -> None:
         def on_continue() -> None:

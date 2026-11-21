@@ -12,7 +12,8 @@ from app import branding, theme
 from app.core import about_info, support_link, updater
 from app.i18n import t
 from app.screens import common
-from app.version import __version__
+from app.core import update_selfcheck
+from app.version import RELEASE_NOTE_EN, RELEASE_NOTE_FA, __version__
 
 
 def build(page: ft.Page, lang: str, state, save, checker=None, version: str = __version__, can_install=None, on_install=None, support_first: bool = False) -> ft.Control:
@@ -88,6 +89,8 @@ def build(page: ft.Page, lang: str, state, save, checker=None, version: str = __
                         ),
                     ],
                 ),
+                *([ft.Text(RELEASE_NOTE_EN if lang == "en" else RELEASE_NOTE_FA, key="about_release_note", size=12.5, weight=ft.FontWeight.W_600, color=theme.INFO)]
+                  if (RELEASE_NOTE_EN if lang == "en" else RELEASE_NOTE_FA) else []),
                 ft.Text(t("about.license", lang), size=12.5, color=secondary),
                 ft.Row(
                     spacing=10,
@@ -106,6 +109,27 @@ def build(page: ft.Page, lang: str, state, save, checker=None, version: str = __
             ],
         ),
     )
+
+    # ------------------------------------------------- خودآزمونِ آپدیت: قبل/بعد (۱٫۲٫۰) ----
+    def data_check_card() -> ft.Control:
+        facts = update_selfcheck.collect(state)
+        cmp = update_selfcheck.compare(state)
+        names = {"products": t("selfcheck.products", lang), "orders": t("selfcheck.orders", lang), "settings_keys": t("selfcheck.settings", lang),
+                 "backups": t("selfcheck.backups", lang), "secret_key": t("selfcheck.secret", lang), "model": t("selfcheck.model", lang)}
+        lines: list[ft.Control] = [ft.Text(t("selfcheck.now", lang, version=version, products=facts["products"] if facts["products"] is not None else "—",
+                                             orders=facts["orders"] if facts["orders"] is not None else "—",
+                                             model=facts["model_name"] or "—"), key="selfcheck_now", size=12.5, color=secondary, selectable=True),
+                                   ft.Text(t("selfcheck.dir", lang, path=facts["data_dir"]), size=11.5, color=secondary, selectable=True)]
+        if cmp is None:
+            lines.append(ft.Text(t("selfcheck.none", lang), key="selfcheck_none", size=12, color=secondary))
+        else:
+            lines.append(ft.Text(t("selfcheck.compare_title", lang, before=cmp["before_version"], now=cmp["now_version"]), size=12.5, weight=ft.FontWeight.W_600))
+            for row in cmp["rows"]:
+                lines.append(ft.Text(f"{'✅' if row['ok'] else '⚠️'} {names.get(row['key'], row['key'])}: {row['before']} ← {row['after']}",
+                                     key=f"selfcheck_{row['key']}", size=12, color=theme.SUCCESS if row["ok"] else theme.WARNING, selectable=True))
+            lines.append(ft.Text(t("selfcheck.all_ok" if cmp["all_ok"] else "selfcheck.some_bad", lang), key="selfcheck_verdict", size=12.5,
+                                 weight=ft.FontWeight.W_600, color=theme.SUCCESS if cmp["all_ok"] else theme.WARNING))
+        return common.card(page, ft.Column(spacing=6, controls=[common.section_header(ft.Icons.FACT_CHECK_ROUNDED, t("selfcheck.title", lang)), *lines]))
 
     # ------------------------------------------------------------------- سازنده ----
     copied = ft.Text(t("about.email_copied", lang), key="about_email_copied", size=12, color=theme.SUCCESS, visible=False)
@@ -200,7 +224,7 @@ def build(page: ft.Page, lang: str, state, save, checker=None, version: str = __
     )
 
     # کارتِ حمایت فقط در صفحه‌ی «پشتیبانی/حمایت» است؛ «درباره» باید درباره‌ی خودِ برنامه باشد.
-    cards = [support_tile, version_card, creator_card] if support_first else [version_card, creator_card]
+    cards = [support_tile, version_card, creator_card] if support_first else [version_card, data_check_card(), creator_card]
     return common.screen_frame(
         page,
         common.page_header(page, ft.Icons.FAVORITE_ROUNDED if support_first else ft.Icons.INFO_OUTLINE_ROUNDED,

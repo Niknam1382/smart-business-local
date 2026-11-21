@@ -17,7 +17,7 @@ The AI is a local model, so there is no server to rent, no API bill, and no cust
 ![Runs from source on macOS](https://img.shields.io/badge/macOS-from%20source-orange)
 ![AI](https://img.shields.io/badge/AI-local%20GGUF%20only-green)
 ![Messenger](https://img.shields.io/badge/messenger-Telegram-2CA5E0)
-![Version](https://img.shields.io/badge/version-1.1.0-informational)
+![Version](https://img.shields.io/badge/version-1.2.0-informational)
 
 [English](#english) · [فارسی](#فارسی) · [Download](#download) · [Changelog](CHANGELOG.md) · [Roadmap](docs/ROADMAP.md) · [License](LICENSE)
 
@@ -71,6 +71,7 @@ runs on it too (llama.cpp, GGUF files).
 | 📊 **Excel and PDF export** | Every list you can see (customers, orders, finance report, products, conversations) becomes an RTL Excel or PDF file in the `reports` folder with two buttons. |
 | 📚 **Built-in guide** | An offline, searchable Persian guide (185 articles: 25 troubleshooting, 58 FAQ), a **?** button on every page and an automatic troubleshooter. |
 | 🚀 **What 1.1.0 added** | One build that can compute on your NVIDIA card (a SHA-256-verified accelerator pack it downloads itself, with an automatic rollback to CPU), a button-driven control panel for operational settings, an order workspace to message a customer, send them a file and close the order, per-customer AI limits with a top-consumers view, editable invoice texts plus a sample invoice, a card-to-card step that asks only for the receipt, and a ✕ that finally does what you chose. |
+| 🛡️ **What 1.2.0 changed** | Updating no longer asks existing users to “start fresh”; settings, databases, the key and the downloaded model stay put, a full backup is taken on the first run of each new version, an already-downloaded model is re-attached if its selection was lost, “Quit completely” now stops the bots, saves and really closes, and model-download errors say what went wrong. Release builds now fail if tests fail. (Window closing, speed and layout still need on-device verification; macOS is not shipped.) |
 
 ### Download
 
@@ -242,7 +243,7 @@ died (let Docker restart it), `2` no bot configured, `3` data written by a newer
 
 ### Project status
 
-**The current release is 1.1.0** (the first public line was 1.0.0): local-only AI, Telegram and Bale as chat messengers (an optional, independent Bale
+**The current release is 1.2.0** (the first public line was 1.0.0): local-only AI, Telegram and Bale as chat messengers (an optional, independent Bale
 chat on top of it), Bale Pay as the only gateway
 besides card-to-card, a four-button customer menu and a central prompt studio. The version string lives in
 `app/version.py` and a release tag must match it; see [CHANGELOG](CHANGELOG.md) for what shipped and what was cut. The
@@ -297,6 +298,7 @@ with a small amount before you take real money. Bugs and ideas: Issues.
 | 📊 **خروجیِ اکسل و PDF** | هر فهرستی که می‌بینی (مشتریان، سفارش‌ها، کارنامه‌ی مالی، محصولات، گفتگوها) با دو دکمه به فایلِ اکسل یا PDFِ راست‌به‌چپ درپوشه‌ی `reports` درمی‌آید. |
 | 📚 **راهنمای داخلِ برنامه** | راهنمای آفلاین و قابلِ جستجو به فارسی (۱۸۵ مقاله؛ ۲۵ عیب‌یابی و ۵۸ پرسشِ متداول)، دکمه‌ی **؟** کنارِ هر صفحه و یک عیب‌یابِ خودکار. |
 | 🚀 **۱.۱.۰ چه اضافه کرد** | یک نصب که می‌تواند روی کارتِ NVIDIA حساب کند (بستهٔ شتاب با راستی‌آزماییِ SHA-256 که خودش دانلود می‌کند و اگر بیلد نپذیرفت خودکار به CPU برمی‌گردد)، کنترل‌پنلِ دکمه‌ایِ تنظیماتِ عملیاتی، میزِ کارِ سفارش برای پیام دادن به مشتری، فرستادنِ فایل و بستنِ سفارش، سقفِ هوش مصنوعی برای هر مشتری با نمایِ پرمصرف‌ها، متن‌هایِ قابل‌ویرایشِ فاکتور به‌همراه فاکتورِ نمونه، مرحلهٔ کارت‌به‌کارت که جز رسید چیزی نمی‌خواهد، و ✕ای که سرانجام همان کاری را می‌کند که خودت انتخاب کرده‌ای. |
+| 🛡️ **۱.۲.۰ چه چیزی را تغییر داد** | آپدیت دیگر از کاربرِ موجود «شروعِ تازه» نمی‌پرسد؛ تنظیمات، دیتابیس‌ها، کلید و مدلِ دانلودشده می‌مانند، در اولین اجرای هر نسخه یک پشتیبانِ کامل گرفته می‌شود، مدلِ دانلودشده‌ای که انتخابش از تنظیمات افتاده دوباره وصل می‌شود، «خروجِ کامل» ربات‌ها را متوقف و اطلاعات را ذخیره می‌کند و برنامه را واقعاً می‌بندد و خطای دانلودِ مدل می‌گوید چه شده است. ساختِ انتشار با شکستِ تست متوقف می‌شود. (بستنِ پنجره، سرعتِ مدل و چیدمانِ رابط هنوز روی دستگاهِ واقعی تأیید می‌شود؛ macOS منتشر نمی‌شود.) |
 
 ### دانلود
 
@@ -464,7 +466,7 @@ docker compose up -d                                   # پوشه‌ی ./data ر
 
 ### وضعیتِ پروژه
 
-این **نسخه‌ی ۱.۱.۰ است** (نخستین انتشارِ عمومی ۱.۰.۰ بود): هوش مصنوعی فقط محلی، تلگرام و بله هر دو پیام‌رسانِ گفتگو (چتِ بله اختیاری و مستقل)، بله‌پی تنها درگاهِ علاوه بر
+این **نسخه‌ی ۱.۲.۰ است** (نخستین انتشارِ عمومی ۱.۰.۰ بود): هوش مصنوعی فقط محلی، تلگرام و بله هر دو پیام‌رسانِ گفتگو (چتِ بله اختیاری و مستقل)، بله‌پی تنها درگاهِ علاوه بر
 کارت‌به‌کارت، منویِ مشتری با دقیقاً چهار دکمه و یک استودیویِ مرکزیِ پرامپت. عددِ نسخه در فایلِ `app/version.py` زندگی
 می‌کند و تگِ انتشار باید همان باشد؛ چه چیزی آمد و چه چیزی حذف شد را در [CHANGELOG](CHANGELOG.md) بخوان.
 مجموعه‌تستِ خودکار (۲۳۲۶ تست در ۱۱۱ فایل) روی سرورهایِ جعلیِ تلگرام و درگاهِ بله اجرا می‌شود و فروشگاه، پرداخت، رسید،

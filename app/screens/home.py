@@ -122,14 +122,25 @@ def build(page: ft.Page, lang: str, state, manager, order_store, product_store, 
     # ---------------------------------------------------------------- کارت‌های KPI
     # قلم ۴: کارت‌ها عرضِ پیکسلیِ ثابت ندارند (۴×۲۱۰ + فاصله‌ها = ۸۷۶ پیکسل روی پنجره‌ی
     # ۹۶۰ از کادر بیرون می‌زد); در ردیفِ واکنش‌گرا با سهمِ درصدی می‌آیند، پس همیشه جا می‌شن.
+    # رنگِ معناییِ هر کارت (۱٫۲٫۰): فروش=موفق، منتظرِ بررسی/کم‌موجودی=هشدار، مشتری/گفتگو=خنثی، بقیه=نیوی
+    tones = {
+        "home_kpi_sales": theme.SUCCESS,
+        "home_kpi_waiting": theme.WARNING,
+        "home_kpi_low": theme.WARNING,
+        "home_kpi_customers": theme.INFO,
+        "home_kpi_chats": theme.INFO,
+    }
+
     def kpi(key: str, icon: str, label: str, value: str, hint: str, target: str) -> ft.Control:
+        tone = tones.get(key, theme.PRIMARY)
         return ft.Container(
             key=key,
             col={"xs": 12, "sm": 6, "md": 6, "lg": 3, "xl": 3},
             border_radius=theme.RADIUS_CARD,
             bgcolor=theme.card_bgcolor(page),
             border=ft.Border.all(1, theme.border_color(page)),
-            padding=16,
+            shadow=theme.card_shadow(page),
+            padding=18,
             on_click=lambda e: on_goto(target),
             ink=True,
             content=ft.Column(
@@ -141,12 +152,12 @@ def build(page: ft.Page, lang: str, state, manager, order_store, product_store, 
                         spacing=7,
                         controls=[
                             ft.Container(
-                                width=26,
-                                height=26,
-                                border_radius=8,
-                                bgcolor=f"{theme.PRIMARY}12",
+                                width=32,
+                                height=32,
+                                border_radius=10,
+                                bgcolor=f"{tone}1F",
                                 alignment=ft.Alignment.CENTER,
-                                content=ft.Icon(icon, size=15, color=theme.PRIMARY),
+                                content=ft.Icon(icon, size=18, color=tone),
                             ),
                             ft.Text(label, size=11.5, color=theme.text_secondary(page)),
                         ],
@@ -279,7 +290,7 @@ def build(page: ft.Page, lang: str, state, manager, order_store, product_store, 
         days = list(report.by_day)[-CHART_DAYS:]
         peak = max([abs(int(v or 0)) for _label, v in days] + [1])
         bars = []
-        for label, value in days:
+        for idx, (label, value) in enumerate(days):
             height = max(4, int(74 * abs(int(value or 0)) / peak))
             bars.append(
                 ft.Container(
@@ -287,8 +298,8 @@ def build(page: ft.Page, lang: str, state, manager, order_store, product_store, 
                     # می‌شن، پس هر پنجره‌ای سرِ خودش جا می‌شن و بیرون نمی‌زنن.
                     expand=True,
                     height=height,
-                    border_radius=4,
-                    bgcolor=theme.PRIMARY if int(value or 0) > 0 else theme.CHART_BAR_EMPTY,
+                    border_radius=6,
+                    bgcolor=(theme.ACCENT if idx == len(days) - 1 else theme.PRIMARY) if int(value or 0) > 0 else theme.CHART_BAR_EMPTY,
                     tooltip=f"{jalali.fa_digits(label)} · {money_of(int(value or 0))}",
                 )
             )
@@ -324,7 +335,7 @@ def build(page: ft.Page, lang: str, state, manager, order_store, product_store, 
     return common.screen_frame(
         page,
         common.page_header(page, ft.Icons.SPACE_DASHBOARD_ROUNDED, t("home.title", lang),
-                           t("home.subtitle", lang, name=state.user_name or "")),
+                           t("home.subtitle", lang, name=state.user_name or ""), hero=True),
         controls,
         key="home_frame",
     )

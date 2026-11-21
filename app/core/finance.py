@@ -298,7 +298,7 @@ class FinanceStore:
     # ------------------------------------------------------ ثبتِ خودکار
     def post_order(self, order, fee_bp: Optional[dict] = None, now: Optional[int] = None) -> int:
         """درآمدِ خالص + کارمزدِ درگاه + COGS برای یک سفارشِ *تاییدشده*؛ idempotent. تعدادِ ردیف‌های تازه را برمی‌گردونه."""
-        if getattr(order, "status", "") != "confirmed" or not getattr(order, "inventory_applied", False):
+        if getattr(order, "status", "") not in ("confirmed", "closed") or not getattr(order, "inventory_applied", False):
             return 0
         if order.total_irr <= 0:
             return 0
@@ -363,7 +363,7 @@ class FinanceStore:
     def post_missing(self, fee_bp: Optional[dict] = None, limit: int = 200) -> int:
         """ترمیم: سفارش‌های تاییدشده‌ای که هنوز ردیفِ فروش ندارن (کرش/شکستِ قلاب). تعدادِ سفارشِ ترمیم‌شده."""
         rows = self._conn().execute(
-            "SELECT o.id FROM orders o WHERE o.status='confirmed' AND o.inventory_applied=1 AND o.total_irr>0 AND NOT EXISTS "
+            "SELECT o.id FROM orders o WHERE o.status IN ('confirmed','closed') AND o.inventory_applied=1 AND o.total_irr>0 AND NOT EXISTS "
             "(SELECT 1 FROM ledger_entries e WHERE e.ref_type='order' AND e.ref_id=o.id AND e.auto_key='sale') ORDER BY o.id LIMIT ?",
             (int(limit),),
         ).fetchall()

@@ -16,6 +16,10 @@
 from __future__ import annotations
 
 import inspect
+import logging
+import os
+import sys
+import threading
 from typing import Callable, Optional
 
 import flet as ft
@@ -25,6 +29,14 @@ from app.i18n import t
 
 ACTIONS = ("ask", "hide", "quit")
 CLOSE_EVENT = "close"
+
+logger = logging.getLogger(__name__)
+
+# اگر پنجره بسته شد ولی پردازش (مثلاً یک ترد یا کتابخانه‌ی بومی) زنده ماند، بعد از این‌همه ثانیه — و فقط پس از
+# پایانِ کارهای تمیزِ خروج (ذخیره + توقفِ ربات‌ها) — پردازش بسته می‌شود. فقط در نسخه‌ی بسته‌بندی‌شده فعال است
+# (یا با SMART_BUSINESS_FORCE_EXIT=1)؛ تست‌ها و اجرای از سورس هرگز با آن بسته نمی‌شوند.
+FORCE_EXIT_SECONDS = 6.0
+FORCE_EXIT_ENV = "SMART_BUSINESS_FORCE_EXIT"
 
 
 def _event_name(event) -> str:
@@ -42,10 +54,11 @@ def apply_close(state, action: str) -> None:
     state.close_action = action if action in ACTIONS else "ask"
 
 
-def bind(page: ft.Page, state, save: Optional[Callable[[], None]] = None) -> None:
-    """وصل‌کردنِ پنجره به این منطق: ✕ دیگر بی‌سؤال نمی‌بندد."""
+def bind(page: ft.Page, state, save: Optional[Callable[[], None]] = None, on_quit: Optional[Callable[[], None]] = None) -> None:
+    """وصل‌کردنِ پنجره به این منطق: ✕ دیگر بی‌سؤال نمی‌بندد. ``on_quit`` پیش از «خروجِ کامل» صدا زده می‌شود
+    (توقفِ ربات‌ها و ذخیره)."""
     page.window.prevent_close = True
-    page.window.on_event = lambda event: _on_event(page, state, save, event)
+    page.window.on_event = lambda event: _on_event(page, state, save, event, on_quit)
 
 
 def _set_window(page: ft.Page, **values) -> None:
@@ -57,17 +70,49 @@ def _set_window(page: ft.Page, **values) -> None:
 
 
 def _hide(page: ft.Page) -> None:
+    """«در پس‌زمینه بمان» = کوچک‌کردن در نوارِ وظیفه (system tray نیست). در Flet 1.0 تغییرِ ویژگیِ پنجره بدونِ
+    ``page.update()`` به سمتِ کلاینت نمی‌رسد؛ همین باعثِ «دکمه کاری نمی‌کند» بود (۱٫۲٫۰)."""
     _set_window(page, minimized=True)
+    try:
+        page.update()
+    except Exception:  # noqa: BLE001 — وب/تست
+        pass
 
 
-def _quit(page: ft.Page) -> None:
+def _force_exit_allowed() -> bool:
+    return bool(getattr(sys, "frozen", False)) or os.environ.get(FORCE_EXIT_ENV) == "1"
+
+
+def _arm_force_exit(seconds: Optional[float] = None) -> None:
+    """شبکه‌ی اطمینان: اگر بعد از درخواستِ بستن پردازش زنده ماند، بسته شود (داده پیش‌تر ذخیره شده است)."""
+    if not _force_exit_allowed():
+        return
+    timer = threading.Timer(seconds if seconds is not None else FORCE_EXIT_SECONDS, lambda: os._exit(0))
+    timer.daemon = True
+    timer.start()
+
+
+def _quit(page: ft.Page, on_quit: Optional[Callable[[], None]] = None) -> None:
     """خروجِ واقعی.
 
-    در Flet 1.0 ``Window.close()``/``destroy()`` تابعِ **async** هستند: صدا زدنِ هم‌زمانِ آن‌ها
-    فقط یک coroutine می‌سازد که دور ریخته می‌شه و پنجره باز می‌مونه (باگِ گزارش‌شده). پس از
-    ``page.run_task`` استفاده می‌شه؛ اگر runner نبود (وب/تست با fakeِ sync) همان‌جا صدا زده می‌شه و
-    اگر با این‌همه چیزی بیرون نیامد، بی‌خطا برمی‌گرديم (نباید برنامه در حالتِ وب بشکنه)."""
-    for name in ("close", "destroy"):
+    علتِ باگِ «✕ کار نمی‌کند و باید End task بزنم»: پنجره با ``prevent_close=True`` ساخته می‌شود، پس
+    ``Window.close()`` فقط دوباره همان رویدادِ close را به همین handler برمی‌گرداند (پرسش یا کوچک‌شدن) و
+    هرگز نمی‌بندد؛ کدِ قبلی هم بعد از ``close`` بی‌درنگ برمی‌گشت و ``destroy`` هرگز اجرا نمی‌شد.
+
+    ترتیبِ درست: ۱) کارهای تمیزِ خروج (ربات‌ها + ذخیره) ۲) ``prevent_close=False`` ۳) ``destroy`` (در Flet 1.0
+    تابعِ *async* است و باید با ``page.run_task`` اجرا شود) و ۴) شبکه‌ی اطمینانِ ``_arm_force_exit``."""
+    if callable(on_quit):
+        try:
+            on_quit()
+        except Exception:  # noqa: BLE001 — خطا در تمیزکاری مانعِ خروج نشود
+            logger.warning("تمیزکاریِ خروج شکست خورد", exc_info=True)
+    _set_window(page, prevent_close=False)
+    try:
+        page.update()
+    except Exception:  # noqa: BLE001 — وب/تست
+        pass
+    _arm_force_exit()
+    for name in ("destroy", "close"):
         closer = getattr(page.window, name, None)
         if not callable(closer):
             continue
@@ -106,7 +151,7 @@ def _close_dialog(page: ft.Page, dialog: ft.Control) -> None:
         page.update()
 
 
-def _ask(page: ft.Page, state, save) -> None:
+def _ask(page: ft.Page, state, save, on_quit: Optional[Callable[[], None]] = None) -> None:
     lang = getattr(state, "language", "fa")
     remember = ft.Switch(key="close_remember", label=t("window.close.remember", lang), value=False)
 
@@ -118,7 +163,7 @@ def _ask(page: ft.Page, state, save) -> None:
                 if save is not None:
                     save()
             if action == "quit":
-                _quit(page)
+                _quit(page, on_quit)
             else:
                 _hide(page)
 
@@ -160,13 +205,13 @@ def _ask(page: ft.Page, state, save) -> None:
         page.update()
 
 
-def _on_event(page: ft.Page, state, save, event) -> None:
+def _on_event(page: ft.Page, state, save, event, on_quit: Optional[Callable[[], None]] = None) -> None:
     if _event_name(event) != CLOSE_EVENT:
         return
     action = getattr(state, "close_action", "ask")
     if action == "quit":
-        _quit(page)
+        _quit(page, on_quit)
     elif action == "hide":
         _hide(page)
     else:
-        _ask(page, state, save)
+        _ask(page, state, save, on_quit)

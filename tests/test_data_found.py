@@ -36,6 +36,16 @@ def seed_previous_use(products=0):
     return state
 
 
+def seed_orphan_data(products=0):
+    """داده‌ای که معرفی را تمام نکرده (مثلاً فقط دیتابیس‌ها): تنها همین حالت هنوز پرسشِ «ادامه/شروعِ تازه» دارد."""
+    state = settings_module.load_settings()
+    settings_module.save_settings(state)
+    store = ProductStore()
+    for i in range(products):
+        store.add(f"کالا {i + 1}", 1000, 5)
+    return state
+
+
 # ================================================================== probe ====
 
 def test_empty_or_missing_directory_means_no_data_and_creates_nothing(tmp_path):
@@ -90,9 +100,22 @@ def test_fresh_install_goes_to_welcome_and_never_asks_later():
     assert settings_module.load_settings().data_acknowledged is True  # بعد از این هیچ‌وقت نمی‌پرسد
 
 
-def test_previous_data_shows_the_two_choice_screen_first():
+def test_an_existing_user_after_an_update_goes_straight_in_and_is_never_asked():
+    """۱٫۲٫۰: ارتقا نباید کاربرِ موجود را روبه‌رویِ دکمه‌ی «شروعِ تازه» بگذارد (علتِ گزارشِ پاک‌شدنِ تنظیمات)."""
     reset_manager()
     seed_previous_use(products=2)
+    page = FakePage()
+    main(page)
+    root = page.controls[0].content
+    assert find(root, "found_continue") is None and find(root, "found_fresh") is None
+    assert find(root, "nav_ai") is not None  # مستقیم خانه
+    assert settings_module.load_settings().data_acknowledged is True
+    assert len(ProductStore().list()) == 2 and settings_module.load_settings().user_name == "سارا"
+
+
+def test_previous_data_shows_the_two_choice_screen_first():
+    reset_manager()
+    seed_orphan_data(products=2)
     page = FakePage()
     main(page)
     root = page.controls[0].content
@@ -100,31 +123,42 @@ def test_previous_data_shows_the_two_choice_screen_first():
     assert find(root, "nav_ai") is None  # هنوز وارد برنامه نشده
     text = collect_text(root)
     assert "2 محصول" in text and str(data_dir()) in text
-    assert "سارا" not in text  # فقط تعداد، نه محتوا
+    assert "کالا" not in text  # فقط تعداد، نه محتوا
 
 
 def test_continue_keeps_everything_and_remembers_the_choice():
     reset_manager()
-    seed_previous_use(products=1)
+    seed_orphan_data(products=1)
     page = FakePage()
     main(page)
     fire(find(page.controls[0].content, "found_continue"), "on_click")
     root = page.controls[0].content
-    assert find(root, "nav_ai") is not None  # خانه
+    assert find(root, "name_field") is not None  # معرفی (داده‌ی بدونِ معرفی)
     assert settings_module.load_settings().data_acknowledged is True
     assert len(ProductStore().list()) == 1
     reset_manager()
     page2 = FakePage()
     main(page2)  # اجرای بعدی: دیگه نمی‌پرسه
-    assert find(page2.controls[0].content, "found_continue") is None and find(page2.controls[0].content, "nav_ai") is not None
+    assert find(page2.controls[0].content, "found_continue") is None and len(ProductStore().list()) == 1
+
+
+def test_fresh_start_needs_two_deliberate_clicks():
+    reset_manager()
+    seed_orphan_data(products=2)
+    page = FakePage()
+    main(page)
+    fire(find(page.controls[0].content, "found_fresh"), "on_click")  # کلیکِ اول فقط «آماده‌ی تأیید» می‌کند
+    assert len(ProductStore().list()) == 2 and not list((data_dir() / "backups").glob("SmartBusiness-backup-*.zip"))
+    assert find(page.controls[0].content, "found_continue") is not None
 
 
 def test_fresh_start_backs_up_first_then_erases_and_starts_onboarding():
     reset_manager()
-    seed_previous_use(products=2)
+    seed_orphan_data(products=2)
     page = FakePage()
     main(page)
     fire(find(page.controls[0].content, "found_fresh"), "on_click")
+    fire(find(page.controls[0].content, "found_fresh"), "on_click")  # تأیید
     root = page.controls[0].content
     assert find(root, "name_field") is not None  # برگشت به معرفی
     state = settings_module.load_settings()
@@ -145,7 +179,7 @@ def test_fresh_start_backs_up_first_then_erases_and_starts_onboarding():
 
 def test_fresh_start_failure_shows_error_and_keeps_data(monkeypatch):
     reset_manager()
-    seed_previous_use(products=1)
+    seed_orphan_data(products=1)
     page = FakePage()
     main(page)
 
@@ -153,6 +187,7 @@ def test_fresh_start_failure_shows_error_and_keeps_data(monkeypatch):
         raise backup.BackupError("دیسک پر است")
 
     monkeypatch.setattr(backup, "factory_reset", boom)
+    fire(find(page.controls[0].content, "found_fresh"), "on_click")
     fire(find(page.controls[0].content, "found_fresh"), "on_click")
     root = page.controls[0].content
     assert "دیسک پر است" in find(root, "found_status").value and find(root, "found_status").visible
@@ -197,10 +232,10 @@ def test_data_probe_module_is_core_only_and_has_no_pii_reads():
         assert forbidden not in source
 
 
-def test_bots_do_not_autostart_until_the_user_chooses_to_continue(monkeypatch):
-    """N2: روی داده‌ی قبلی، رباتِ روشن‌شونده با توکن‌های قدیمی قبل از انتخابِ کاربر شروع نمی‌شه."""
+def test_bots_do_not_autostart_on_orphan_data_until_the_user_chooses_to_continue(monkeypatch):
+    """N2: روی داده‌ی بدونِ معرفی، رباتِ روشن‌شونده قبل از انتخابِ کاربر شروع نمی‌شه (و بعدش هم تا پایانِ معرفی)."""
     reset_manager()
-    state = seed_previous_use(products=1)
+    state = seed_orphan_data(products=1)
     state.set_telegram_token("123456789:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw")
     state.bot_autostart = True
     settings_module.save_settings(state)
@@ -210,4 +245,17 @@ def test_bots_do_not_autostart_until_the_user_chooses_to_continue(monkeypatch):
     main(page)
     assert find(page.controls[0].content, "found_continue") is not None and started == []  # هنوز انتخاب نشده
     fire(find(page.controls[0].content, "found_continue"), "on_click")
-    assert started == [1]  # بعد از «ادامه» روشن می‌شه
+    assert started == []  # معرفی کامل نشده؛ پس خودکار روشن نمی‌شود
+
+
+def test_an_updated_existing_install_autostarts_bots_as_before(monkeypatch):
+    reset_manager()
+    state = seed_previous_use(products=1)
+    state.set_telegram_token("123456789:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw")
+    state.bot_autostart = True
+    settings_module.save_settings(state)
+    started = []
+    monkeypatch.setattr(bot_manager.BotManager, "start", lambda self: started.append(1))
+    page = FakePage()
+    main(page)
+    assert started == [1]

@@ -308,7 +308,7 @@ def test_link_mode_choice_persists_both_ways():
 def test_link_mode_control_shows_both_persian_options():
     _, control, _ = make_card()
     labels = [seg.label.value for seg in find(control, "ps_link_mode").segments]
-    assert labels == ["لینکِ مستقیم", "دیپ‌لینکِ ربات"]
+    assert labels == ["لینکِ پرداختِ خودِ بله (پیشنهادی)", "لینکِ بازکردنِ رباتِ پرداخت"]
 
 
 def test_bale_note_is_honest_about_credentials_and_running_bots():

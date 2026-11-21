@@ -20,11 +20,12 @@ import flet as ft
 
 from app import theme
 from app.core import jalali
+from app.core.friendly_errors import friendly_error
 from app.core import report_pdf, report_xlsx
 from app.core.bot_manager import BotManagerError
 from app.core.conversations import ConversationSummary
 from app.i18n import STRINGS, t
-from app.screens.common import card, open_folder, page_header, screen_frame
+from app.screens.common import card, fit_width, open_folder, page_header, screen_frame
 from app.screens.live import LiveRefresher
 
 _PLATFORM_ICON = {"telegram": ft.Icons.SEND_ROUNDED, "bale": ft.Icons.CHAT_BUBBLE_OUTLINE_ROUNDED}
@@ -240,7 +241,7 @@ def build(
             except report_xlsx.ReportError as exc:  # «چیزی برای خروجی گرفتن نیست» / شکستِ PDF
                 show_export(str(exc), False)
             except OSError as exc:
-                show_export(tp("export.failed", lang, error=str(exc)), False)
+                show_export(tp("export.failed", lang, error=friendly_error(exc, lang)), False)
             else:
                 show_export(tp("export.done", lang, n=data.count, path=str(path)), True)
                 open_folder(path.parent)
@@ -374,7 +375,7 @@ def build(
         )
         return ft.Row(
             alignment=ft.MainAxisAlignment.START if is_user else ft.MainAxisAlignment.END,
-            controls=[ft.Container(content=bubble, width=520)],
+            controls=[ft.Container(content=bubble, width=fit_width(page, 520, reserve=420))],
         )
 
     def select(platform: str, chat_id: str) -> None:

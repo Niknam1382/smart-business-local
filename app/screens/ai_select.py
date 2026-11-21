@@ -17,6 +17,7 @@ from __future__ import annotations
 import threading
 import time
 from pathlib import Path
+from urllib.parse import urlparse
 
 import flet as ft
 
@@ -176,7 +177,7 @@ class ModelHub:
         job = self._job_for(dest)
         if job is not None:
             return "downloading", dest, job
-        if downloader.is_downloaded(dest, entry.size_bytes):
+        if downloader.is_downloaded(dest, entry.expected_size):
             return "downloaded", dest, None
         if downloader.partial_bytes(dest):
             return "partial", dest, None
@@ -199,7 +200,22 @@ class ModelHub:
             self.render()
             self._notify()
 
-    def start_download(self, entry) -> None:
+    def _extra_hosts(self) -> list:
+        return model_catalog.parse_mirror_hosts(getattr(self.settings, "model_mirror_hosts", ""))
+
+    def start_download(self, entry, custom_url: str = "") -> None:
+        urls = entry.urls_with(self._extra_hosts())
+        allowed = entry.allowed_hosts_with(self._extra_hosts())
+        custom = (custom_url or "").strip()
+        if custom:  # لینکِ دلخواهِ کاربر: فقط HTTPS؛ هشِ مرجع (اگر داریم) همچنان فایل را تأیید می‌کند
+            parsed = urlparse(custom)
+            if parsed.scheme != "https" or not parsed.hostname:
+                self._errors[entry.id] = t("ai.helper.bad_link", self.lang)
+                self.render()
+                self._notify()
+                return
+            urls = [custom]
+            allowed = allowed | {parsed.hostname.lower()}
         dest = self._dest(entry)
         key = str(dest)
         with _JOBS_LOCK:
@@ -234,12 +250,12 @@ class ModelHub:
         def worker() -> None:
             try:
                 downloader.download(
-                    entry.urls, dest,
+                    urls, dest,
                     expected_sha256=entry.sha256,
-                    expected_size=entry.size_bytes,
+                    expected_size=entry.expected_size,
                     on_progress=on_progress,
                     should_cancel=lambda: bool(job.get("cancel")),
-                    allowed_hosts=entry.allowed_hosts,
+                    allowed_hosts=allowed,
                 )
                 job["status"] = "done"
             except downloader.DownloadCancelled:
@@ -253,6 +269,87 @@ class ModelHub:
             self._finish(key, job)
 
         self.page.run_thread(worker)
+
+    # ------------------------------------------------ لینک‌هایِ دانلودِ کمکی (۱٫۲٫۰)
+
+    def open_helper(self, entry) -> None:
+        """همه‌ی آدرس‌هایِ مستقیمِ این فایل (برای کپی/دانلود با مرورگر یا مدیرِ دانلود)، آینه‌ی شخصی، و لینکِ دلخواه."""
+        lang = self.lang
+        extra = self._extra_hosts()
+        rows: list[ft.Control] = []
+        for url in entry.urls_with(extra):
+            rows.append(ft.Column(spacing=2, controls=[
+                ft.Text(url, size=11.5, selectable=True),
+                ft.Row(spacing=4, controls=[
+                    ft.TextButton(content=t("ai.helper.copy", lang), icon=ft.Icons.COPY_ROUNDED,
+                                  on_click=lambda e, u=url: common.copy_text(self.page, u)),
+                    ft.TextButton(content=t("ai.helper.open", lang), icon=ft.Icons.OPEN_IN_NEW_ROUNDED,
+                                  on_click=lambda e, u=url: common.open_url(self.page, u)),
+                ]),
+            ]))
+        custom = ft.TextField(key="helper_custom_url", label=t("ai.helper.custom_label", lang), hint_text="https://…", dense=True, border_radius=theme.RADIUS_FIELD)
+        mirrors = ft.TextField(key="helper_mirrors", label=t("ai.helper.mirror_label", lang), hint_text="my-mirror.example.com",
+                               value="\n".join(extra), dense=True, multiline=True, min_lines=1, max_lines=3, border_radius=theme.RADIUS_FIELD)
+
+        def close(_e=None) -> None:
+            self._close_helper(dialog)
+
+        def go_custom(_e=None) -> None:
+            link = (custom.value or "").strip()
+            close()
+            self.start_download(entry, custom_url=link)
+
+        def save_mirrors(_e=None) -> None:
+            self.settings.model_mirror_hosts = "\n".join(model_catalog.parse_mirror_hosts(mirrors.value or ""))
+            self.save()
+            close()
+            self.start_download(entry)
+
+        dialog = ft.AlertDialog(
+            key="helper_dialog",
+            modal=True,
+            title=ft.Text(t("ai.helper.title", lang), weight=ft.FontWeight.W_700),
+            content=ft.Container(width=common.fit_width(self.page, 560), content=ft.Column(
+                tight=True, spacing=10, scroll=ft.ScrollMode.AUTO, height=420,
+                controls=[
+                    ft.Text(t("ai.helper.how", lang, name=entry.filename), size=12.5),
+                    ft.Text(t("ai.helper.links_title", lang), size=13, weight=ft.FontWeight.W_600),
+                    *rows,
+                    ft.Divider(),
+                    ft.Text(t("ai.helper.custom_hint", lang), size=12),
+                    custom,
+                    ft.FilledButton(key="helper_custom_go", content=t("ai.helper.custom_go", lang), on_click=go_custom),
+                    ft.Divider(),
+                    ft.Text(t("ai.helper.mirror_hint", lang), size=12),
+                    mirrors,
+                    ft.OutlinedButton(key="helper_mirror_save", content=t("ai.helper.mirror_save", lang), on_click=save_mirrors),
+                ],
+            )),
+            actions=[ft.TextButton(key="helper_close", content=t("ai.helper.close", lang), on_click=close)],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        show = getattr(self.page, "show_dialog", None)
+        if callable(show):
+            try:
+                show(dialog)
+                return
+            except Exception:  # noqa: BLE001
+                pass
+        overlay = getattr(self.page, "overlay", None)
+        if isinstance(overlay, list):
+            overlay.append(dialog)
+            self.page.update()
+
+    def _close_helper(self, dialog) -> None:
+        pop = getattr(self.page, "pop_dialog", None)
+        if callable(pop):
+            try:
+                pop()
+                return
+            except Exception:  # noqa: BLE001
+                pass
+        dialog.open = False
+        self.page.update()
 
     def _finish(self, key: str, job: dict) -> None:
         with _JOBS_LOCK:
@@ -288,8 +385,9 @@ class ModelHub:
         def worker() -> None:
             ok, message = downloader.verify_file(dest, entry.sha256)
             if ok:
-                result.value = t("ai.local.verify_ok", self.lang)
-                result.color = theme.SUCCESS
+                result.value = t("ai.local.verify_ok", self.lang) if entry.verified else t("ai.local.verify_hash_only", self.lang, hash=message)
+                result.color = theme.SUCCESS if entry.verified else theme.WARNING
+                result.selectable = True
             else:
                 result.value = t("ai.local.verify_fail", self.lang) + (f" ({message})" if message else "")
                 result.color = theme.DANGER
@@ -369,6 +467,8 @@ class ModelHub:
         reason = ft.Text(t(model_catalog.reason_for(hw, entry, path_free_gb=free), lang), size=12, color=badge_color)
 
         body: list[ft.Control] = [header, specs, blurb, reason]
+        if not entry.verified:
+            body.append(ft.Text(t("ai.local.unverified_note", lang), key=f"unverified_{entry.id}", size=12, color=theme.WARNING))
         if state == "no":
             body.append(ft.Text(t("ai.local.no_warn", lang), size=12, color=theme.DANGER))
         elif state == "tight":
@@ -443,6 +543,9 @@ class ModelHub:
             dl_btn.key = f"dl_btn_{entry.id}"
             body.append(ft.Row(spacing=8, wrap=True, controls=[dl_btn]))
 
+        if status in ("absent", "partial", "invalid"):
+            body.append(ft.TextButton(key=f"helper_btn_{entry.id}", content=t("ai.helper.button", lang),
+                                      icon=ft.Icons.LINK_ROUNDED, on_click=lambda e, en=entry: self.open_helper(en)))
         error = self._errors.get(entry.id)
         if error and status != "downloading":
             body.append(ft.Text(t("ai_setup.local.download_failed", lang) + " " + error, key=f"err_text_{entry.id}",
@@ -630,7 +733,7 @@ def build(
         controls=[
             ft.Text(t("ai.title", lang), size=22, weight=ft.FontWeight.W_700),
             ft.Container(
-                width=560,
+                width=common.fit_width(page, 560),
                 content=ft.Text(t("ai.subtitle", lang), size=13, color=theme.text_secondary(page), text_align=ft.TextAlign.CENTER),
             ),
         ],

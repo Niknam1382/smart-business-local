@@ -13,10 +13,13 @@ polled می‌شه.
 
 from __future__ import annotations
 
+import threading
+from pathlib import Path
+
 import flet as ft
 
 from app import theme
-from app.core import ai_engine, hardware, model_catalog
+from app.core import ai_engine, downloader, hardware, model_catalog, model_mover
 from app.i18n import t
 from app.screens import ai_select, common
 
@@ -116,7 +119,7 @@ class _AdvancedSection:
             icon=ft.Icons.TUNE_ROUNDED,
             on_click=lambda e: self.set_open(not self._open),
         )
-        self.area = ft.Container(key="adv_area", visible=False, width=560)
+        self.area = ft.Container(key="adv_area", visible=False, width=common.fit_width(page, 560))
         self.area.content = self._fields()
         self.control = ft.Column(spacing=10, controls=[self.toggle, self.area])
 
@@ -233,11 +236,156 @@ class _AdvancedSection:
         except ft.FletUnsupportedPlatformException:
             selected = None  # وب/تست — انتخابِ پوشه فقط روی دسکتاپ
         if selected:
+            old_dir = self.settings.get_model_storage_dir()
+            old_setting = self.settings.model_storage_path
             self.settings.model_storage_path = str(selected)
             self.save()
             self.refresh_storage()
             self.hub.render()
             self.page.update()
+            leftover = self._leftover_model(old_dir, Path(str(selected)))
+            if leftover is not None:
+                self._ask_move(leftover, Path(str(selected)), old_setting)
+
+    # ---------------------------------------------- مدلِ مانده در پوشه‌ی قبلی (۱٫۲٫۰)
+
+    def _leftover_model(self, old_dir: Path, new_dir: Path):
+        """فایلِ مدلِ انتخاب‌شده که در پوشه‌ی قبلی هست ولی در پوشه‌ی تازه نیست؛ وگرنه ``None``."""
+        if (getattr(self.settings, "model_file_path", "") or "").strip():
+            return None  # فایلِ واردشده‌ی خودِ کاربر
+        entry = model_catalog.get_entry(getattr(self.settings, "model_id", "") or "")
+        if entry is None:
+            return None
+        old_file, new_file = Path(old_dir) / entry.filename, Path(new_dir) / entry.filename
+        if downloader.is_downloaded(new_file, entry.expected_size):
+            return None
+        return old_file if downloader.is_downloaded(old_file, entry.expected_size) else None
+
+    def _open_dialog(self, dialog: ft.AlertDialog) -> None:
+        show = getattr(self.page, "show_dialog", None)
+        if callable(show):
+            try:
+                show(dialog)
+                return
+            except Exception:  # noqa: BLE001
+                pass
+        overlay = getattr(self.page, "overlay", None)
+        if isinstance(overlay, list):
+            overlay.append(dialog)
+            self.page.update()
+
+    def _close_dialog(self, dialog: ft.AlertDialog) -> None:
+        pop = getattr(self.page, "pop_dialog", None)
+        if callable(pop):
+            try:
+                pop()
+                return
+            except Exception:  # noqa: BLE001
+                pass
+        dialog.open = False
+        self.page.update()
+
+    def _ask_move(self, old_file: Path, new_dir: Path, old_setting: str) -> None:
+        lang = self.lang
+        entry = model_catalog.get_entry(self.settings.model_id)
+        size_text = f"{old_file.stat().st_size / (1024 ** 3):.1f} GB" if old_file.exists() else ""
+
+        def keep(_e=None) -> None:
+            self._close_dialog(dialog)
+            self.settings.model_file_path = str(old_file)  # همان فایل با همان مسیر کار می‌کند؛ دانلودِ تازه به پوشه‌ی جدید
+            self.save()
+            self.refresh_storage()
+            self.hub.render()
+            self._show(t("model_move.kept", lang), True)
+            self.page.update()
+
+        def revert(_e=None) -> None:
+            self._close_dialog(dialog)
+            self.settings.model_storage_path = old_setting
+            self.save()
+            self.refresh_storage()
+            self.hub.render()
+            self._show(t("model_move.reverted", lang), True)
+            self.page.update()
+
+        def do_move(_e=None) -> None:
+            self._close_dialog(dialog)
+            self._run_move(old_file, new_dir)
+
+        dialog = ft.AlertDialog(
+            key="model_move_dialog",
+            modal=True,
+            title=ft.Text(t("model_move.title", lang), weight=ft.FontWeight.W_700),
+            content=ft.Text(t("model_move.body", lang, name=getattr(entry, "name", old_file.name), size=size_text, old=str(old_file.parent)), size=13, selectable=True),
+            actions=[
+                ft.FilledButton(key="model_move_do", content=t("model_move.do_move", lang), on_click=do_move),
+                ft.OutlinedButton(key="model_move_keep", content=t("model_move.keep", lang), on_click=keep),
+                ft.TextButton(key="model_move_cancel", content=t("model_move.cancel", lang), on_click=revert),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        self._open_dialog(dialog)
+
+    def _run_move(self, old_file: Path, new_dir: Path) -> None:
+        lang = self.lang
+        if getattr(self, "_moving", False):
+            return
+        self._moving = True
+
+        def progress(done: int, total: int) -> None:
+            pct = int(done * 100 / total) if total else 0
+            if pct != getattr(self, "_last_pct", -1):
+                self._last_pct = pct
+                self._show(t("model_move.moving", lang, pct=pct), True)
+                try:
+                    self.page.update()
+                except Exception:  # noqa: BLE001
+                    pass
+
+        def work() -> None:
+            try:
+                model_mover.move_model(old_file, new_dir, progress=progress)
+            except model_mover.MoveError as exc:
+                key = f"model_move.err.{exc.code}"
+                reason = t(key, lang) if exc.code in ("no_space", "not_writable", "cancelled") else t("model_move.err.other", lang)
+                self._show(t("model_move.error", lang, reason=reason), False)
+                self._moving = False
+                self.page.update()
+                return
+            self._moving = False
+            self.hub.render()
+            self.refresh_storage()
+            self._show(t("model_move.done", lang), True)
+            self._ask_delete_old(old_file)
+            self.page.update()
+
+        threading.Thread(target=work, name="smart-business-model-move", daemon=True).start()
+
+    def _ask_delete_old(self, old_file: Path) -> None:
+        lang = self.lang
+        size_text = f"{old_file.stat().st_size / (1024 ** 3):.1f} GB" if old_file.exists() else ""
+
+        def yes(_e=None) -> None:
+            self._close_dialog(dialog)
+            if model_mover.delete_source(old_file):
+                self._show(t("model_move.deleted", lang), True)
+            self.page.update()
+
+        def no(_e=None) -> None:
+            self._close_dialog(dialog)
+
+        dialog = ft.AlertDialog(
+            key="model_delete_dialog",
+            modal=True,
+            title=ft.Text(t("model_move.delete_title", lang), weight=ft.FontWeight.W_700),
+            content=ft.Text(t("model_move.delete_body", lang, size=size_text), size=13),
+            actions=[
+                ft.OutlinedButton(key="model_delete_no", content=t("model_move.delete_no", lang), on_click=no),
+                ft.TextButton(key="model_delete_yes", content=t("model_move.delete_yes", lang), on_click=yes),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        self._open_dialog(dialog)
 
     def on_save(self, _e=None) -> None:
         lang = self.lang

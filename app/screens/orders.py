@@ -575,7 +575,7 @@ def build(
         actions: list[ft.Control] = [
             ft.Button(
                 key=f"desk_send_{order.id}", content=_s("desk.send", lang), icon=ft.Icons.SEND_ROUNDED,
-                bgcolor=theme.ACCENT, color="#FFFFFF",
+                bgcolor=theme.ACCENT_DARK, color="#FFFFFF",
                 on_click=lambda e, oid=order.id, fld=msg: send_desk_text(oid, fld.value),
             ),
             ft.OutlinedButton(

@@ -172,7 +172,7 @@ def test_quit_on_a_real_shape_page_actually_closes_the_window():
     window_close.bind(page, state)
     page.window.on_event(event("close"))
     drain(page)
-    assert page.calls == ["scheduled", "close"]
+    assert page.calls == ["scheduled", "destroy"]  # destroy (نه close): با prevent_close=True، close دوباره همان رویداد را می‌فرستاد
 
 
 def test_the_ask_dialog_is_opened_with_the_real_dialog_api_and_its_buttons_work():
@@ -185,7 +185,7 @@ def test_the_ask_dialog_is_opened_with_the_real_dialog_api_and_its_buttons_work(
     fire(buttons["close_quit"], "on_click")
     drain(page)
     assert page.dialogs == []  # با pop_dialog بسته شد
-    assert page.calls == ["scheduled", "close"]
+    assert page.calls == ["scheduled", "destroy"]  # destroy (نه close): با prevent_close=True، close دوباره همان رویداد را می‌فرستاد
     page.window.on_event(event("close"))
     fire({b.key: b for b in page.dialogs[0].actions}["close_hide"], "on_click")
     assert page.window.minimized is True and page.dialogs == []
@@ -197,3 +197,36 @@ def test_background_choice_never_schedules_an_exit():
     window_close.bind(page, state)
     page.window.on_event(event("close"))
     assert page.window.minimized is True and page.calls == []
+
+
+def test_quit_releases_prevent_close_runs_cleanup_first_and_never_loops_back():
+    """علتِ باگِ End task: close() با prevent_close=True دوباره به handler برمی‌گشت و destroy هرگز اجرا نمی‌شد."""
+    page = RealShapePage()
+    page.window.prevent_close = True
+    order = []
+    window_close._quit(page, on_quit=lambda: order.append("cleanup"))  # noqa: SLF001
+    drain(page)
+    assert order == ["cleanup"] and page.window.prevent_close is False
+    assert page.calls == ["scheduled", "destroy"]
+
+
+def test_cleanup_failure_never_blocks_the_exit():
+    page = RealShapePage()
+
+    def boom():
+        raise RuntimeError("bots stuck")
+
+    window_close._quit(page, on_quit=boom)  # noqa: SLF001
+    drain(page)
+    assert page.calls == ["scheduled", "destroy"]
+
+
+def test_force_exit_is_only_armed_for_the_packaged_app(monkeypatch):
+    armed = []
+    monkeypatch.setattr(window_close.threading, "Timer", lambda s, f: armed.append(s) or SimpleNamespace(start=lambda: None, daemon=False))
+    monkeypatch.delenv(window_close.FORCE_EXIT_ENV, raising=False)
+    window_close._arm_force_exit()  # noqa: SLF001
+    assert armed == []  # اجرای از سورس/تست: هرگز
+    monkeypatch.setenv(window_close.FORCE_EXIT_ENV, "1")
+    window_close._arm_force_exit()  # noqa: SLF001
+    assert armed == [window_close.FORCE_EXIT_SECONDS]

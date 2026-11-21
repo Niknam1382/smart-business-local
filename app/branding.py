@@ -6,6 +6,9 @@
 اگه نامِ ریپوی GitHub فرق کرد فقط ``GITHUB_REPO`` را عوض کن؛ بقیه‌ی آدرس‌ها از روی آن ساخته می‌شن.
 """
 
+import os
+import re
+
 APP_NAME_FA = "کسب‌وکار هوشمند"
 APP_NAME_EN = "Smart Business"
 APP_NAME_LOCAL_EN = "Smart Business Local"
@@ -14,6 +17,11 @@ CREATOR_NAME_FA = "محمد مهدی"
 CREATOR_NAME_EN = "Mohammad Mahdi"
 GITHUB_PROFILE = "https://github.com/niknam1382"
 GITHUB_REPO = "niknam1382/smart-business-local"
+# فقط برای آزمونِ آپدیت روی یک مخزنِ جدا (۱٫۲٫۰): متغیرِ محیطیِ SMART_BUSINESS_UPDATE_REPO=<owner>/<repo> مخزنِ بررسیِ
+# به‌روزرسانی را عوض می‌کند. فقط قالبِ «نام/نام» پذیرفته می‌شود؛ هر چیزِ دیگر نادیده گرفته می‌شود.
+_REPO_OVERRIDE = os.environ.get("SMART_BUSINESS_UPDATE_REPO", "").strip()
+if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9._-]{1,100}", _REPO_OVERRIDE or ""):
+    GITHUB_REPO = _REPO_OVERRIDE
 INSTAGRAM = "https://www.instagram.com/mohammad_mahdi_niknam"
 CONTACT_EMAIL = "niknam151412@gmail.com"
 

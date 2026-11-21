@@ -15,7 +15,7 @@ import flet as ft
 from app import theme
 from app.screens import common
 
-SIDEBAR_WIDTH = 232
+SIDEBAR_WIDTH = 248
 # رنگ‌های روی نیوی از theme.py می‌آیند (قبلاً هگزِ خام بودند؛ همان مقدارها)
 _TEXT_DIM = theme.SIDEBAR_TEXT_DIM
 _TEXT_FAINT = theme.SIDEBAR_TEXT_FAINT
@@ -30,20 +30,23 @@ class NavEntry:
 
 
 def nav_item(entry: NavEntry, active: str) -> ft.Control:
+    """آیتمِ منو (۱٫۲٫۰): فعال = قرصِ گرادیانیِ برند با متنِ سفید و سایه؛ عادی = متنِ کم‌رنگ روی نوارِ تیره."""
     is_active = entry.key == active
     return ft.Container(
         key=f"nav_{entry.key}",
-        margin=ft.Margin.symmetric(horizontal=10),
-        padding=ft.Padding.symmetric(horizontal=12, vertical=9),
-        border_radius=10,
-        bgcolor=theme.SIDEBAR_ACTIVE_BG if is_active else None,
+        margin=ft.Margin.symmetric(horizontal=12),
+        padding=ft.Padding.symmetric(horizontal=14, vertical=11),
+        border_radius=14,
+        tooltip=entry.label,  # متنِ کامل (اگر در نوارِ باریک بریده شد) با نگه‌داشتنِ ماوس دیده می‌شود
+        gradient=theme.hero_gradient() if is_active else None,
+        shadow=ft.BoxShadow(blur_radius=18, color=f"{theme.PRIMARY}66", offset=ft.Offset(0, 6)) if is_active else None,
         ink=True,
         on_click=entry.on_click,
         content=ft.Row(
-            spacing=11,
+            spacing=12,
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
             controls=[
-                ft.Icon(icon=entry.icon, size=18, color=theme.ON_SOLID if is_active else _TEXT_DIM),
+                ft.Icon(icon=entry.icon, size=19, color=theme.ON_SOLID if is_active else _TEXT_DIM),
                 ft.Text(
                     entry.label,
                     size=13,
@@ -53,7 +56,6 @@ def nav_item(entry: NavEntry, active: str) -> ft.Control:
                     weight=ft.FontWeight.W_600 if is_active else ft.FontWeight.W_400,
                     color=theme.ON_SOLID if is_active else _TEXT_DIM,
                 ),
-                *([ft.Container(width=6, height=6, border_radius=3, bgcolor=theme.ACCENT)] if is_active else []),
             ],
         ),
     )
@@ -61,13 +63,13 @@ def nav_item(entry: NavEntry, active: str) -> ft.Control:
 
 def group_label(text: str) -> ft.Control:
     return ft.Container(
-        padding=ft.Padding(left=22, right=22, top=12, bottom=3),
-        content=ft.Text(text, size=10.5, weight=ft.FontWeight.W_600, color=_TEXT_FAINT, max_lines=1),
+        padding=ft.Padding(left=26, right=26, top=16, bottom=4),
+        content=ft.Text(text, size=10.5, weight=ft.FontWeight.W_700, color=_TEXT_FAINT, max_lines=1),
     )
 
 
 def divider() -> ft.Control:
-    return ft.Container(margin=ft.Margin.symmetric(horizontal=18, vertical=6), height=1, bgcolor=theme.SIDEBAR_DIVIDER)
+    return ft.Container(margin=ft.Margin.symmetric(horizontal=22, vertical=8), height=1, bgcolor=theme.SIDEBAR_DIVIDER)
 
 
 def build(
@@ -89,14 +91,21 @@ def build(
     return ft.Container(
         key="sidebar",
         width=SIDEBAR_WIDTH,
+        margin=ft.Margin(left=12, right=12, top=12, bottom=12),  # نوارِ شناور با گوشه‌های گرد
+        border_radius=28,
         gradient=theme.sidebar_gradient(),
-        padding=ft.Padding.symmetric(vertical=16),
+        shadow=ft.BoxShadow(blur_radius=30, color="#10132B55", offset=ft.Offset(0, 12)),
+        padding=ft.Padding.symmetric(vertical=18),
         content=ft.Column(
             expand=True,
             spacing=0,
             controls=[
                 ft.Container(
-                    padding=ft.Padding.symmetric(horizontal=18),
+                    margin=ft.Margin.symmetric(horizontal=14),
+                    padding=ft.Padding.symmetric(horizontal=12, vertical=10),
+                    border_radius=18,
+                    bgcolor=theme.SIDEBAR_DIVIDER,
+                    border=ft.Border.all(1, theme.SIDEBAR_ACTIVE_BG),
                     content=ft.Row(
                         spacing=10,
                         controls=[

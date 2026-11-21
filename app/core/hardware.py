@@ -29,6 +29,7 @@ except ImportError:  # اگه psutil در دسترس نبود، بی‌خطر ر
 class HardwareInfo:
     ram_gb: Optional[float] = None
     cpu_cores: Optional[int] = None
+    cpu_physical: Optional[int] = None  # هسته‌های فیزیکی (بدونِ hyper-threading)؛ ممکن است ناشناخته باشد
     cpu_model: str = ""
     gpu_model: str = ""
     gpu_vram_gb: Optional[float] = None
@@ -136,6 +137,11 @@ def detect(force: bool = False, disk_path: Optional[Path] = None) -> HardwareInf
     info = HardwareInfo()
     info.ram_gb = _detect_ram_gb()
     info.cpu_cores = os.cpu_count()
+    try:
+        if psutil is not None:
+            info.cpu_physical = psutil.cpu_count(logical=False) or None
+    except Exception:  # noqa: BLE001 — فقط یک بهینه‌سازی است
+        info.cpu_physical = None
     info.cpu_model = _detect_cpu_model()
     info.gpu_model, info.gpu_vram_gb = _detect_gpu()
     info.free_disk_gb = _detect_free_disk_gb(disk_path)

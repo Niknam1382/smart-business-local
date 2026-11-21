@@ -158,13 +158,27 @@ def engine_with(tmp_path, llama, *responses, usage=None, finish_reasons=(), n_ct
     return LocalEngine(path, n_ctx=n_ctx, model_id="qwen35-4b", **engine_kw), fake
 
 
-def test_cut_answer_is_retried_with_double_budget(tmp_path, llama):
-    """۹: finish_reason=length ⇒ یک تلاشِ دوباره با سقفِ دوبله، تا پاسخ نصفه نماند."""
-    engine, fake = engine_with(tmp_path, llama, "نیمه‌کاره", "پاسخِ کامل", finish_reasons=("length", "stop"))
+def test_cut_answer_is_continued_not_repeated(tmp_path, llama):
+    """۱٫۲٫۰: finish_reason=length ⇒ یک «ادامه»ی محدود از همان‌جا (نه تکرارِ کاملِ درخواست با سقفِ بزرگ‌تر)."""
+    engine, fake = engine_with(tmp_path, llama, "این پاسخ نیمه‌کاره", "و این هم بقیه‌اش.", finish_reasons=("length", "stop"))
     answer = engine.chat("S", [], "کتاب رو توضیح بده")
-    assert answer == "پاسخِ کامل"
+    assert answer == "این پاسخ نیمه‌کاره و این هم بقیه‌اش."
     first, second = fake.requests
-    assert second["max_tokens"] == first["max_tokens"] * 2
+    assert second["max_tokens"] == first["max_tokens"]  # سقف چند برابر نمی‌شود
+    assert second["messages"][-2] == {"role": "assistant", "content": "این پاسخ نیمه‌کاره"}
+    assert "ادامه" in second["messages"][-1]["content"] and len(fake.requests) == 2
+
+
+def test_repeated_start_in_the_continuation_is_dropped(tmp_path, llama):
+    engine, _fake = engine_with(tmp_path, llama, "قیمت این کالا ۱۲۰ هزار تومان است", "قیمت این کالا ۱۲۰ هزار تومان است و موجود است", finish_reasons=("length", "stop"))
+    assert engine.chat("S", [], "قیمت؟") == "قیمت این کالا ۱۲۰ هزار تومان است"
+
+
+def test_still_cut_answer_is_trimmed_to_the_last_full_sentence(tmp_path, llama):
+    engine, fake = engine_with(tmp_path, llama, "جمله‌ی اول کامل است. جمله‌ی دوم هم کامل است. جمله‌ی سوم نیمه", "و ادامه‌ی ناتمام", finish_reasons=("length", "length"))
+    answer = engine.chat("S", [], "توضیح بده")
+    assert answer.endswith("کامل است.") and "نیمه" not in answer
+    assert len(fake.requests) == 2  # فقط یک ادامه؛ حلقه‌ی بی‌پایان نیست
 
 
 def test_finished_answer_is_not_retried(tmp_path, llama):

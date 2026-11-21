@@ -1,0 +1,83 @@
+# ساخت آزمایشیِ macOS — فقط دستی (workflow_dispatch)، هرگز به Release اضافه نمی‌شود و ارتباطی با انتشارِ ویندوز/لینوکس ندارد.
+#
+# هدف: روشن‌شدنِ واقعیِ این‌که «llama-cpp-python + Flet + PyInstaller» روی Apple Silicon و Intel ساخته می‌شود یا نه.
+# هر دو ردیف مستقل‌اند (fail-fast خاموش). نتیجه فقط یک آرتیفکتِ آزمایشی + لاگ است؛ تا کسی روی یک مکِ واقعی
+# آن را اجرا و تأیید نکند «منتشرشدنی» نیست. برنامه notarize/امضای اپل ندارد: Gatekeeper هشدار می‌دهد و کاربر باید
+# برنامه را آگاهانه با «Open Anyway» باز کند؛ امضای Ed25519 فایلِ آپدیت جای notarizationِ اپل نیست.
+#
+# برچسبِ رانرِ Intel (macos-15-intel) در زمانِ نوشتنِ این فایل تأیید نشده؛ اگر گیت‌هاب نامش را عوض کرده بود، همین‌جا اصلاح کن.
+name: macOS experimental build (manual, never released)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mac:
+    name: macOS ${{ matrix.arch }} (experimental)
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-14
+          - arch: x86_64
+            runner: macos-15-intel
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies (llama-cpp-python may compile from source)
+        env:
+          CMAKE_BUILD_TYPE: Release
+        run: |
+          set -o pipefail
+          mkdir -p logs
+          python -m pip install --upgrade pip
+          python -m pip install --no-cache-dir --retries 10 --timeout 120 -r requirements-dev.txt 2>&1 | tee logs/install.log
+
+      - name: Native engine gate (llama_cpp must import on this architecture)
+        run: |
+          python - <<'PY'
+          import platform, sys
+          print("machine:", platform.machine())
+          import llama_cpp
+          print("llama_cpp", getattr(llama_cpp, "__version__", "?"))
+          PY
+
+      - name: Build with flet pack
+        run: |
+          set -o pipefail
+          flet pack run.py \
+            --name SmartBusinessLocal \
+            --add-data "assets:assets" \
+            --product-name "Smart Business Local" \
+            --pyinstaller-build-args=--collect-all=llama_cpp \
+            -y 2>&1 | tee logs/build.log
+          ls -la dist || true
+
+      - name: Archive experimental output
+        run: |
+          mkdir -p experimental
+          cd dist
+          tar -czf "../experimental/SmartBusinessLocal-macos-${{ matrix.arch }}-EXPERIMENTAL.tar.gz" .
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: macos-${{ matrix.arch }}-experimental
+          path: |
+            experimental/
+            logs/
+          if-no-files-found: ignore
+          retention-days: 7

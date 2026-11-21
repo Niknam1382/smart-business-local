@@ -30,7 +30,7 @@ from app.core import settings as settings_module
 from app.core import settings_fields as sfields
 from app.core.handoff import parse_ref as handoff_ref
 from app.core.admins import AdminStore
-from app.core.orders import STATUS_CONFIRMED, STATUS_PAID, STATUS_PENDING_PAYMENT
+from app.core.orders import STATUS_CLOSED, STATUS_CONFIRMED, STATUS_PAID, STATUS_PENDING_PAYMENT
 from app.core.owner_console import _money, order_details
 from app.core.products import ProductError
 from app.core.ui import Btn, FlowResult, UiMessage, deliver
@@ -466,7 +466,7 @@ class AdminPanel:
         for order in self._orders.list():
             if _utc_epoch(order.created_at) >= start:
                 new += 1
-            if order.status == STATUS_CONFIRMED and _utc_epoch(order.updated_at) >= start:
+            if order.status in (STATUS_CONFIRMED, STATUS_CLOSED) and _utc_epoch(order.updated_at) >= start:
                 confirmed += 1
                 revenue += order.total_irr
             if order.status == STATUS_PAID:

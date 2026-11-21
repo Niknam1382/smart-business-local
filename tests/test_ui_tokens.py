@@ -8,6 +8,9 @@
 import re
 from pathlib import Path
 
+import flet as ft
+from fake_page import FakePage, collect_text
+
 from app import theme
 from app.screens import common
 
@@ -84,3 +87,24 @@ def test_the_warning_colour_is_actually_used():
     """پیش از این WARNING فقط دو جا به کار می‌رفت و بقیه قهوه‌ای بودند؛ حالا رنگِ معناییِ خودش جا افتاده."""
     users = [p.name for p in SCREENS.glob("*.py") if "theme.WARNING" in p.read_text(encoding="utf-8")]
     assert len(users) >= 5, f"رنگِ هشدار فقط در {len(users)} صفحه به کار رفته: {users}"
+
+
+def test_page_header_is_clean_by_default_and_a_gradient_banner_for_the_hero():
+    """۱٫۲٫۰: سرتیترِ عادی تمیز است (نشانِ گرادیانی + عنوان)؛ فقط ``hero=True`` بنرِ گرادیانیِ خانه می‌شود."""
+    plain = common.page_header(FakePage(), ft.Icons.HOME_ROUNDED, "داشبورد", "خوش آمدی")
+    assert plain.gradient is None
+    assert "داشبورد" in collect_text(plain) and "خوش آمدی" in collect_text(plain)
+    hero = common.page_header(FakePage(), ft.Icons.HOME_ROUNDED, "سلام", "امروز", hero=True)
+    assert hero.gradient is not None and hero.border_radius == theme.RADIUS_CARD + 4
+    assert "سلام" in collect_text(hero) and "امروز" in collect_text(hero)
+
+
+def test_cards_use_the_shared_radius_and_shadow():
+    box = common.card(FakePage(), ft.Text("x"))
+    assert box.border_radius == theme.RADIUS_CARD and box.shadow is not None
+
+
+def test_buttons_keep_their_token_heights_with_the_rounded_style():
+    noop = lambda e: None  # noqa: E731
+    assert common.primary("ذخیره", noop, size="lg").height == theme.BTN_LG
+    assert common.secondary("ادامه", noop).height == theme.BTN_MD

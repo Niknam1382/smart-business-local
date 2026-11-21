@@ -436,7 +436,7 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple[f
         key="run_button",
         content=t("bots.run.start", lang),
         icon=ft.Icons.PLAY_ARROW_ROUNDED,
-        bgcolor=theme.ACCENT,
+        bgcolor=theme.ACCENT_DARK,
         color="#FFFFFF",
         on_click=on_run,
     )
@@ -489,7 +489,7 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple[f
             run_button.content, run_button.icon = t("bots.run.stop", lang), ft.Icons.STOP_ROUNDED
         else:
             run_button.content, run_button.icon = t("bots.run.start", lang), ft.Icons.PLAY_ARROW_ROUNDED
-        run_button.bgcolor = theme.DANGER if (running and not ui["needs_restart"]) else theme.ACCENT
+        run_button.bgcolor = theme.DANGER if (running and not ui["needs_restart"]) else theme.ACCENT_DARK
         run_button.disabled = bool(busy)
         restart_note.visible = bool(running and ui["needs_restart"])
         run_error_text.value = ui["run_error"]

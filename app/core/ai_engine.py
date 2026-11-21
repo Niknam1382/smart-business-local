@@ -82,6 +82,29 @@ def _tool_messages_chars(tool_messages: list) -> int:
     return total
 
 
+CONTINUE_PROMPT = "ادامه بده؛ دقیقاً از همان‌جا که قطع شد و چیزی را تکرار نکن."
+_SENTENCE_ENDS = (".", "؟", "!", "؛", "…", "?", "\n")
+
+
+def _join_continuation(first: str, more: str) -> str:
+    """ادامه را به پاسخ می‌چسباند؛ اگر مدل از اول شروع کرد (تکرار)، همان تکرار را نادیده می‌گیرد."""
+    more = (more or "").strip()
+    head = first.strip()[:30]
+    if not more or (len(head) >= 12 and more.startswith(head)):
+        return first
+    sep = "" if first.endswith((" ", "\n")) else " "
+    return first + sep + more
+
+
+def _trim_to_sentence(text: str) -> str:
+    """متنِ نصفه‌مانده را تا آخرین جمله‌ی کامل کوتاه می‌کند (اگر جمله‌ی کاملی نبود، همان‌طور می‌ماند)."""
+    stripped = text.rstrip()
+    if stripped.endswith(_SENTENCE_ENDS):
+        return stripped
+    cut = max(stripped.rfind(mark) for mark in _SENTENCE_ENDS)
+    return stripped[: cut + 1] if cut >= max(20, len(stripped) // 3) else stripped
+
+
 class LocalEngine:
     # یه نمونه‌ی Llama نباید هم‌زمان از چند ترد صدا زده بشه (حالتِ داخلیش خراب
     # می‌شه) — پایپ‌لاین ربات تماس‌های محلی رو پشت یه قفل سریالی می‌کنه.
@@ -187,14 +210,20 @@ class LocalEngine:
         usage: dict = {}
         try:
             answer, reason, usage = self._complete(messages, budget)
-            if reason == "length":
-                # پاسخ نصفه ماند: یک‌بار با سقفِ دوبله و تاریخچه‌ی کوتاه‌تر تلاش می‌شه.
+            if reason == "length" and answer.strip():
+                # پاسخ نصفه ماند (۱٫۲٫۰): به‌جای تکرارِ کاملِ درخواست با سقفِ بزرگ‌تر (که کندی را فقط چند برابر می‌کرد)،
+                # یک «ادامه»ی محدود و بدون تکرار از همان‌جا که قطع شد. اگر باز هم ناتمام ماند، تا آخرین جمله‌ی کامل بریده می‌شود.
                 trimmed = self._history(system_prompt, history, user_message, budget * 2)
-                retry = [{"role": "system", "content": system_prompt}]
-                retry += [{"role": m.role, "content": m.content} for m in trimmed]
-                retry.append({"role": "user", "content": user_message})
-                answer, reason, usage = self._complete(retry, budget * 2)
-                messages = retry
+                cont = [{"role": "system", "content": system_prompt}]
+                cont += [{"role": m.role, "content": m.content} for m in trimmed]
+                cont.append({"role": "user", "content": user_message})
+                cont.append({"role": "assistant", "content": answer})
+                cont.append({"role": "user", "content": CONTINUE_PROMPT})
+                more, reason, usage = self._complete(cont, budget)
+                answer = _join_continuation(answer, more)
+                messages = cont
+                if reason == "length":
+                    answer = _trim_to_sentence(answer)
         except Exception as exc:
             self._note_failure(messages, user_message, began)
             raise AiEngineError(f"اجرای مدل محلی شکست خورد: {exc}") from exc
@@ -317,7 +346,7 @@ def engine_readiness(settings) -> tuple:
 def downloader_ok(path: Path, entry) -> bool:
     from app.core import downloader
 
-    return downloader.is_downloaded(path, entry.size_bytes)
+    return downloader.is_downloaded(path, entry.expected_size)
 
 
 def _llama_available() -> bool:

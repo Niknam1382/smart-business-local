@@ -5,7 +5,7 @@ Smart Business Local is a single-process desktop app (Flet UI) that runs a Teleg
 account. Bale is **not** a messenger any more — it survives only as the **Bale Pay** payment gateway. This document
 describes how the pieces fit and — most importantly — the invariants that keep money and stock safe.
 
-## What this release is (1.1.0)
+## What this release is (1.2.0)
 
 | Cut during development — **not in this code** | What the code does instead |
 |---|---|

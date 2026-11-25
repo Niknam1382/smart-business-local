@@ -110,10 +110,11 @@ def build(
             result = installer.install(info, progress, before_handoff=before_handoff)
         except update_install.InstallError as exc:
             resume()
-            if exc.code == "cancelled":
+            code = exc.code
+            if code == "cancelled":
                 common.run_on_ui(page, lambda: goto("idle", error=""))
             else:
-                common.run_on_ui(page, lambda: goto("error", error=exc.code))
+                common.run_on_ui(page, lambda: goto("error", error=code))
             return
         except Exception:  # noqa: BLE001 — هیچ خطایی بنر را در حالتِ «در حال نصب» گیر نمی‌اندازه
             resume()

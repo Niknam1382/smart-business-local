@@ -46,7 +46,9 @@ class LiveRefresher:
     def _loop(self) -> None:
         while not self._stop.wait(self._interval):
             try:
-                self._page.run_thread(self._run_tick)
+                from app.screens import common  # تنبل: ایمپورتِ حلقوی نشه
+
+                common.run_on_ui(self._page, self._run_tick)  # تیکِ زنده روی حلقه‌ی رابط (۱٫۲٫۱)
             except Exception:  # noqa: BLE001 — session/صفحه دیگه وجود نداره
                 break
 

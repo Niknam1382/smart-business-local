@@ -30,8 +30,8 @@ def _bar(key: str, color: str, content: ft.Control) -> ft.Container:
     return ft.Container(
         key=key,
         padding=ft.Padding.symmetric(horizontal=18, vertical=6),
-        bgcolor=f"{color}22",
-        border=ft.Border(bottom=ft.BorderSide(1, f"{color}66")),
+        bgcolor=theme.alpha(color, 0x22),
+        border=ft.Border(bottom=ft.BorderSide(1, theme.alpha(color, 0x66))),
         content=content,
     )
 
@@ -104,27 +104,27 @@ def build(
     def worker() -> None:
         def progress(phase: str, fraction: Optional[float]) -> None:
             state.update(phase=phase, fraction=fraction)
-            render()
+            common.run_on_ui(page, render)  # از تردِ نصب مستقیم نقاشی نمی‌کنیم (RuntimeError در Flet 1.0)
 
         try:
             result = installer.install(info, progress, before_handoff=before_handoff)
         except update_install.InstallError as exc:
             resume()
             if exc.code == "cancelled":
-                goto("idle", error="")
+                common.run_on_ui(page, lambda: goto("idle", error=""))
             else:
-                goto("error", error=exc.code)
+                common.run_on_ui(page, lambda: goto("error", error=exc.code))
             return
         except Exception:  # noqa: BLE001 — هیچ خطایی بنر را در حالتِ «در حال نصب» گیر نمی‌اندازه
             resume()
-            goto("error", error="unexpected")
+            common.run_on_ui(page, lambda: goto("error", error="unexpected"))
             return
         if result.status == "restart":
-            goto("restarting")
+            common.run_on_ui(page, lambda: goto("restarting"))
             if on_restart is not None:
                 on_restart()
         else:
-            goto("downloaded", path=result.path)
+            common.run_on_ui(page, lambda: goto("downloaded", path=result.path))
 
     def on_reveal(_e=None) -> None:
         common.open_folder(Path(state["path"]).parent)
@@ -152,7 +152,7 @@ def build(
         if step == "working":
             line = _line(ft.Icons.DOWNLOAD_ROUNDED, theme.INFO, phase_text(),
                          [common.text(t("update.cancel", lang), key="update_cancel", on_click=on_cancel)])
-            bar = ft.ProgressBar(key="update_progress", value=state["fraction"], bar_height=4, color=theme.INFO, bgcolor=f"{theme.INFO}33")
+            bar = ft.ProgressBar(key="update_progress", value=state["fraction"], bar_height=4, color=theme.INFO, bgcolor=theme.alpha(theme.INFO, 0x33))
             return ft.Column(spacing=4, controls=[line, bar])
         if step == "restarting":
             return _line(ft.Icons.SYSTEM_UPDATE_ALT_ROUNDED, theme.INFO, t("update.phase.handoff", lang), [])

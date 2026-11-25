@@ -12,9 +12,20 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 README = (ROOT / "README.md").read_text(encoding="utf-8")
 
-_I_EN = README.index("\n## English")
-_I_FA = README.index("\n## فارسی")
-_I_LIC = README.index("\n## License")
+def _marker(text: str) -> int:
+    """۱٫۲٫۰: اگر README.md جایگزین شده باشد (مثلاً ساختِ مخزن با گزینه‌ی «Initialize with a README»)، پیامِ روشن بده، نه ValueError."""
+    found = README.find(text)
+    if found < 0:
+        raise AssertionError(
+            f"README.md بخشِ «{text.strip()}» را ندارد (طول: {len(README)} نویسه). فایل جایگزین یا ناقص شده؛ "
+            "README.md را از بسته‌ی پروژه برگردان و دوباره commit کن."
+        )
+    return found
+
+
+_I_EN = _marker("\n## English")
+_I_FA = _marker("\n## فارسی")
+_I_LIC = _marker("\n## License")
 EN = README[_I_EN:_I_FA]
 FA = README[_I_FA:_I_LIC]
 

@@ -44,7 +44,7 @@ from app.core.orders import (
 )
 from app.i18n import t
 from app.screens import owner_settings, payment_settings
-from app.screens.common import card, get_or_create_file_picker, open_folder, page_header, screen_frame
+from app.screens.common import card, get_or_create_file_picker, open_folder, page_header, run_on_ui, screen_frame
 
 logger = logging.getLogger(__name__)
 
@@ -315,7 +315,11 @@ def build(
         render_list()
         page.update()
         # ارسال شبکه‌ای روی ترد جدا، تا UI فریز نشه (و یه ارسال کند/قطع، دکمه‌ها رو قفل نکنه)
-        page.run_thread(lambda: (notify_customer(order), render_list(), page.update()))
+        def send_then_paint() -> None:
+            notify_customer(order)  # شبکه: روی تردِ پس‌زمینه
+            run_on_ui(page, lambda: (render_list(), page.update()))  # نقاشی: روی حلقه‌ی رابط (۱٫۲٫۱)
+
+        page.run_thread(send_then_paint)
 
     def handle_reject(order_id: int) -> None:
         ui["notice"] = ""
@@ -419,7 +423,7 @@ def build(
             padding=ft.Padding.symmetric(horizontal=12, vertical=10),
             border_radius=12,
             border=ft.Border.all(1, theme.border_color(page)),
-            bgcolor=f"{theme.PRIMARY}08",
+            bgcolor=theme.alpha(theme.PRIMARY, 0x08),
             content=ft.Column(
                 spacing=8,
                 controls=[
@@ -601,7 +605,7 @@ def build(
             padding=ft.Padding.symmetric(horizontal=12, vertical=10),
             border_radius=12,
             border=ft.Border.all(1, theme.border_color(page)),
-            bgcolor=f"{theme.ACCENT}0A",
+            bgcolor=theme.alpha(theme.ACCENT, 0x0A),
             content=ft.Column(
                 spacing=8,
                 controls=[
@@ -713,7 +717,7 @@ def build(
             padding=ft.Padding.symmetric(horizontal=12, vertical=10),
             border_radius=12,
             border=ft.Border.all(1, theme.border_color(page)),
-            bgcolor=f"{theme.ACCENT}08",
+            bgcolor=theme.alpha(theme.ACCENT, 0x08),
             content=ft.Column(spacing=4, controls=lines),
         )
 
@@ -759,7 +763,7 @@ def build(
             if body:
                 inner.append(
                     ft.Container(
-                        padding=10, border_radius=10, bgcolor=f"{theme.PRIMARY}0A",
+                        padding=10, border_radius=10, bgcolor=theme.alpha(theme.PRIMARY, 0x0A),
                         content=ft.Text(body, key=f"receipt_body_{order.id}_{idx}", size=12.5, selectable=True, expand=True),
                     )
                 )
@@ -788,7 +792,7 @@ def build(
             key=f"receipts_{order.id}",
             padding=ft.Padding.symmetric(horizontal=14, vertical=12),
             border_radius=12,
-            bgcolor=f"{theme.ACCENT}0C",
+            bgcolor=theme.alpha(theme.ACCENT, 0x0C),
             content=ft.Column(spacing=8, controls=rows),
         )
 
@@ -810,7 +814,7 @@ def build(
                 ft.Container(
                     padding=ft.Padding.symmetric(horizontal=10, vertical=4),
                     border_radius=20,
-                    bgcolor=f"{_status_color(order.status)}22",
+                    bgcolor=theme.alpha(_status_color(order.status), 0x22),
                     content=ft.Text(_status_label(order.status, lang), size=11.5, color=_status_color(order.status), weight=ft.FontWeight.W_500),
                 ),
             ],
@@ -899,7 +903,7 @@ def build(
         key="attention_box",
         padding=ft.Padding.symmetric(horizontal=16, vertical=14),
         border_radius=14,
-        bgcolor=f"{theme.ACCENT}0F",
+        bgcolor=theme.alpha(theme.ACCENT, 0x0F),
         border=ft.Border.all(1, theme.ACCENT_DARK),
         content=ft.Column(
             spacing=8,

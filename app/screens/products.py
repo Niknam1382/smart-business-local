@@ -118,7 +118,7 @@ def build(page: ft.Page, lang: str, store: ProductStore, settings=None, save=Non
         width=72,
         height=72,
         border_radius=10,
-        bgcolor=f"{theme.PRIMARY}12",
+        bgcolor=theme.alpha(theme.PRIMARY, 0x12),
         alignment=ft.Alignment.CENTER,
         content=ft.Icon(ft.Icons.IMAGE_OUTLINED, color=theme.text_secondary(page), size=26),
     )
@@ -335,9 +335,10 @@ def build(page: ft.Page, lang: str, store: ProductStore, settings=None, save=Non
             try:
                 product_import.write_template(path)
             except OSError as exc:
-                show_note(f"قالب ساخته نشد: {exc}", False)
+                note = f"قالب ساخته نشد: {exc}"
+                common.run_on_ui(page, lambda: show_note(note, False))
                 return
-            show_note(t("products.import.template_done", lang, path=str(path)), True)
+            common.run_on_ui(page, lambda: show_note(t("products.import.template_done", lang, path=str(path)), True))
 
         page.run_thread(work)
 
@@ -346,14 +347,20 @@ def build(page: ft.Page, lang: str, store: ProductStore, settings=None, save=Non
             try:
                 added, problems = product_import.import_file(store, path)
             except product_import.ProductImportError as exc:
-                show_note(str(exc), False)
+                note = str(exc)
+                common.run_on_ui(page, lambda: show_note(note, False))
                 return
             except (OSError, ProductError) as exc:
-                show_note(f"واردات نشد: {exc}", False)
+                note = f"واردات نشد: {exc}"
+                common.run_on_ui(page, lambda: show_note(note, False))
                 return
-            render_list()
-            show_note(product_import.import_summary(lang, added, problems), not problems)
-            page.update()
+
+            def paint() -> None:
+                render_list()
+                show_note(product_import.import_summary(lang, added, problems), not problems)
+                page.update()
+
+            common.run_on_ui(page, paint)
 
         page.run_thread(work)
 
@@ -394,13 +401,14 @@ def build(page: ft.Page, lang: str, store: ProductStore, settings=None, save=Non
                                                    shop_name=report_xlsx.shop_name_of(settings))
                 path = report_pdf.write_pdf(data) if fmt == "pdf" else report_xlsx.write_xlsx(data)
             except report_xlsx.ReportError as exc:  # «چیزی برای خروجی گرفتن نیست» / شکستِ PDF
-                show_note(str(exc), False)
+                note = str(exc)
+                common.run_on_ui(page, lambda: show_note(note, False))
                 return
             except OSError as exc:
-                show_note(_r("failed", lang, error=str(exc)), False)
+                note = _r("failed", lang, error=str(exc))
+                common.run_on_ui(page, lambda: show_note(note, False))
                 return
-            show_note(_r("done", lang, n=data.count, path=str(path)), True)
-            common.open_folder(path.parent)
+            common.run_on_ui(page, lambda: (show_note(_r("done", lang, n=data.count, path=str(path)), True), common.open_folder(path.parent)))
 
         page.run_thread(work)
 
@@ -425,7 +433,7 @@ def build(page: ft.Page, lang: str, store: ProductStore, settings=None, save=Non
                 width=56,
                 height=56,
                 border_radius=10,
-                bgcolor=f"{theme.PRIMARY}12",
+                bgcolor=theme.alpha(theme.PRIMARY, 0x12),
                 alignment=ft.Alignment.CENTER,
                 content=ft.Icon(ft.Icons.INVENTORY_2_OUTLINED, color=theme.PRIMARY, size=24),
             )
@@ -447,7 +455,7 @@ def build(page: ft.Page, lang: str, store: ProductStore, settings=None, save=Non
                 ft.Container(
                     padding=ft.Padding.symmetric(horizontal=8, vertical=1),
                     border_radius=20,
-                    bgcolor=f"{theme.text_secondary(page)}22",
+                    bgcolor=theme.alpha(theme.text_secondary(page), 0x22),
                     content=ft.Text(t("products.inactive_badge", lang), size=11, color=theme.text_secondary(page)),
                 )
             )

@@ -13,6 +13,7 @@ import flet as ft
 
 from app import theme
 from app.core import gpu_pack
+from app.screens import common
 from app.screens.gpu_card import S
 
 _OFFERED = {"done": False}
@@ -47,7 +48,7 @@ def maybe_offer(page: ft.Page, lang: str, settings, save, pack=None, once: bool 
     total_mb = round(sum(mb for _n, mb in sizes), 1)
     ui = {"busy": False, "cancel": False}
     note = ft.Text("", key="gpu_offer_note", size=12.5, selectable=True, visible=False)
-    bar = ft.ProgressBar(key="gpu_offer_bar", visible=False, width=360, color=theme.PRIMARY)
+    bar = ft.ProgressBar(key="gpu_offer_bar", visible=False, color=theme.PRIMARY)
 
     def close(_e=None) -> None:
         pop = getattr(page, "pop_dialog", None)
@@ -73,8 +74,31 @@ def maybe_offer(page: ft.Page, lang: str, settings, save, pack=None, once: bool 
         close()
 
     def tick(done: int, total: int) -> None:
-        bar.value = (done / total) if total else 0.0
-        bar.visible = True
+        def paint() -> None:
+            bar.value = (done / total) if total else 0.0
+            bar.visible = True
+            page.update()
+
+        common.run_on_ui(page, paint)
+
+    def finish(result, error) -> None:
+        ui["busy"] = False
+        bar.visible = False
+        if error is not None:
+            install_btn.disabled = False
+            note.value, note.color = S("failed", lang, detail=error or "—"), theme.WARNING
+        elif result.cancelled:
+            note.value, note.color = S("cancelled", lang), theme.INFO
+            install_btn.disabled = False
+        elif result.ok and result.verified == "gpu":
+            note.value, note.color = (S("restart", lang) if result.restart_needed else S("saved", lang)), theme.SUCCESS
+        elif result.rolled_back:
+            note.value, note.color = S("cpu_fallback", lang) + (f"\n{result.detail}" if result.detail else ""), theme.WARNING
+            install_btn.disabled = False
+        else:
+            note.value, note.color = S("failed", lang, detail=result.detail or "—"), theme.WARNING
+            install_btn.disabled = False
+        note.visible = True
         page.update()
 
     def do_install(_e=None) -> None:
@@ -87,30 +111,12 @@ def maybe_offer(page: ft.Page, lang: str, settings, save, pack=None, once: bool 
         page.update()
 
         def worker() -> None:
+            result, error = None, None
             try:
                 result = g.install(settings=settings, cuda=settings.gpu_pack_cuda or "", progress_cb=tick, cancel_cb=lambda: ui["cancel"])
             except Exception as exc:  # noqa: BLE001 — GpuPackError و هر خطای دیگر: علتِ روشن، بدونِ نیمه‌کاری
-                ui["busy"] = False
-                bar.visible = False
-                install_btn.disabled = False
-                note.value, note.color, note.visible = S("failed", lang, detail=str(exc) or "—"), theme.WARNING, True
-                page.update()
-                return
-            ui["busy"] = False
-            bar.visible = False
-            if result.cancelled:
-                note.value, note.color = S("cancelled", lang), theme.INFO
-                install_btn.disabled = False
-            elif result.ok and result.verified == "gpu":
-                note.value, note.color = (S("restart", lang) if result.restart_needed else S("saved", lang)), theme.SUCCESS
-            elif result.rolled_back:
-                note.value, note.color = S("cpu_fallback", lang) + (f"\n{result.detail}" if result.detail else ""), theme.WARNING
-                install_btn.disabled = False
-            else:
-                note.value, note.color = S("failed", lang, detail=result.detail or "—"), theme.WARNING
-                install_btn.disabled = False
-            note.visible = True
-            page.update()
+                error = str(exc) or type(exc).__name__
+            common.run_on_ui(page, lambda: finish(result, error))
 
         page.run_thread(worker)
 
@@ -119,7 +125,7 @@ def maybe_offer(page: ft.Page, lang: str, settings, save, pack=None, once: bool 
         key="gpu_offer_dialog",
         modal=True,
         title=ft.Text(S("offer_title", lang), weight=ft.FontWeight.W_700),
-        content=ft.Container(width=440, content=ft.Column(tight=True, spacing=10, controls=[
+        content=ft.Container(width=common.fit_width(page, 440), content=ft.Column(tight=True, spacing=10, controls=[
             ft.Text(S("offer_body", lang, gpu=st.gpu_model or "NVIDIA", mb=total_mb), size=13),
             bar,
             note,

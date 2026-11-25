@@ -48,17 +48,21 @@ def build(page: ft.Page, lang: str, state, save, checker=None, version: str = __
 
         def work() -> None:
             result = checker.check(force=True)
-            if result.status == updater.STATUS_UPDATE and result.info is not None:
-                show_result(t("about.update_available", lang, version=result.info.version))
-                update_link.data = result.info.html_url
-                update_link.visible = True
-                install_btn.data = result.info
-                install_btn.visible = bool(on_install is not None and can_install is not None and can_install(result.info))  # N14b
-            elif result.status == updater.STATUS_CURRENT:
-                show_result(t("about.up_to_date", lang, version=version))
-            else:
-                show_result(t("about.check_failed", lang), ok=False)
-            page.update()
+
+            def paint() -> None:  # نقاشی فقط روی حلقه‌ی رابط (۱٫۲٫۱)
+                if result.status == updater.STATUS_UPDATE and result.info is not None:
+                    show_result(t("about.update_available", lang, version=result.info.version))
+                    update_link.data = result.info.html_url
+                    update_link.visible = True
+                    install_btn.data = result.info
+                    install_btn.visible = bool(on_install is not None and can_install is not None and can_install(result.info))  # N14b
+                elif result.status == updater.STATUS_CURRENT:
+                    show_result(t("about.up_to_date", lang, version=version))
+                else:
+                    show_result(t("about.check_failed", lang), ok=False)
+                page.update()
+
+            common.run_on_ui(page, paint)
 
         page.run_thread(work)
 

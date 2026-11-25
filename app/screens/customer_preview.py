@@ -144,7 +144,7 @@ def build(page: ft.Page, lang: str, settings, product_store, order_store) -> ft.
         return ft.Row(
             alignment=ft.MainAxisAlignment.END if mine else ft.MainAxisAlignment.START,
             controls=[ft.Container(
-                padding=ft.Padding.symmetric(horizontal=12, vertical=8), border_radius=12, bgcolor=f"{theme.PRIMARY}22" if mine else theme.card_bgcolor(page),
+                padding=ft.Padding.symmetric(horizontal=12, vertical=8), border_radius=12, bgcolor=theme.alpha(theme.PRIMARY, 0x22) if mine else theme.card_bgcolor(page),
                 border=ft.Border.all(1, theme.border_color(page)), content=control,
             )],
         )
@@ -257,7 +257,7 @@ def build(page: ft.Page, lang: str, settings, product_store, order_store) -> ft.
         controls=[
             ft.Text(_tx("help", lang), size=12, color=theme.text_secondary(page)),
             menu_row,
-            ft.Container(padding=10, border_radius=12, bgcolor=f"{theme.PRIMARY}08", border=ft.Border.all(1, theme.border_color(page)), content=chat),
+            ft.Container(padding=10, border_radius=12, bgcolor=theme.alpha(theme.PRIMARY, 0x08), border=ft.Border.all(1, theme.border_color(page)), content=chat),
             ft.Row(spacing=8, controls=[
                 entry,
                 ft.Button(key="preview_send", content=_tx("send", lang), on_click=lambda e: say(entry.value)),

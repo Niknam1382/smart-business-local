@@ -25,7 +25,7 @@ from app.core import report_pdf, report_xlsx
 from app.core.bot_manager import BotManagerError
 from app.core.conversations import ConversationSummary
 from app.i18n import STRINGS, t
-from app.screens.common import card, fit_width, open_folder, page_header, screen_frame
+from app.screens.common import card, fit_width, open_folder, page_header, run_on_ui, screen_frame
 from app.screens.live import LiveRefresher
 
 _PLATFORM_ICON = {"telegram": ft.Icons.SEND_ROUNDED, "bale": ft.Icons.CHAT_BUBBLE_OUTLINE_ROUNDED}
@@ -191,12 +191,16 @@ def build(
                 ok, message = False, tp("failed", lang)
             else:
                 ok, message = True, tp("sent", lang)
-            if state["platform"] == platform and state["chat_id"] == chat_id:
-                if ok:
-                    personal_input.value = ""
-                show_result(message, ok)
-            refresh(force=True)  # پیامِ تازه در تاریخچه + بازتعیینِ فعال/غیرفعالِ دکمه
-            page.update()
+
+            def paint() -> None:
+                if state["platform"] == platform and state["chat_id"] == chat_id:
+                    if ok:
+                        personal_input.value = ""
+                    show_result(message, ok)
+                refresh(force=True)  # پیامِ تازه در تاریخچه + بازتعیینِ فعال/غیرفعالِ دکمه
+                page.update()
+
+            run_on_ui(page, paint)
 
         page.run_thread(work)
 
@@ -239,13 +243,20 @@ def build(
                                                             shop_name=report_xlsx.shop_name_of(manager))
                 path = report_pdf.write_pdf(data) if fmt == "pdf" else report_xlsx.write_xlsx(data)
             except report_xlsx.ReportError as exc:  # «چیزی برای خروجی گرفتن نیست» / شکستِ PDF
-                show_export(str(exc), False)
+                note = str(exc)
+                run_on_ui(page, lambda: (show_export(note, False), page.update()))
+                return
             except OSError as exc:
-                show_export(tp("export.failed", lang, error=friendly_error(exc, lang)), False)
-            else:
+                note = tp("export.failed", lang, error=friendly_error(exc, lang))
+                run_on_ui(page, lambda: (show_export(note, False), page.update()))
+                return
+
+            def paint() -> None:
                 show_export(tp("export.done", lang, n=data.count, path=str(path)), True)
                 open_folder(path.parent)
-            page.update()
+                page.update()
+
+            run_on_ui(page, paint)
 
         page.run_thread(work)
 
@@ -276,7 +287,7 @@ def build(
             key=f"conv_{c.platform}_{c.chat_id}",
             padding=ft.Padding.symmetric(horizontal=14, vertical=10),
             border_radius=10,
-            bgcolor=f"{theme.ACCENT}1A" if selected else None,
+            bgcolor=theme.alpha(theme.ACCENT, 0x1A) if selected else None,
             ink=True,
             on_click=lambda e, c=c: select(c.platform, c.chat_id),
             content=ft.Column(
@@ -299,7 +310,7 @@ def build(
                                 key=f"conv_count_{c.platform}_{c.chat_id}",
                                 padding=ft.Padding.symmetric(horizontal=6, vertical=1),
                                 border_radius=10,
-                                bgcolor=f"{theme.PRIMARY}1F",
+                                bgcolor=theme.alpha(theme.PRIMARY, 0x1F),
                                 content=ft.Text(str(c.msg_count), size=10.5, color=theme.PRIMARY),
                             ),
                         ],
@@ -351,7 +362,7 @@ def build(
         bubble = ft.Container(
             padding=ft.Padding.symmetric(horizontal=14, vertical=10),
             border_radius=12,
-            bgcolor=theme.card_bgcolor(page) if is_user else (f"{theme.ACCENT}1F" if is_owner else f"{theme.PRIMARY}14"),
+            bgcolor=theme.card_bgcolor(page) if is_user else (theme.alpha(theme.ACCENT, 0x1F) if is_owner else theme.alpha(theme.PRIMARY, 0x14)),
             border=ft.Border.all(1, theme.border_color(page)),
             content=ft.Column(
                 spacing=4,
@@ -581,7 +592,7 @@ def build(
                             ft.Container(
                                 padding=ft.Padding.symmetric(horizontal=8, vertical=2),
                                 border_radius=20,
-                                bgcolor=f"{theme.DANGER}22",
+                                bgcolor=theme.alpha(theme.DANGER, 0x22),
                                 content=ft.Text(t("chats.blocked_badge", lang), size=11, color=theme.DANGER),
                             )
                             if blocked
@@ -643,7 +654,7 @@ def build(
                 ft.Container(
                     padding=10,
                     border_radius=8,
-                    bgcolor=f"{theme.DANGER}14",
+                    bgcolor=theme.alpha(theme.DANGER, 0x14),
                     content=ft.Text(t("chats.blocked_note", lang), size=12, color=theme.DANGER),
                 )
                 if blocked
@@ -704,7 +715,7 @@ def build(
     )
     bots_off_banner.padding = ft.Padding.symmetric(horizontal=16, vertical=10)
     bots_off_banner.border_radius = 10
-    bots_off_banner.bgcolor = f"{theme.ACCENT}14"
+    bots_off_banner.bgcolor = theme.alpha(theme.ACCENT, 0x14)
     bots_off_banner.visible = not manager.is_running()
 
     body = ft.Row(

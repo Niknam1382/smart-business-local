@@ -73,7 +73,7 @@ def build(page: ft.Page, lang: str, footprint: DataFootprint, on_continue, on_fr
         page,
         ft.Column(
             spacing=14,
-            width=420,
+            width=common.fit_width(page, 420),
             horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
             controls=[
                 ft.Text(t("found.title", lang), key="found_title", size=17, weight=ft.FontWeight.W_700),

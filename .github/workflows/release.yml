@@ -3,7 +3,7 @@ name: Release builds
 # ساخت آرتیفکت‌های نسخه روی ماشین‌های واقعیِ گیت‌هاب (از روی ماشینِ توسعه‌دهنده نمی‌شود exe ویندوزی
 # ساخت؛ هر آرتیفکت روی رانرِ همان سیستم‌عامل ساخته می‌شود).
 #
-# فقط با تگِ نسخه (v1.2.0) یا اجرای دستی از تبِ Actions — نه با هر push. تگ باید با app/version.py
+# فقط با تگِ نسخه (v1.2.1) یا اجرای دستی از تبِ Actions — نه با هر push. تگ باید با app/version.py
 # بخونه؛ اولین گام همین را چک می‌کنه و می‌شکنه.
 #
 # ⚠️ «نسخه‌ی قابل‌حمل/فلش» ساخته نمی‌شه. تحویلِ هر سیستم‌عامل (scripts/package_release.py):
@@ -327,7 +327,7 @@ jobs:
           cat SHA256SUMS.txt
           sha256sum -c SHA256SUMS.txt
 
-      # نامِ واقعیِ فایل‌ها «SmartBusinessLocal-1.2.0-…» است (بدونِ پیشوندِ v تگ)؛ یادداشتِ Release باید همین را بنویسد.
+      # نامِ واقعیِ فایل‌ها «SmartBusinessLocal-1.2.1-…» است (بدونِ پیشوندِ v تگ)؛ یادداشتِ Release باید همین را بنویسد.
       - name: Export release version (tag without the leading v)
         run: echo "RELEASE_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
 
@@ -342,24 +342,32 @@ jobs:
           # می‌نویسه و بدنه هرگز انباشته نمی‌شه.
           prerelease: ${{ contains(github.ref_name, '-') }}
           body: |
-            🛍 کسب‌وکار هوشمند محلی ${{ github.ref_name }} — دستیارِ هوش مصنوعیِ آفلاین برایِ فروشگاه و مشاور
-            Smart Business Local ${{ github.ref_name }} — an offline AI assistant for shops and consultants
+            <div dir="rtl">
 
-            تازه در این نسخه / new in this release:
-            - هوش مصنوعیِ کاملاً آفلاین رویِ ماشینِ خودت؛ هیچ سرویسِ خارجی‌ای نمی‌شناسد
-            - رباتِ گفتگو رویِ تلگرام و بله، هرکدام با سوییچِ هوش مصنوعیِ جدا
-            - فاکتورِ PDFِ راست‌به‌چپ + خروجِ اکسل و PDF از فهرست‌ها
-            - پنلِ مدیریتِ دکمه‌ای داخلِ پیام‌رسان (بدونِ دستورِ اسلش)
-            - در این نسخه (۱٫۲٫۰): آپدیت دیگر کاربرِ موجود را روبه‌رویِ «شروعِ تازه» نمی‌گذارد؛ تنظیمات، دیتابیس‌ها،
-              کلیدِ رمزنگاری و مدلِ دانلودشده می‌مانند، مدلِ موجود دوباره شناخته می‌شود و در اولین اجرایِ هر نسخه
-              یک پشتیبانِ کامل گرفته می‌شود. «خروجِ کامل» اول ربات‌ها را متوقف و ذخیره می‌کند و بعد واقعاً می‌بندد.
-              سفارشِ بسته‌شده از آمار و دفترِ مالی حذف نمی‌شود، پاسخِ نیمه‌مانده‌یِ مدلِ محلی ادامه می‌گیرد و
-              خطایِ دانلودِ مدل قدمِ بعدی را می‌گوید. (بستنِ پنجره، سرعتِ مدل و چیدمانِ رابط هنوز روی دستگاهِ واقعی تأیید می‌شود.)
+            ## 🛍 کسب‌وکار هوشمند محلی ${{ github.ref_name }}
 
-            دانلودها / downloads:
-            - ویندوز: SmartBusinessLocal-${{ env.RELEASE_VERSION }}-windows-setup.exe (نصب‌کننده) و SmartBusinessLocal-${{ env.RELEASE_VERSION }}-windows.exe (تک‌فایل)
-            - لینوکس: SmartBusinessLocal-${{ env.RELEASE_VERSION }}-linux.tar.gz
-            - macOS: باینری منتشر نمی‌شه (دلیلش در docs/RELEASING.md) — از سورس اجرا کن: scripts/run-from-source.sh
+            دستیارِ هوش مصنوعیِ آفلاین برایِ فروشگاه و مشاوره؛ همه‌چیز روی کامپیوترِ خودت می‌ماند.
 
-            راستی‌آزمایی / verify: SHA256SUMS.txt به‌همراه امضایِ SHA256SUMS.txt.sig؛ خودِ برنامه هم پیش ازِ نصب چک می‌کنه.
-            توضیحاتِ کامل / full notes: CHANGELOG.md و README.md — https://github.com/Niknam1382/smart-business-local/commits/${{ github.ref_name }}
+            ### دانلود
+            - ویندوز (پیشنهادی): `SmartBusinessLocal-${{ env.RELEASE_VERSION }}-windows-setup.exe`
+            - ویندوزِ تک‌فایل: `SmartBusinessLocal-${{ env.RELEASE_VERSION }}-windows.exe`
+            - لینوکس: `SmartBusinessLocal-${{ env.RELEASE_VERSION }}-linux.tar.gz`
+
+            ### نصب
+            فایلِ نصب‌کننده را اجرا کن و مراحل را ادامه بده. ویندوز ممکن است «ناشرِ ناشناس» بگوید: *More info* و بعد *Run anyway*.
+
+            ### آپدیت
+            نسخه‌ی قبلی را داری؟ برنامه را باز کن، «درباره ← بررسیِ نسخه‌ی تازه» را بزن و نصب کن. اطلاعاتت (تنظیمات، سفارش‌ها، مدل) می‌ماند.
+
+            ### در این نسخه
+            - دانلودِ مدل همه‌ی منبع‌ها را پشتِ هم امتحان می‌کند و اگر نشد می‌گوید کدام منبع چه شد
+            - فهرستِ مدل‌ها از کوچک به بزرگ است، با رمِ لازمِ هر مدل؛ دو مدلِ خیلی کوچک هم اضافه شد
+            - کارتِ «شتابِ گرافیکی» بالایِ صفحه‌یِ مدل‌ها آمد
+            - ظاهرِ یکدست‌تر و متن‌هایِ ساده‌تر؛ لینکِ بیوِ ربات به همین مخزن می‌رود
+
+            سالم‌بودنِ فایل‌ها: `SHA256SUMS.txt` و امضایِ `SHA256SUMS.txt.sig`؛ خودِ برنامه هم پیش از نصب بررسی می‌کند.
+            توضیحاتِ کامل: [CHANGELOG](https://github.com/Niknam1382/smart-business-local/blob/${{ github.ref_name }}/CHANGELOG.md)
+
+            </div>
+
+            Smart Business Local ${{ github.ref_name }} — an offline AI assistant for shops and consultants. Windows: `SmartBusinessLocal-${{ env.RELEASE_VERSION }}-windows-setup.exe` (installer) or `…-windows.exe` (single file); Linux: `…-linux.tar.gz`. Update from inside the app: About → check for a new version.

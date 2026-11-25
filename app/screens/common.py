@@ -120,12 +120,64 @@ def section_header(icon: str, text: str) -> ft.Control:
                 width=30,
                 height=30,
                 border_radius=9,
-                bgcolor=f"{theme.PRIMARY}14",
+                bgcolor=theme.alpha(theme.PRIMARY, 0x14),
                 alignment=ft.Alignment.CENTER,
                 content=ft.Icon(icon=icon, color=theme.PRIMARY, size=17),
             ),
-            ft.Text(text, size=15, weight=ft.FontWeight.W_600),
+            ft.Text(text, size=15, weight=ft.FontWeight.W_600, expand=True),  # expand: متنِ بلند wrap می‌شود، بیرون نمی‌زند
         ],
+    )
+
+
+LABEL_WIDTH = 120  # عرضِ ستونِ برچسب در ردیف‌هایِ «برچسب: مقدار»؛ در همه‌ی صفحه‌ها یکسان
+
+
+def label_value(page: ft.Page, label: str, value: str, selectable: bool = False, key: Optional[str] = None) -> ft.Control:
+    """ردیفِ «برچسب: مقدار» کنارِ هم (۱٫۲٫۱): برچسب با عرضِ ثابت، مقدار بلافاصله کنارش و wrap‌شونده؛\n    نه دو سرِ کارت (SPACE_BETWEEN) که چشم باید میانشان بگردد."""
+    return ft.Row(
+        key=key,
+        spacing=theme.SPACE_SM,
+        vertical_alignment=ft.CrossAxisAlignment.START,
+        controls=[
+            ft.Container(width=LABEL_WIDTH, content=ft.Text(label, size=13, color=theme.text_secondary(page))),
+            ft.Text(value, size=13, weight=ft.FontWeight.W_500, selectable=selectable, expand=True),
+        ],
+    )
+
+
+def empty_state(page: ft.Page, icon: str, text: str, key: Optional[str] = None) -> ft.Control:
+    """حالتِ «خالی» یکدست: آیکنِ کم‌رنگ + یک جمله، وسط‌چین (به‌جای ستونِ خالی)."""
+    return ft.Container(
+        key=key,
+        padding=ft.Padding.symmetric(horizontal=theme.SPACE_LG, vertical=theme.SPACE_XL),
+        alignment=ft.Alignment.CENTER,
+        content=ft.Column(
+            spacing=theme.SPACE_SM,
+            tight=True,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            controls=[
+                ft.Icon(icon=icon, size=34, color=theme.alpha(theme.text_secondary(page), 0x99)),
+                ft.Text(text, size=theme.FONT_BODY, color=theme.text_secondary(page), text_align=ft.TextAlign.CENTER),
+            ],
+        ),
+    )
+
+
+def error_note(text: str, key: Optional[str] = None) -> ft.Control:
+    """پیامِ خطای کوتاه و راست‌چین با نوارِ رنگیِ کنارش (۱٫۲٫۱)؛ متن wrap می‌شود."""
+    return ft.Container(
+        key=key,
+        padding=ft.Padding.symmetric(horizontal=theme.SPACE_MD, vertical=theme.SPACE_SM),
+        border_radius=theme.RADIUS_FIELD,
+        bgcolor=theme.alpha(theme.DANGER, 0x14),
+        content=ft.Row(
+            spacing=theme.SPACE_SM,
+            vertical_alignment=ft.CrossAxisAlignment.START,
+            controls=[
+                ft.Icon(icon=ft.Icons.ERROR_OUTLINE_ROUNDED, size=18, color=theme.DANGER),
+                ft.Text(text, size=12.5, color=theme.DANGER, expand=True, selectable=True),
+            ],
+        ),
     )
 
 
@@ -137,13 +189,13 @@ def page_header(page: ft.Page, icon: str, title: str, subtitle: str = "", hero: 
     if hero:
         texts: list[ft.Control] = [ft.Text(title, size=24, weight=ft.FontWeight.W_700, color=theme.ON_SOLID)]
         if subtitle:
-            texts.append(ft.Text(subtitle, size=13, color=f"{theme.ON_SOLID}CC"))
+            texts.append(ft.Text(subtitle, size=13, color=theme.alpha(theme.ON_SOLID, 0xCC)))
         return ft.Container(
             key="page_hero",
             padding=ft.Padding.symmetric(horizontal=26, vertical=24),
             border_radius=theme.RADIUS_CARD + 4,
             gradient=theme.hero_gradient(),
-            shadow=ft.BoxShadow(blur_radius=30, color=f"{theme.PRIMARY}40", offset=ft.Offset(0, 12)),
+            shadow=ft.BoxShadow(blur_radius=30, color=theme.alpha(theme.PRIMARY, 0x40), offset=ft.Offset(0, 12)),
             content=ft.Row(
                 spacing=18,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -153,8 +205,8 @@ def page_header(page: ft.Page, icon: str, title: str, subtitle: str = "", hero: 
                         width=76,
                         height=76,
                         border_radius=24,
-                        bgcolor=f"{theme.ON_SOLID}1F",
-                        border=ft.Border.all(1, f"{theme.ON_SOLID}33"),
+                        bgcolor=theme.alpha(theme.ON_SOLID, 0x1F),
+                        border=ft.Border.all(1, theme.alpha(theme.ON_SOLID, 0x33)),
                         alignment=ft.Alignment.CENTER,
                         content=ft.Icon(icon=icon, color=theme.ON_SOLID, size=38),
                     ),
@@ -175,7 +227,7 @@ def page_header(page: ft.Page, icon: str, title: str, subtitle: str = "", hero: 
                     height=52,
                     border_radius=16,
                     gradient=theme.hero_gradient(),
-                    shadow=ft.BoxShadow(blur_radius=16, color=f"{theme.PRIMARY}33", offset=ft.Offset(0, 6)),
+                    shadow=ft.BoxShadow(blur_radius=16, color=theme.alpha(theme.PRIMARY, 0x33), offset=ft.Offset(0, 6)),
                     alignment=ft.Alignment.CENTER,
                     content=ft.Icon(icon=icon, color=theme.ON_SOLID, size=26),
                 ),
@@ -202,11 +254,23 @@ def start_ticker(page: ft.Page, owner: ft.Control, tick: Callable[[], None], sec
     اضافه نشده صبر می‌کنه (نه اینکه بمیره)؛ وقتی قبلاً mount شده دیده شد و حالا از صفحه برداشته شده
     (کاربر صفحه را عوض کرد) یا خطایی پیش اومد، متوقف می‌شه."""
 
+    broken: list = []  # tickِ خراب (روی حلقه‌ی رابط) ثبت می‌شود تا تیکر متوقف شود
+
+    def paint() -> None:
+        try:
+            tick()
+            page.update()
+        except Exception:  # noqa: BLE001
+            broken.append(True)
+            raise
+
     def loop() -> None:
         seen_mounted = False
         unmounted_ticks = 0
         while True:
             sleep(seconds)
+            if broken:
+                return
             try:
                 if not _mounted(owner):
                     if seen_mounted:
@@ -217,8 +281,7 @@ def start_ticker(page: ft.Page, owner: ft.Control, tick: Callable[[], None], sec
                     continue
                 seen_mounted = True
                 unmounted_ticks = 0
-                tick()
-                page.update()
+                run_on_ui(page, paint)  # نقاشی روی حلقه‌ی رابط (۱٫۲٫۱)
             except Exception:  # noqa: BLE001 — کنترل حذف شده/صفحه بسته؛ بی‌صدا متوقف
                 return
 
@@ -243,7 +306,9 @@ def screen_frame(page: ft.Page, header: ft.Control, controls: list, key: Optiona
         padding=ft.Padding.symmetric(horizontal=theme.CONTENT_FRAME_PADDING + theme.content_side_gap(page), vertical=20),
         # قلم ۴: ALWAYS + scrollbar_themeِ خنثیِ theme.py یعنی نوارِ اسکرولِ سمتِ راست
         # همیشه دیده می‌شه؛ کاربر برای فهمیدنِ «ادامه دارد؟» نباید حدس بزند.
-        content=ft.Column(expand=True, spacing=20, scroll=ft.ScrollMode.ALWAYS, controls=[header, *controls]),
+        # ۱٫۲٫۱: STRETCH = همه‌ی کارت‌هایِ یک ستون هم‌عرض‌اند (نه هر کدام به اندازه‌ی محتوا)
+        content=ft.Column(expand=True, spacing=theme.SPACE_LG - 4, scroll=ft.ScrollMode.ALWAYS,
+                          horizontal_alignment=ft.CrossAxisAlignment.STRETCH, controls=[header, *controls]),
     )
 
 
@@ -309,6 +374,33 @@ def step_dots(current: int, total: int, active_color: str = None) -> ft.Control:
             )
         )
     return ft.Row(spacing=6, alignment=ft.MainAxisAlignment.CENTER, controls=dots)
+
+
+def run_on_ui(page: ft.Page, fn: Callable[[], None]) -> None:
+    """``fn`` را روی حلقه‌ی رابط اجرا می‌کند و **هرگز استثنا نمی‌اندازد** (۱٫۲٫۱).
+
+    علتِ «دانلودِ مدل با RuntimeError می‌ماند»: نوار/متنِ پیشرفت از تردِ دانلود دست‌کاری می‌شد و در Flet 1.0 این کار از
+    بیرونِ حلقه‌ی رابط ``RuntimeError`` می‌دهد؛ خطا از callbackِ پیشرفت به خودِ دانلود می‌رسید و آن را قطع می‌کرد.
+    حالا نقاشی روی حلقه‌ی رابط انجام می‌شود و خطایش فقط لاگ می‌شود، نه دانلود را می‌کُشد. در تست/وبِ بدونِ
+    ``run_task``، همان‌جا (هم‌زمان) اجرا می‌شود."""
+
+    async def _go() -> None:
+        try:
+            fn()
+        except Exception:  # noqa: BLE001 — نقاشیِ ناموفق نباید کارِ پس‌زمینه را بشکند
+            logger.warning("به‌روزرسانیِ رابط ناموفق بود", exc_info=True)
+
+    runner = getattr(page, "run_task", None)
+    if callable(runner):
+        try:
+            runner(_go)
+            return
+        except Exception:  # noqa: BLE001
+            logger.warning("page.run_task ناموفق بود؛ اجرایِ مستقیم", exc_info=True)
+    try:
+        fn()
+    except Exception:  # noqa: BLE001
+        logger.warning("به‌روزرسانیِ رابط ناموفق بود", exc_info=True)
 
 
 def fit_width(page: ft.Page, preferred: int, reserve: int = 300, minimum: int = 280) -> int:
@@ -499,10 +591,10 @@ def option_card(
         width=width,
         padding=18,
         border_radius=theme.RADIUS_CARD - 2,
-        bgcolor=f"{accent}0F" if is_selected else theme.card_bgcolor(page),
+        bgcolor=theme.alpha(accent, 0x0F) if is_selected else theme.card_bgcolor(page),
         border=ft.Border.all(2 if is_selected else 1, accent if is_selected else theme.border_color(page)),
         shadow=(
-            ft.BoxShadow(blur_radius=16, color=f"{accent}33", offset=ft.Offset(0, 4))
+            ft.BoxShadow(blur_radius=16, color=theme.alpha(accent, 0x33), offset=ft.Offset(0, 4))
             if is_selected
             else None
         ),
@@ -517,7 +609,7 @@ def option_card(
                     width=38,
                     height=38,
                     border_radius=10,
-                    bgcolor=f"{accent}22" if is_selected else f"{theme.PRIMARY}12",
+                    bgcolor=theme.alpha(accent, 0x22) if is_selected else theme.alpha(theme.PRIMARY, 0x12),
                     alignment=ft.Alignment.CENTER,
                     content=ft.Icon(icon, size=19, color=accent if is_selected else theme.PRIMARY),
                 ),
@@ -548,7 +640,7 @@ class StatusChip:
         self.control = ft.Container(
             padding=ft.Padding.symmetric(horizontal=10, vertical=4),
             border_radius=20,
-            bgcolor=f"{color}22",
+            bgcolor=theme.alpha(color, 0x22),
             content=ft.Row(tight=True, spacing=6, controls=[self._dot, self._text]),
         )
 
@@ -556,4 +648,4 @@ class StatusChip:
         self._dot.color = color
         self._text.value = text
         self._text.color = color
-        self.control.bgcolor = f"{color}22"
+        self.control.bgcolor = theme.alpha(color, 0x22)

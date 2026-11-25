@@ -12,6 +12,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import flet as ft
 
 from app import theme
@@ -138,21 +140,12 @@ def build(page: ft.Page, lang: str, settings, save_callback, pack=None) -> ft.Co
         bar.visible, bar.value, note.visible = True, 0.0, False
         show(S("busy", lang), True)
 
-        def worker() -> None:
-            try:
-                result = g.install(settings=settings, cuda=cuda_dd.value or "",
-                                   progress_cb=lambda done, total: _tick(done, total),
-                                   cancel_cb=lambda: ui["cancel"])
-            except g.GpuPackError as exc:  # «نشود» صریح: علت را می‌گوییم، چیزی نیمه‌کاره نمی‌ماند
-                ui["busy"] = False
-                bar.visible = False
-                show(str(exc), False)
-                page.update()
-                refresh()
-                return
+        def finish(result, error) -> None:
             ui["busy"] = False
             bar.visible = False
-            if result.cancelled:
+            if error is not None:  # «نشود» صریح: علت را می‌گوییم، چیزی نیمه‌کاره نمی‌ماند
+                show(error, False)
+            elif result.cancelled:
                 show(S("cancelled", lang), True)
             elif result.ok and result.verified == "gpu":
                 show(S("restart", lang) if result.restart_needed else S("saved", lang), True)
@@ -163,12 +156,28 @@ def build(page: ft.Page, lang: str, settings, save_callback, pack=None) -> ft.Co
             page.update()
             refresh()
 
+        def worker() -> None:
+            result, error = None, None
+            try:
+                result = g.install(settings=settings, cuda=cuda_dd.value or "",
+                                   progress_cb=lambda done, total: _tick(done, total),
+                                   cancel_cb=lambda: ui["cancel"])
+            except g.GpuPackError as exc:
+                error = str(exc)
+            except Exception as exc:  # noqa: BLE001 — هر خطایِ دیگر هم باید دیده شود، نه اینکه نصب بی‌صدا بمیرد
+                logging.getLogger(__name__).warning("نصبِ بسته‌ی شتاب با خطایِ غیرمنتظره قطع شد", exc_info=True)
+                error = str(exc) or type(exc).__name__
+            common.run_on_ui(page, lambda: finish(result, error))
+
         page.run_thread(worker)
 
     def _tick(done: int, total: int) -> None:
-        bar.value = (done / total) if total else 0.0
-        bar.visible = True
-        page.update()
+        def paint() -> None:
+            bar.value = (done / total) if total else 0.0
+            bar.visible = True
+            page.update()
+
+        common.run_on_ui(page, paint)
 
     def on_cancel(_e=None) -> None:
         ui["cancel"] = True

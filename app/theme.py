@@ -8,6 +8,15 @@
 
 import flet as ft
 
+def alpha(color: str, value) -> str:
+    """رنگِ نیمه‌شفاف در قالبِ Flet (``#AARRGGBB``؛ آلفا *اول* می‌آید، نه آخر).
+
+    ``value``: عددِ ۰ تا ۲۵۵ یا کسرِ ۰ تا ۱. نوشتنِ ``#RRGGBBAA`` در Flet رنگِ اشتباه می‌دهد (مثلاً سفیدِ ۸٪ زرد می‌شود)."""
+    base = color.lstrip("#")[-6:]
+    level = round(value * 255) if isinstance(value, float) and value <= 1 else int(value)
+    return f"#{max(0, min(255, level)):02X}{base}"
+
+
 # --- پالت (۱٫۲٫۰: هویتِ بصریِ تازه «Aurora») ---
 # ایندیگو → بنفش برای برند، خنثی‌هایِ سردِ آبی-خاکستری برای سطح‌ها، و کهربایی فقط برای «انتخاب‌شده».
 PRIMARY = "#4F46E5"
@@ -61,8 +70,8 @@ STEP_DOT_IDLE = "#CBD3E6"  # نقطه‌ی مرحله‌ی «هنوز نرسید
 SIDEBAR_ON_DARK = "#86EFAC"  # نشانِ نسخه روی نوارِ کناریِ نیوی
 SIDEBAR_TEXT_DIM = "#C7CEEA"  # متن/آیکنِ آیتمِ عادیِ منو
 SIDEBAR_TEXT_FAINT = "#8590B3"  # سرتیترِ گروه و زیرنویسِ منو
-SIDEBAR_ACTIVE_BG = "#FFFFFF1F"  # پس‌زمینه‌ی نیمه‌شفافِ آیتمِ فعالِ منو
-SIDEBAR_DIVIDER = "#FFFFFF14"  # خطِ جداکننده‌ی گروه‌ها روی نیوی
+SIDEBAR_ACTIVE_BG = "#1FFFFFFF"  # پس‌زمینه‌ی نیمه‌شفافِ آیتمِ فعالِ منو
+SIDEBAR_DIVIDER = "#14FFFFFF"  # خطِ جداکننده‌ی گروه‌ها روی نیوی
 
 # ---- مقیاسِ دکمه (قلم ۱ — شکایتِ مالک: «بعضی دکمه‌ها کوچک و بزرگ‌اند») ----
 # فقط همین سه ارتفاع در کل برنامه وجود دارد؛ صفحه‌ها عددِ دلخواه نمی‌نویسند
@@ -94,8 +103,8 @@ FONT_PATHS = {
 # می‌آید، یعنی همان خاکستریِ گرمِ سطحِ کارت، فقط کمی تیره‌تر تا دیده شود.
 SCROLL_THUMB_LIGHT = "#B4BDD6"
 SCROLL_THUMB_DARK = "#5A6690"
-SCROLL_TRACK_LIGHT = f"{BORDER_LIGHT}33"  # نیمه‌شفاف: بک‌گراندِ کاغذی از زیرش معلوم باشه
-SCROLL_TRACK_DARK = f"{BORDER_DARKMODE}4D"
+SCROLL_TRACK_LIGHT = alpha(BORDER_LIGHT, 0x99)  # نیمه‌شفاف: بک‌گراندِ کاغذی از زیرش معلوم باشه
+SCROLL_TRACK_DARK = alpha(BORDER_DARKMODE, 0x99)
 
 
 def scrollbar_theme(dark: bool = False) -> ft.ScrollbarTheme:
@@ -180,7 +189,7 @@ HERO_END = "#7C3AED"  # سرِ بنفشِ گرادیانِ برند (بنرِ خ
 def card_shadow(page: ft.Page) -> ft.BoxShadow:
     """سایه‌ی نرمِ یکسان برای کارت‌ها و سرتیتر؛ در تمِ تیره غلیظ‌تر تا سطح از زمینه جدا بماند."""
     dark = page.theme_mode == ft.ThemeMode.DARK
-    return ft.BoxShadow(blur_radius=24, color="#00000066" if dark else "#4F46E514", offset=ft.Offset(0, 8))
+    return ft.BoxShadow(blur_radius=24, color="#66000000" if dark else "#144F46E5", offset=ft.Offset(0, 8))
 
 
 def hero_gradient() -> ft.LinearGradient:

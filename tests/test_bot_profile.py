@@ -343,7 +343,7 @@ def test_credit_never_appears_in_any_customer_message(tmp_path, servers, engine)
         tg.push_message(555, "/start", first_name="سارا")
         assert wait_until(lambda: len(tg.sent_to(555)) >= 1)
         for message in tg.sent_to(555):
-            assert "github.com/niknam1382" not in message and FA not in message and EN not in message
+            assert "github.com/Niknam1382" not in message and FA not in message and EN not in message
         for entry in tg.sent:
             assert "niknam1382" not in str(entry)
     finally:

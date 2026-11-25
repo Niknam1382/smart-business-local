@@ -13,6 +13,7 @@ from app import theme
 from app.core import shop_text_meta as meta
 from app.core import shop_texts
 from app.screens import common
+from app.screens.common import fit_width
 
 _S = {
     "title": ("پیام‌های ربات", "Bot messages"),
@@ -53,7 +54,7 @@ def build(page: ft.Page, lang: str, settings, save_callback) -> ft.Control:
         return [ft.DropdownOption(key=k, text=f"{meta.group_title(meta.meta(k).group, lang)} — {meta.meta(k, lang).title}") for k in option_keys()]
 
     first = option_keys()[0]
-    key_dd = ft.Dropdown(key="txt_key", label=S("which", lang), border_radius=10, width=440, value=first, options=options())
+    key_dd = ft.Dropdown(key="txt_key", label=S("which", lang), border_radius=10, width=fit_width(page, 440), value=first, options=options())
     lang_dd = ft.Dropdown(
         key="txt_lang", label=S("lang", lang), border_radius=10, width=180, value="en" if lang == "en" else "fa",
         options=[ft.DropdownOption(key="fa", text="فارسی"), ft.DropdownOption(key="en", text="English")],

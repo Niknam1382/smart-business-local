@@ -35,7 +35,7 @@ from app.core.orders import METHOD_BALE_PAY, METHOD_CARD_TO_CARD
 from app.core.payments import describe_provider_token, normalize_provider_token
 from app.i18n import t
 from app.screens import shipping_card
-from app.screens.common import card, section_header
+from app.screens.common import card, run_on_ui, section_header
 
 MIN_RESERVE, MAX_RESERVE = 1, 240
 
@@ -312,10 +312,14 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager=None) -> ft
                 ok = True
             except Exception as exc:  # noqa: BLE001 — خطایِ ربات نباید صفحه را بشکند
                 message, ok = t("pay.restart_failed", lang, reason=str(exc)), False
-            refresh_texts()
-            # بعد از refresh_texts، چون خودش bale_note را از نو می‌نویسد
-            bale_note.value, bale_note.color, bale_note.visible = message, (theme.SUCCESS if ok else theme.DANGER), True
-            page.update()
+
+            def paint() -> None:
+                refresh_texts()
+                # بعد از refresh_texts، چون خودش bale_note را از نو می‌نویسد
+                bale_note.value, bale_note.color, bale_note.visible = message, (theme.SUCCESS if ok else theme.DANGER), True
+                page.update()
+
+            run_on_ui(page, paint)
 
         page.run_thread(work)
 
@@ -327,9 +331,13 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager=None) -> ft
 
             def work() -> None:
                 ok, message = manager.diagnose_payment_sync(method)
-                out.value, out.color, out.visible = message, (theme.SUCCESS if ok else theme.DANGER), True
-                refresh_texts()
-                page.update()
+
+                def paint() -> None:
+                    out.value, out.color, out.visible = message, (theme.SUCCESS if ok else theme.DANGER), True
+                    refresh_texts()
+                    page.update()
+
+                run_on_ui(page, paint)
 
             page.run_thread(work)
 

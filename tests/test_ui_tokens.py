@@ -108,3 +108,24 @@ def test_buttons_keep_their_token_heights_with_the_rounded_style():
     noop = lambda e: None  # noqa: E731
     assert common.primary("ذخیره", noop, size="lg").height == theme.BTN_LG
     assert common.secondary("ادامه", noop).height == theme.BTN_MD
+
+
+def test_run_on_ui_runs_painting_on_the_ui_loop_and_never_raises():
+    """۱٫۲٫۱: نقاشیِ رابط از تردِ دانلود باید روی حلقه‌ی رابط برود و خطایش دانلود را نکُشد (علتِ RuntimeErrorِ دانلودِ مدل)."""
+    import asyncio
+
+    calls = []
+
+    class LoopPage:
+        def run_task(self, handler, *args):
+            asyncio.run(handler(*args))
+
+    common.run_on_ui(LoopPage(), lambda: calls.append("loop"))
+    common.run_on_ui(FakePage(), lambda: calls.append("direct"))  # بدونِ run_task: همان‌جا
+    assert calls == ["loop", "direct"]
+
+    def boom():
+        raise RuntimeError("update from the wrong thread")
+
+    common.run_on_ui(LoopPage(), boom)  # نباید استثنا بیرون بیاید
+    common.run_on_ui(FakePage(), boom)

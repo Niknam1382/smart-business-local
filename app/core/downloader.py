@@ -12,7 +12,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import errno
+import os
 import re
+import shutil
+import subprocess
+import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -120,8 +126,13 @@ def download(
     should_cancel: Optional[Callable[[], bool]] = None,
     timeout: float = 30.0,
     allowed_hosts: Optional[set] = None,
+    use_curl_fallback: bool = False,
 ) -> Path:
     """فایل را از اولین منبعِ کاری دانلود می‌کند؛ ادامه می‌دهد؛ و در پایان sha256 را می‌سنجد.
+
+    همه‌ی منبع‌ها **خودکار و پشتِ هم** امتحان می‌شوند. اگر هیچ‌کدام با روشِ اصلی جواب نداد و
+    ``use_curl_fallback`` روشن بود (فقط برایِ فایل‌هایِ دارایِ هشِ مرجع، فقط ویندوز، فقط اگر ``curl.exe``
+    هست)، همان منبع‌ها یک‌بار با curl امتحان می‌شوند؛ هشِ SHA-256 در پایان الزامی است.
 
     ``urls`` ترتیبِ اولویت است (هاستِ اصلی، بعدِ آینه). ``allowed_hosts`` دامنه‌هایِ
     اعلام‌شده‌ی اضافه است (CDNهایِ همان منابع — وگرنه ریدایرکتِ سرویسِ فایل رد می‌شود).
@@ -146,15 +157,111 @@ def download(
         except IntegrityError:
             _drop(part)
             raise  # اثرانگشت از هیچ آینه‌ای درست نمی‌شه اگه خودِ فایل باطل باشه؛ ولی اول بعدی را امتحان می‌کنیم
+        except DownloadError as exc:  # حجمِ اشتباه/قطعِ وسطِ راه از یک منبع؛ منبعِ بعدی را امتحان کن
+            _drop_meta(part)
+            failures.append(f"{host}: {exc}")
+            continue
         except (urllib.error.URLError, OSError, TimeoutError, ValueError) as exc:
             _drop_meta(part)
             failures.append(f"{host}: {_reason(exc)}" + (f" ← {_hint(exc)}" if _hint(exc) else ""))
+            if isinstance(exc, OSError) and getattr(exc, "errno", None) in (errno.ENOSPC, getattr(errno, "EDQUOT", -1)):
+                raise DownloadError(
+                    "جای خالیِ دیسک برایِ این مدل کافی نیست. فضا باز کن یا در تنظیماتِ هوش مصنوعی پوشه‌ی دیگری "
+                    "برایِ مدل‌ها انتخاب کن و دوباره «ادامه» را بزن."
+                ) from exc
             continue
-    raise DownloadError(
-        "دانلود از هیچ منبعی ممکن نشد (" + " · ".join(failures)[:300] + ")."
-        " اتصال اینترنت/VPN را چک کن؛ اگر به این منابع دسترسی نداری، فایلِ GGUF را از جایِ مطمئن بگیر"
-        " و با «وارد کردن فایلِ مدل» به برنامه نشان بده."
+
+    curl = _curl_path() if (use_curl_fallback and expected_sha256) else None
+    if curl:
+        for url in urls:
+            host = urllib.parse.urlparse(url).hostname or url
+            try:
+                return _download_with_curl(curl, url, dest, part, expected_sha256, expected_size, on_progress, should_cancel, timeout)
+            except DownloadCancelled:
+                raise
+            except IntegrityError:
+                _drop(part)
+                raise
+            except DownloadError as exc:
+                failures.append(f"{host} (curl): {exc}")
+    raise DownloadError(failure_text(failures))
+
+
+def failure_text(failures: list) -> str:
+    """پیامِ نهاییِ دانلود: کدام منبع چه شد + قدمِ بعدی، بدونِ اصطلاحِ فنی."""
+    lines = "\n".join("• " + item for item in failures[:12])
+    return (
+        "دانلود از هیچ منبعی ممکن نشد.\n" + lines + "\n"
+        "چه کار کنم؟ اتصال اینترنت/VPN را عوض یا بررسی کن، ساعتِ سیستم و آنتی‌ویروس را چک کن، "
+        "مطمئن شو جای خالیِ دیسک کافی است و دوباره «ادامه» را بزن. اگر باز نشد، از «لینک‌هایِ دانلودِ کمکی» "
+        "فایل را با مرورگر بگیر و با «وارد کردن فایلِ مدل» به برنامه نشان بده."
     )
+
+
+def _curl_path() -> Optional[str]:
+    """مسیرِ ``curl.exe`` در ویندوز؛ جایِ دیگر ``None`` (پشتیبانِ دوم فقط برایِ ویندوز است)."""
+    if sys.platform != "win32":
+        return None
+    return shutil.which("curl.exe")
+
+
+def _curl_reason(code: int) -> str:
+    return {
+        6: "آدرسِ سرور پیدا نشد",
+        7: "اتصال به سرور برقرار نشد",
+        22: "سرور درخواست را نپذیرفت (فیلتر یا نبودنِ فایل)",
+        28: "پاسخی نیامد",
+        35: "خطای اتصالِ امن",
+        60: "خطای گواهیِ امنیتی",
+        23: "نوشتنِ فایل روی دیسک ممکن نشد",
+    }.get(code, f"کدِ خطا {code}")
+
+
+def _download_with_curl(curl: str, url: str, dest: Path, part: Path, expected_sha256: str, expected_size: int,
+                        on_progress, should_cancel, timeout: float) -> Path:
+    """پشتیبانِ دوم (ویندوز): ``curl.exe`` با ادامه از ``.part``؛ پیشرفت از حجمِ ``.part``؛ SHA-256 الزامی."""
+    if urllib.parse.urlparse(url).scheme != "https":
+        raise DownloadError("فقط آدرسِ امن (https) پذیرفته می‌شود")
+    command = [
+        curl, "--proto", "=https", "--proto-redir", "=https", "-L", "-C", "-", "--fail", "--silent", "--show-error",
+        "--connect-timeout", str(int(max(5, timeout))), "--retry", "2", "-A", USER_AGENT, "-o", str(part), url,
+    ]
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    try:
+        proc = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, creationflags=flags)
+    except OSError as exc:
+        raise DownloadError(f"curl اجرا نشد ({_reason(exc)})") from exc
+    total = expected_size
+    try:
+        while proc.poll() is None:
+            if should_cancel is not None and should_cancel():
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except Exception:  # noqa: BLE001
+                    proc.kill()
+                raise DownloadCancelled()
+            if on_progress is not None:
+                try:
+                    on_progress(part.stat().st_size if part.exists() else 0, total)
+                except OSError:
+                    pass
+            time.sleep(0.4)
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+    if proc.returncode != 0:
+        raise DownloadError(_curl_reason(int(proc.returncode)))
+    downloaded = part.stat().st_size if part.exists() else 0
+    if on_progress is not None:
+        on_progress(downloaded, total or downloaded)
+    actual = sha256_file(part)
+    if actual.lower() != expected_sha256.lower():
+        _drop(part)
+        raise IntegrityError("فایلِ دانلودشده با نسخه‌ی اصلی نمی‌خونه (اثرانگشتِ نامعتبر).")
+    _drop_meta(part)
+    part.replace(dest)
+    return dest
 
 
 def _hint(exc: Exception) -> str:

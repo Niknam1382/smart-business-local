@@ -117,18 +117,19 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager=None) -> ft
             try:
                 ok, detail = manager.test_channel_sync(ch.platform, ch.channel)
             except BotManagerError as exc:
-                show(str(exc), False)
+                note = str(exc)
+                common.run_on_ui(page, lambda: show(note, False))
                 return
             except Exception:  # noqa: BLE001 — UI هرگز نباید بشکنه
                 logger.exception("تستِ دسترسیِ کانال ناموفق بود")
-                show(S("test_bad", lang, detail="—"), False)
+                common.run_on_ui(page, lambda: show(S("test_bad", lang, detail="—"), False))
                 return
             if not ok:
-                show(S("test_bad", lang, detail=detail), False)
+                common.run_on_ui(page, lambda: show(S("test_bad", lang, detail=detail), False))
             elif detail in ("administrator", "creator"):
-                show(S("test_ok", lang), True)
+                common.run_on_ui(page, lambda: show(S("test_ok", lang), True))
             else:
-                show(S("test_member", lang), False)
+                common.run_on_ui(page, lambda: show(S("test_member", lang), False))
 
         page.run_thread(work)
 

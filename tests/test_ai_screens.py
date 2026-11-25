@@ -56,7 +56,7 @@ def dl(monkeypatch):
     """دانلودرِ جعلیِ بدونِ شبکه؛ رفتار قابل‌تنظیم: ok/fail/cancel/verify_fail."""
     state = {"behavior": "ok", "calls": []}
 
-    def fake_download(urls, dest, expected_sha256="", expected_size=0, on_progress=None, should_cancel=None, timeout=30, allowed_hosts=None):
+    def fake_download(urls, dest, expected_sha256="", expected_size=0, on_progress=None, should_cancel=None, timeout=30, allowed_hosts=None, use_curl_fallback=False):
         dest = Path(dest)
         state["calls"].append({"urls": list(urls), "dest": dest, "sha": expected_sha256, "allowed_hosts": set(allowed_hosts or ())})
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -454,7 +454,7 @@ def test_the_gpu_field_warns_when_layers_are_asked_without_a_cuda_build(monkeypa
     monkeypatch.setattr(ai_engine, "gpu_offload_available", lambda: False)
     s0.ai_gpu_layers = 99
     note = collect_text(find(ai_setup.build(FakePage(), "fa", s0, lambda: None), "adv_gpu_note"))
-    assert "CUDA ندارد" in note
+    assert "فعال نیست" in note
 
 
 def test_the_gpu_field_is_quiet_when_the_build_supports_gpu(monkeypatch, s0, dl):
@@ -462,7 +462,7 @@ def test_the_gpu_field_is_quiet_when_the_build_supports_gpu(monkeypatch, s0, dl)
     monkeypatch.setattr(ai_engine, "gpu_offload_available", lambda: True)
     s0.ai_gpu_layers = 99
     note = collect_text(find(ai_setup.build(FakePage(), "fa", s0, lambda: None), "adv_gpu_note"))
-    assert note and "CUDA ندارد" not in note
+    assert note and "فعال نیست" not in note
 
 
 def test_the_gpu_field_stays_neutral_at_zero_layers(monkeypatch, s0, dl):
@@ -482,10 +482,10 @@ def test_the_hardware_card_reports_the_build_answer_not_the_card_name(monkeypatc
     monkeypatch.setattr(hardware, "free_disk_gb_at", lambda path: 200.0)
     monkeypatch.setattr(ai_engine, "gpu_offload_available", lambda: False)
     cpu_build = collect_text(ai_select.build(FakePage(), "fa", s0, lambda: None, lambda: None, lambda: None))
-    assert "CPU" in cpu_build and "GPU را می‌شناسه" not in cpu_build
+    assert "CPU" in cpu_build and "آن را می‌شناسد" not in cpu_build
     monkeypatch.setattr(ai_engine, "gpu_offload_available", lambda: True)
     cuda_build = collect_text(ai_select.build(FakePage(), "fa", s0, lambda: None, lambda: None, lambda: None))
-    assert "GPU را می‌شناسه" in cuda_build
+    assert "آن را می‌شناسد" in cuda_build
 
 
 def test_the_gpu_warning_is_bilingual(monkeypatch, s0, dl):
@@ -548,3 +548,72 @@ def test_ticker_waits_for_mount_instead_of_dying(monkeypatch):
     thread.join(timeout=5)
     assert not thread.is_alive()
     assert painted == [1] and len(sleeps) == 4  # دو تیکِ صبر + یک تیکِ موفق + تشخیصِ بسته‌شدن
+
+
+# ---------------------------------------------------------------- ۱.۲.۱: ترتیب، جدولِ مشخصات، کارتِ GPU
+
+
+def _key_order(root, key):
+    """جایگاهِ اولین کنترلِ دارایِ این key در پیمایشِ عمقیِ درخت."""
+    seen = []
+
+    def walk(node):
+        if getattr(node, "key", None) is not None:
+            seen.append(node.key)
+        for name in ("controls", "content"):
+            child = getattr(node, name, None)
+            if isinstance(child, list):
+                for c in child:
+                    walk(c)
+            elif child is not None and not isinstance(child, str):
+                walk(child)
+
+    walk(root)
+    return seen.index(key)
+
+
+def test_121_model_cards_run_from_small_to_large_with_ram_text(monkeypatch, s0, dl):
+    patch_hw(monkeypatch)
+    ctl = ai_setup.build(FakePage(), "fa", s0, lambda: None)
+    hub = find(ctl, "model_hub")
+    ids = [c.key.replace("model_card_", "") for c in hub.controls if isinstance(getattr(c, "key", None), str) and c.key.startswith("model_card_")]
+    expected = [e.id for e in model_catalog.entries()]
+    assert ids == expected
+    rams = [model_catalog.get_entry(i).min_ram_gb for i in ids]
+    assert rams == sorted(rams)
+    text = collect_text(find(ctl, "specs_" + ids[0]))
+    assert "حداقل" in text and "راحت" in text and "گیگ" in text
+
+
+def test_121_two_sub_one_billion_models_exist_and_are_unverified():
+    small = [e for e in model_catalog.entries() if e.params in ("0.5B", "0.6B")]
+    assert len(small) == 2 and all(not e.verified and e.sha256 == "" for e in small)
+    assert model_catalog.entries()[0].size_bytes < 1_000_000_000
+
+
+def test_121_gpu_card_is_at_the_top_of_both_model_pages(monkeypatch, s0, dl):
+    patch_hw(monkeypatch)
+    ctl = ai_setup.build(FakePage(), "fa", s0, lambda: None)
+    assert find(ctl, "gpu_card") is not None
+    assert _key_order(ctl, "gpu_card") < _key_order(ctl, "model_hub")
+    onboarding = ai_select.build(FakePage(), "fa", s0, lambda: None, lambda: None, lambda: None)
+    assert find(onboarding, "gpu_card") is not None
+    assert _key_order(onboarding, "gpu_card") < _key_order(onboarding, "model_hub")
+
+
+def test_121_download_uses_the_curl_fallback_only_for_hashed_files(monkeypatch, s0, dl):
+    hw = patch_hw(monkeypatch)
+    page = QueuedPage()
+    hub = ai_select.ModelHub(page, "fa", s0, lambda: None)
+    rec = rec_for(hw)
+    seen = {}
+    original = downloader.download
+
+    def spy(*a, **k):
+        seen.update(k)
+        return original(*a, **k)
+
+    monkeypatch.setattr(downloader, "download", spy)
+    hub.start_download(rec)
+    page.drain()
+    assert seen.get("use_curl_fallback") is True

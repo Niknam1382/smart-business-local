@@ -4,9 +4,9 @@
 می‌شوند. هیچ دادهٔ واقعی‌ای وارد تست نمی‌شود و flet لازم نیست.
 """
 
+import dataclasses
 import hashlib
 import json
-import os
 import sqlite3
 import sys
 import zipfile
@@ -18,7 +18,14 @@ from app.core import backup, data_guard, data_probe, downloader, model_catalog, 
 from app.core import settings as settings_module
 from app.version import __version__ as VERSION
 
-ENTRY = model_catalog.get_entry("qwen35-2b")
+# ۱٫۲٫۰: مدلِ آزمایشیِ «ریز» (۱٫۱ مگابایت؛ کمینه‌ی مجازِ is_downloaded یک مگابایت است). قبلاً فایلِ ۱٫۲ گیگابایتی با truncate ساخته می‌شد؛ روی ویندوز (NTFS) این فایل
+# فضایِ واقعیِ دیسک را می‌گیرد و پوشه‌ی موقتِ pytest را پر می‌کرد. حالا فقط یک ورودیِ ریز به کاتالوگِ همین تست‌ها افزوده می‌شود.
+ENTRY = dataclasses.replace(model_catalog.get_entry("qwen35-2b"), id="tiny-test-model", filename="tiny-test-model-Q4.gguf", size_bytes=1_100_000, sha256="")
+
+
+@pytest.fixture(autouse=True)
+def _tiny_model_in_catalog(monkeypatch):
+    monkeypatch.setattr(model_catalog, "ENTRIES", tuple(model_catalog.ENTRIES) + (ENTRY,))
 
 
 class _Anchor:
@@ -27,12 +34,10 @@ class _Anchor:
 
 
 def fake_model(folder: Path, entry=ENTRY) -> Path:
-    """فایلِ GGUFِ تُنُک (sparse) با حجمِ دقیقِ کاتالوگ و امضای GGUF — بدونِ مصرفِ واقعیِ دیسک."""
+    """فایلِ GGUFِ کوچک با حجمِ دقیقِ ورودیِ آزمایشی و امضای GGUF."""
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / entry.filename
-    with open(path, "wb") as handle:
-        handle.write(b"GGUF")
-        handle.truncate(entry.size_bytes)
+    path.write_bytes(b"GGUF" + b"\0" * (entry.size_bytes - 4))  # حجمِ دقیقِ ورودی، ولی کوچک
     return path
 
 

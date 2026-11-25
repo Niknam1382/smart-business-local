@@ -17,6 +17,7 @@ from app.core import jalali
 from app.core.bot_manager import BotManagerError
 from app.screens import common
 from app.screens.live import LiveRefresher
+from app.screens.common import fit_width
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +124,7 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple:
     photo_label = ft.Text(S("photo_none", lang), key="bc_photo_label", size=12.5, color=secondary)
     photo_buttons = ft.Row(spacing=8, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER)
     btn_label_tf = ft.TextField(key="bc_button_label", label=S("btn_label", lang), border_radius=10, width=240, max_length=bc.MAX_BUTTON_LABEL)
-    btn_url_tf = ft.TextField(key="bc_button_url", label=S("btn_url", lang), hint_text="https://…", border_radius=10, width=360)
+    btn_url_tf = ft.TextField(key="bc_button_url", label=S("btn_url", lang), hint_text="https://…", border_radius=10, width=fit_width(page, 360))
     footer_sw = ft.Switch(key="bc_footer", label=S("footer", lang), value=bool(getattr(settings, "broadcast_footer_enabled", True)))
 
     def dd(key: str, label: str, group: str, values: list, width: int = 190) -> ft.Dropdown:
@@ -142,11 +143,11 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple:
     language_dd = dd("bc_language", S("language", lang), "language", ["all", "fa", "en", "other"], 150)
     tag_tf = ft.TextField(key="bc_tag", label=S("tag", lang), border_radius=10, width=180, max_length=64)
     who_text = ft.Text("", key="bc_who", size=13.5, weight=ft.FontWeight.W_600)
-    preview_box = ft.Container(key="bc_preview", padding=ft.Padding.symmetric(horizontal=14, vertical=10), border_radius=12, bgcolor=f"{theme.PRIMARY}14", width=420)
+    preview_box = ft.Container(key="bc_preview", padding=ft.Padding.symmetric(horizontal=14, vertical=10), border_radius=12, bgcolor=theme.alpha(theme.PRIMARY, 0x14), width=420)
     confirm_text = ft.Text("", key="bc_confirm_text", size=13, color=theme.WARNING)
-    confirm_row = ft.Container(key="bc_confirm_row", visible=False, padding=12, border_radius=10, bgcolor=f"{theme.WARNING}14")
+    confirm_row = ft.Container(key="bc_confirm_row", visible=False, padding=12, border_radius=10, bgcolor=theme.alpha(theme.WARNING, 0x14))
     history_col = ft.Column(key="bc_history", spacing=10)
-    bots_banner = ft.Container(key="bc_bots_off", visible=False, padding=ft.Padding.symmetric(horizontal=16, vertical=10), border_radius=10, bgcolor=f"{theme.WARNING}14")
+    bots_banner = ft.Container(key="bc_bots_off", visible=False, padding=ft.Padding.symmetric(horizontal=16, vertical=10), border_radius=10, bgcolor=theme.alpha(theme.WARNING, 0x14))
 
     def show(text: str, ok: bool = True) -> None:
         notice.value, notice.color, notice.visible = text, theme.SUCCESS if ok else theme.DANGER, bool(text)
@@ -184,7 +185,7 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple:
             lines.append(ft.Row(spacing=6, controls=[ft.Icon(ft.Icons.IMAGE_OUTLINED, size=16, color=secondary), ft.Text(photo_label.value, size=11.5, color=secondary)]))
         lines.append(ft.Text(bc.compose(bc.Content(text, footer=c.footer), settings, preview_lang) if text else S("preview_empty", lang), size=13, selectable=True))
         if c.button_label:
-            lines.append(ft.Container(padding=ft.Padding.symmetric(horizontal=12, vertical=6), border_radius=8, bgcolor=f"{theme.PRIMARY}1E", content=ft.Text(c.button_label, size=12.5, color=theme.PRIMARY)))
+            lines.append(ft.Container(padding=ft.Padding.symmetric(horizontal=12, vertical=6), border_radius=8, bgcolor=theme.alpha(theme.PRIMARY, 0x1E), content=ft.Text(c.button_label, size=12.5, color=theme.PRIMARY)))
         preview_box.content = ft.Column(spacing=6, tight=True, controls=lines)
 
     def refresh_photo_ui() -> None:
@@ -250,18 +251,18 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple:
             try:
                 results = manager.broadcast_test_sync(c)
             except (bc.BroadcastError, BotManagerError) as exc:
-                show(str(exc), False)
+                text, good_flag = str(exc), False
             except Exception:  # noqa: BLE001 — UI هرگز نباید بشکنه
                 logger.exception("ارسالِ آزمایشیِ پیامِ همگانی ناموفق بود")
-                show(S("test_failed", lang), False)
+                text, good_flag = S("test_failed", lang), False
             else:
                 good = [S(f"platform.{p}", lang) for p, ok, _d in results if ok]
                 bad = [S("test_fail", lang, where=S(f"platform.{p}", lang), detail=d) for p, ok, d in results if not ok]
                 if bad:
-                    show("\n".join(bad), False)
+                    text, good_flag = "\n".join(bad), False
                 else:
-                    show(S("test_ok", lang, where="، ".join(good) if lang != "en" else ", ".join(good)), True)
-            page.update()
+                    text, good_flag = S("test_ok", lang, where="، ".join(good) if lang != "en" else ", ".join(good)), True
+            common.run_on_ui(page, lambda: (show(text, good_flag), page.update()))
 
         page.run_thread(work)
 
@@ -349,7 +350,7 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple:
                                 ft.Text(_fmt_time(b.started_ts), size=11.5, color=secondary),
                             ]),
                             ft.Text(snippet[:90] + ("…" if len(snippet) > 90 else ""), size=12.5, color=secondary),
-                            ft.ProgressBar(value=b.processed / total, color=color, bgcolor=f"{secondary}22"),
+                            ft.ProgressBar(value=b.processed / total, color=color, bgcolor=theme.alpha(secondary, 0x22)),
                             ft.Text(S("counts", lang, **c), size=12),
                             *([ft.Text(S("errors_title", lang), size=11.5, color=secondary), *[ft.Text(f"• {n}× {text}", size=11.5, color=theme.DANGER, selectable=True) for text, n in errors]] if errors else []),
                             ft.Row(spacing=8, controls=controls) if controls else ft.Container(),
@@ -375,9 +376,9 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple:
         page.update()
 
     # --------------------------------------------------------------- تنظیمات ----
-    cap_tf = ft.TextField(key="bc_cap", label=S("cap", lang), border_radius=10, width=300, value=str(svc.cap()))
-    rate_tg_tf = ft.TextField(key="bc_rate_tg", label=S("rate_tg", lang), border_radius=10, width=300, value=str(int(getattr(settings, "broadcast_rate_telegram", 20))))
-    rate_bale_tf = ft.TextField(key="bc_rate_bale", label=S("rate_bale", lang), border_radius=10, width=300,
+    cap_tf = ft.TextField(key="bc_cap", label=S("cap", lang), border_radius=10, width=fit_width(page, 300), value=str(svc.cap()))
+    rate_tg_tf = ft.TextField(key="bc_rate_tg", label=S("rate_tg", lang), border_radius=10, width=fit_width(page, 300), value=str(int(getattr(settings, "broadcast_rate_telegram", 20))))
+    rate_bale_tf = ft.TextField(key="bc_rate_bale", label=S("rate_bale", lang), border_radius=10, width=fit_width(page, 300),
                                 value=str(int(getattr(settings, "broadcast_rate_bale", bc.DEFAULT_RATES["bale"]))))
     footer_default_sw = ft.Switch(key="bc_footer_default", label=S("footer_default", lang), value=bool(getattr(settings, "broadcast_footer_enabled", True)))
     settings_note = ft.Text("", key="bc_settings_note", size=12.5, visible=False)

@@ -17,7 +17,7 @@ The AI is a local model, so there is no server to rent, no API bill, and no cust
 ![Runs from source on macOS](https://img.shields.io/badge/macOS-from%20source-orange)
 ![AI](https://img.shields.io/badge/AI-local%20GGUF%20only-green)
 ![Messenger](https://img.shields.io/badge/messenger-Telegram-2CA5E0)
-![Version](https://img.shields.io/badge/version-1.2.0-informational)
+![Version](https://img.shields.io/badge/version-1.2.1-informational)
 
 [English](#english) · [فارسی](#فارسی) · [Download](#download) · [Changelog](CHANGELOG.md) · [Roadmap](docs/ROADMAP.md) · [License](LICENSE)
 
@@ -50,7 +50,7 @@ runs on it too (llama.cpp, GGUF files).
 |---|---|
 | 🛍 **Four-button shop** | Persistent customer menu — Products · Cart · My orders · Contact support — with a paginated catalog, categories, product cards with photo and ➖/➕ quantity, step-by-step checkout and order tracking. |
 | 🎛 **Two modes** | *Advisor* (the bot only talks, using your persona text) and *Shop* (the button shop). Nothing else to choose. |
-| 🧠 **Local AI, one click** | The app reads your RAM/CPU/GPU/disk, ranks six GGUF models for your machine, downloads the pick with progress, pause, resume and a SHA-256 check — or imports a file you already have. |
+| 🧠 **Local AI, one click** | The app reads your RAM/CPU/GPU/disk, lists the models from smallest to largest with the RAM each one needs (two of them are under 1 billion parameters), downloads your pick with progress, pause, resume and a safety check — or imports a file you already have. |
 | 📝 **Your checkout form** | Choose which fields to ask (name, phone, address, postal code, e-mail, choices, custom) — required or optional, per your shop. |
 | 📥 **Bulk Excel import** | The app builds a real `.xlsx` template (name, price, stock, category, description, cost); fill it in Excel and import it back. Bad rows are reported by row number, good ones are saved in one transaction. CSV works too. |
 | 🔘 **Guide & FAQ inside support** | Help and your FAQ live under the *Contact support* button, next to your custom buttons (link, text reply, contact card). |
@@ -72,6 +72,7 @@ runs on it too (llama.cpp, GGUF files).
 | 📚 **Built-in guide** | An offline, searchable Persian guide (185 articles: 25 troubleshooting, 58 FAQ), a **?** button on every page and an automatic troubleshooter. |
 | 🚀 **What 1.1.0 added** | One build that can compute on your NVIDIA card (a SHA-256-verified accelerator pack it downloads itself, with an automatic rollback to CPU), a button-driven control panel for operational settings, an order workspace to message a customer, send them a file and close the order, per-customer AI limits with a top-consumers view, editable invoice texts plus a sample invoice, a card-to-card step that asks only for the receipt, and a ✕ that finally does what you chose. |
 | 🛡️ **What 1.2.0 changed** | Updating no longer asks existing users to “start fresh”; settings, databases, the key and the downloaded model stay put, a full backup is taken on the first run of each new version, an already-downloaded model is re-attached if its selection was lost, “Quit completely” now stops the bots, saves and really closes, and model-download errors say what went wrong. Release builds now fail if tests fail. (Window closing, speed and layout still need on-device verification; macOS is not shipped.) |
+| 🔧 **What 1.2.1 changed** | Model downloads now try every source one after another (and, on Windows, a second download method as a backup) and tell you which source failed and why; the model list runs from smallest to largest with the RAM each needs, including two tiny models; the GPU card sits at the top of the model page; one steady look (equal-width cards, readable scrollbars, no stray yellow); plainer texts; and the bot bio link now points to this repository. Updating keeps your data, as in 1.2.0. (Real-Windows checks of the new look and downloads are still yours to confirm.) |
 
 ### Download
 
@@ -121,15 +122,15 @@ virtual environment, install the dependencies and start the app. Architecture an
 
 - **Only local.** There is no API key, no provider list, no failover and no cost budget — those screens were never
   shipped. The AI is a GGUF model that your own computer runs.
-- **Six models, honest labels.** Each card shows the exact file size, answer quality and speed (five stars each,
-  relative to this catalog), the licence (Apache-2.0) and whether it fits your machine: *our pick* · *good fit* ·
-  *borderline* · *does not fit this machine*. Sizes run from about 1.2 GB to about 5.7 GB.
+- **Models from smallest to largest, honest labels.** Each card shows the file size, the RAM it needs (minimum and comfortable), answer quality and speed (five stars each,
+  relative to this catalog), the licence and whether it fits your machine: *our pick* · *good fit* ·
+  *borderline* · *does not fit this machine*. Sizes run from about 0.4 GB to about 9 GB; the models marked *unverified* have no pinned hash yet.
 - **Hardware first.** The app reads total RAM, core count, CPU and GPU name and free disk space, and computes how much
   memory each model needs. It conservatively treats only 85 % of your RAM as usable, so it never promises a model that
   would freeze your PC mid-reply.
 - **Download, resume, verify.** One click starts a background download with a progress bar, speed and time left;
   *Cancel* keeps what arrived and *Resume download* continues from the same byte — a dropped connection or a closed app
-  is not a restart. Two sources are tried in order (the main host and one mirror) for users who cannot reach it.
+  is not a restart. Every source is tried automatically, one after another (the main host, then the mirrors), and if all fail the message says which one failed and why; on Windows a second download method is tried as a backup for models with a pinned hash.
   A finished file is checked against a pinned SHA-256; a corrupt or substituted file is refused, never loaded.
 - **Your own file.** If every source is blocked, take the GGUF from a friend or a manual download and use *Import a
   model file*; the app validates that it really is a GGUF (extension, size, magic header) before accepting it.
@@ -243,7 +244,7 @@ died (let Docker restart it), `2` no bot configured, `3` data written by a newer
 
 ### Project status
 
-**The current release is 1.2.0** (the first public line was 1.0.0): local-only AI, Telegram and Bale as chat messengers (an optional, independent Bale
+**The current release is 1.2.1** (the first public line was 1.0.0): local-only AI, Telegram and Bale as chat messengers (an optional, independent Bale
 chat on top of it), Bale Pay as the only gateway
 besides card-to-card, a four-button customer menu and a central prompt studio. The version string lives in
 `app/version.py` and a release tag must match it; see [CHANGELOG](CHANGELOG.md) for what shipped and what was cut. The
@@ -256,6 +257,8 @@ with a small amount before you take real money. Bugs and ideas: Issues.
 ---
 
 ## فارسی
+
+<div dir="rtl">
 
 ### این برنامه چیه؟
 
@@ -277,7 +280,7 @@ with a small amount before you take real money. Bugs and ideas: Issues.
 |---|---|
 | 🛍 **فروشگاهِ چهار دکمه‌ای** | منوی ثابتِ مشتری: محصولات · سبد خرید · سفارش‌های من · ارتباط با پشتیبانی — با کاتالوگِ صفحه‌بندی‌شده، دسته‌ها، کارتِ محصول با عکس و ➖/➕، ثبتِ سفارشِ مرحله‌ای و پیگیری. |
 | 🎛 **دو حالت** | «مشاوره‌ای» (فقط گفتگو با متنِ شخصیتِ خودت) و «فروشگاهی» (همان فروشگاهِ دکمه‌ای). چیزِ سومی برای انتخاب نیست. |
-| 🧠 **هوش مصنوعیِ محلی با یک کلیک** | برنامه رم/پردازنده/گرافیک/دیسک را می‌خواند، شش مدل را برای همین سیستم مرتب می‌کند و با یک کلیک، با نوارِ پیشرفت، توقف، ادامه و سنجشِ اثرانگشت دانلود می‌کند — یا فایلِ آماده‌ی خودت را می‌پذیرد. |
+| 🧠 **هوش مصنوعیِ محلی با یک کلیک** | برنامه رم/پردازنده/گرافیک/دیسک را می‌خواند، مدل‌ها را از کوچک به بزرگ و با رمِ لازمِ هرکدام نشان می‌دهد (دو مدل زیرِ ۱ میلیارد پارامتر هم هست) و انتخابِ تو را با یک کلیک، با نوارِ پیشرفت، توقف، ادامه و سنجشِ سالم‌بودن دانلود می‌کند — یا فایلِ آماده‌ی خودت را می‌پذیرد. |
 | 📝 **فرمِ سفارشِ خودت** | انتخاب کن چه چیزهایی پرسیده شود (نام، موبایل، آدرس، کدپستی، ایمیل، گزینه‌ای، دلخواه) و هرکدام اجباری باشد یا اختیاری. |
 | 📥 **وارداتِ دسته‌ایِ اکسل** | برنامه یک قالبِ `.xlsx` واقعی می‌سازد (نام، قیمت، موجودی، دسته، توضیحات، بهای تمام‌شده)؛ در اکسل پرش کن و همان فایل را وارد کن. سطرِ خراب با شماره‌ی سطر گزارش می‌شه و سطرهایِ سالم در یک تراکنش ذخیره می‌شن. CSV هم می‌شه. |
 | 🔘 **راهنما و سؤالات متداول زیرِ پشتیبانی** | راهنما و پرسش‌هایِ پرتکرار مشتری زیرِ دکمه‌ی «ارتباط با پشتیبانی» می‌مانند، کنارِ دکمه‌هایِ سفارشیِ خودت (لینک، پاسخ متنی، کارتِ تماس). |
@@ -299,6 +302,7 @@ with a small amount before you take real money. Bugs and ideas: Issues.
 | 📚 **راهنمای داخلِ برنامه** | راهنمای آفلاین و قابلِ جستجو به فارسی (۱۸۵ مقاله؛ ۲۵ عیب‌یابی و ۵۸ پرسشِ متداول)، دکمه‌ی **؟** کنارِ هر صفحه و یک عیب‌یابِ خودکار. |
 | 🚀 **۱.۱.۰ چه اضافه کرد** | یک نصب که می‌تواند روی کارتِ NVIDIA حساب کند (بستهٔ شتاب با راستی‌آزماییِ SHA-256 که خودش دانلود می‌کند و اگر بیلد نپذیرفت خودکار به CPU برمی‌گردد)، کنترل‌پنلِ دکمه‌ایِ تنظیماتِ عملیاتی، میزِ کارِ سفارش برای پیام دادن به مشتری، فرستادنِ فایل و بستنِ سفارش، سقفِ هوش مصنوعی برای هر مشتری با نمایِ پرمصرف‌ها، متن‌هایِ قابل‌ویرایشِ فاکتور به‌همراه فاکتورِ نمونه، مرحلهٔ کارت‌به‌کارت که جز رسید چیزی نمی‌خواهد، و ✕ای که سرانجام همان کاری را می‌کند که خودت انتخاب کرده‌ای. |
 | 🛡️ **۱.۲.۰ چه چیزی را تغییر داد** | آپدیت دیگر از کاربرِ موجود «شروعِ تازه» نمی‌پرسد؛ تنظیمات، دیتابیس‌ها، کلید و مدلِ دانلودشده می‌مانند، در اولین اجرای هر نسخه یک پشتیبانِ کامل گرفته می‌شود، مدلِ دانلودشده‌ای که انتخابش از تنظیمات افتاده دوباره وصل می‌شود، «خروجِ کامل» ربات‌ها را متوقف و اطلاعات را ذخیره می‌کند و برنامه را واقعاً می‌بندد و خطای دانلودِ مدل می‌گوید چه شده است. ساختِ انتشار با شکستِ تست متوقف می‌شود. (بستنِ پنجره، سرعتِ مدل و چیدمانِ رابط هنوز روی دستگاهِ واقعی تأیید می‌شود؛ macOS منتشر نمی‌شود.) |
+| 🔧 **۱.۲.۱ چه چیزی را تغییر داد** | دانلودِ مدل حالا همه‌ی منبع‌ها را پشتِ هم امتحان می‌کند (و در ویندوز یک روشِ دوم هم به‌عنوانِ پشتیبان دارد) و اگر نشد می‌گوید کدام منبع چه شد؛ فهرستِ مدل‌ها از کوچک به بزرگ است و رمِ لازمِ هر مدل کنارش نوشته شده، با دو مدلِ خیلی کوچک؛ کارتِ «شتابِ گرافیکی» بالایِ صفحه‌یِ مدل‌ها آمده؛ ظاهر یکدست‌تر شده (کارت‌هایِ هم‌عرض، اسکرولِ خوانا، بدونِ زردِ بی‌مورد)؛ متن‌ها ساده‌تر شده‌اند و لینکِ بیوِ ربات به همین مخزن می‌رود. آپدیت مثلِ ۱.۲.۰ اطلاعاتت را نگه می‌دارد. (دیدنِ ظاهر و دانلودِ تازه روی ویندوزِ واقعی هنوز با خودت است.) |
 
 ### دانلود
 
@@ -348,15 +352,15 @@ python -m pytest         # کلِ تست‌ها — بدونِ اینترنت و
 
 - **فقط محلی.** خبری از کلیدِ API، فهرستِ سرویس‌ها، جابه‌جاییِ خودکار و بودجه‌ی هزینه نیست؛ آن صفحه‌ها هیچ‌وقت
   منتشر نشدند. هوش مصنوعی یک فایلِ مدل است که کامپیوترِ خودت اجرااش می‌کند.
-- **شش مدل با برچسبِ صادق.** هر کارت حجمِ دقیقِ فایل، کیفیتِ پاسخ و سرعت (هر کدام پنج ستاره، نسبت به بقیه‌ی همین
-  فهرست)، مجوز (Apache-2.0) و وضعیتِ جا شدن روی سیستمِ تو را نشان می‌دهد: «پیشنهادِ ما» · «مناسب» · «در مرز» ·
-  «جا نمی‌شود». سایزها از حدودِ ۱٫۲ تا حدودِ ۵٫۷ گیگابایت است.
+- **مدل‌ها از کوچک به بزرگ، با برچسبِ صادق.** هر کارت حجمِ فایل، رمِ لازم (حداقل و راحت)، کیفیتِ پاسخ و سرعت (هر کدام پنج ستاره، نسبت به بقیه‌ی همین
+  فهرست)، مجوز و وضعیتِ جا شدن روی سیستمِ تو را نشان می‌دهد: «پیشنهادِ ما» · «مناسب» · «در مرز» ·
+  «جا نمی‌شود». حجم‌ها از حدودِ ۰٫۴ تا حدودِ ۹ گیگابایت است؛ مدل‌هایِ «تأییدنشده» هنوز اثرانگشتِ ثبت‌شده ندارند.
 - **اول سخت‌افزار.** برنامه مقدارِ رم، تعدادِ هسته، نامِ پردازنده و گرافیک و فضایِ آزادِ دیسک را می‌خواند و نیازِ هر
   مدل را حساب می‌کند؛ برایِ احتیاط فقط ۸۵٪ِ رم را قابل‌استفاده می‌داند، پس مدلی را که وسطِ کار سیستم را قفل می‌کند
   هرگز «راحت» اعلام نمی‌کند.
 - **دانلود، ادامه، راستی‌آزمایی.** با یک کلیک دانلود در پس‌زمینه شروع می‌شود، با درصد و سرعت و زمانِ باقی‌مانده؛ «توقف»
-  آنچه آمده را نگه می‌دارد و «ادامه» از همان بایت ادامه می‌دهد — قطعیِ اینترنت یا بستنِ برنامه یعنی ادامه، نه از اول. دو
-  منبع به‌ترتیب امتحان می‌شوند (سایتِ اصلی و یک آینه) چون دسترسی به آن برای خیلی از کاربرهای ایرانی سخت است. فایلِ
+  آنچه آمده را نگه می‌دارد و «ادامه» از همان بایت ادامه می‌دهد — قطعیِ اینترنت یا بستنِ برنامه یعنی ادامه، نه از اول. همه‌ی
+  منبع‌ها خودکار و پشتِ هم امتحان می‌شوند (سایتِ اصلی، بعد آینه‌ها) و اگر هیچ‌کدام نشد، پیام می‌گوید کدام منبع چه شد؛ در ویندوز برایِ مدل‌هایِ دارایِ اثرانگشتِ ثبت‌شده یک روشِ دومِ دانلود هم به‌عنوانِ پشتیبان امتحان می‌شود. فایلِ
   تمام‌شده با اثرانگشتِ SHA-256ِ ثبت‌شده سنجیده می‌شود و فایلِ خراب یا دستکاری‌شده هرگز بارگذاری نمی‌شود.
 - **فایلِ خودت.** اگر هیچ منبعی باز نشد، فایل را از دوستت یا دانلودِ دستی بگیر و با «وارد کردن فایلِ مدل» به برنامه
   نشان بده؛ برنامه اول می‌سنجد که واقعاً یک فایلِ GGUF باشد.
@@ -466,13 +470,15 @@ docker compose up -d                                   # پوشه‌ی ./data ر
 
 ### وضعیتِ پروژه
 
-این **نسخه‌ی ۱.۲.۰ است** (نخستین انتشارِ عمومی ۱.۰.۰ بود): هوش مصنوعی فقط محلی، تلگرام و بله هر دو پیام‌رسانِ گفتگو (چتِ بله اختیاری و مستقل)، بله‌پی تنها درگاهِ علاوه بر
+این **نسخه‌ی ۱.۲.۱ است** (نخستین انتشارِ عمومی ۱.۰.۰ بود): هوش مصنوعی فقط محلی، تلگرام و بله هر دو پیام‌رسانِ گفتگو (چتِ بله اختیاری و مستقل)، بله‌پی تنها درگاهِ علاوه بر
 کارت‌به‌کارت، منویِ مشتری با دقیقاً چهار دکمه و یک استودیویِ مرکزیِ پرامپت. عددِ نسخه در فایلِ `app/version.py` زندگی
 می‌کند و تگِ انتشار باید همان باشد؛ چه چیزی آمد و چه چیزی حذف شد را در [CHANGELOG](CHANGELOG.md) بخوان.
 مجموعه‌تستِ خودکار (۲۳۲۶ تست در ۱۱۱ فایل) روی سرورهایِ جعلیِ تلگرام و درگاهِ بله اجرا می‌شود و فروشگاه، پرداخت، رسید،
 وضعیتِ ارسال، پشتیبانی، مهاجرت، پشتیبان، پروکسی، حالتِ بی‌پنجره، خروجیِ گزارش، تزریقِ پرامپت و حالت‌هایِ سوءاستفاده را پوشش می‌دهد.
 **راستی‌آزمایی با رباتِ واقعی و درگاهِ واقعی هنوز باید برای هر نصب انجام شود** — قبل از پولِ واقعی، یک خریدِ کامل را با
 مبلغِ کم از اول تا آخر انجام بده. باگ و ایده: بخشِ Issues.
+
+</div>
 
 ---
 

@@ -117,7 +117,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "For this reason the download button of this model is disabled.",
     },
     "ai.local.rec_none": {
-        "fa": "هیچ‌کدام از مدل‌هایِ این فهرست رویِ این سیستم راحت جا نمی‌شن؛ سبک‌ترین گزینه را ببین یا فایلِ GGUF را از جای دیگر بگیر و وارد کن.",
+        "fa": "هیچ‌کدام از مدل‌هایِ این فهرست رویِ این سیستم راحت جا نمی‌شن؛ سبک‌ترین گزینه را ببین یا فایلِ مدل را از جای دیگر بگیر و وارد کن.",
         "en": "None of these models fits this machine comfortably; try the lightest one, or get a GGUF file elsewhere and import it.",
     },
     "ai.local.q_label": {"fa": "کیفیتِ پاسخ", "en": "Answer quality"},
@@ -143,7 +143,7 @@ STRINGS: dict[str, dict[str, str]] = {
     "ai.local.verify_btn": {"fa": "راستی‌آزمایی فایل", "en": "Verify file"},
     "ai.local.verify_ok": {"fa": "✅ اثرانگشتِ فایل با نسخه‌ی اصلی می‌خونه", "en": "✅ The file hash matches the original"},
     "ai.local.verify_fail": {"fa": "❌ فایل با نسخه‌ی اصلی نمی‌خونه؛ دوباره دانلودش کن", "en": "❌ The file does not match the original; download it again"},
-    "ai.local.import_title": {"fa": "وارد کردن فایلِ مدل (GGUF)", "en": "Import a model file (GGUF)"},
+    "ai.local.import_title": {"fa": "وارد کردن فایلِ مدل", "en": "Import a model file (GGUF)"},
     "ai.local.import_desc": {
         "fa": "اگر فایلِ مدل را از جای دیگری گرفتی (فلش، دوست، دانلودِ دستی)، مسیرش را اینجا بده تا برنامه سلامتیش را بررسی کند و از همان مدل استفاده کند.",
         "en": "Got the model file elsewhere (USB, a friend, a manual download)? Give its path here; the app checks the file is a real GGUF and uses it.",
@@ -153,7 +153,7 @@ STRINGS: dict[str, dict[str, str]] = {
     "ai.local.import_apply": {"fa": "بررسی و استفاده", "en": "Check & use"},
     "ai.local.import_need_path": {"fa": "اول مسیرِ فایل را بنویس یا انتخابش کن.", "en": "Write or pick the file path first."},
     "ai.local.import_not_gguf": {
-        "fa": "این فایل قابلِ قبول نیست: باید یک فایلِ واقعیِ GGUF (پسوندِ .gguf، بالای ۱ مگابایت، سرِ فایلِ درست) باشد.",
+        "fa": "این فایل قابلِ قبول نیست: باید یک فایلِ مدلِ واقعی با پسوندِ .gguf و حجمِ بالای ۱ مگابایت باشد.",
         "en": "This file is not acceptable: it must be a real GGUF file (.gguf suffix, over 1 MB, valid header).",
     },
     "ai.local.import_done": {"fa": "✅ فایلِ مدل پذیرفته شد و جایِ مدلِ کاتالوگ را گرفت.", "en": "✅ The model file was accepted and replaces the catalog model."},
@@ -261,7 +261,7 @@ STRINGS: dict[str, dict[str, str]] = {
     "ai.helper.links_title": {"fa": "آدرس‌هایِ مستقیمِ این فایل", "en": "Direct addresses of this file"},
     "ai.helper.copy": {"fa": "کپی", "en": "Copy"},
     "ai.helper.open": {"fa": "باز کردن در مرورگر", "en": "Open in browser"},
-    "ai.helper.custom_hint": {"fa": "لینکِ مستقیمِ دیگری داری؟ (فقط HTTPS) برنامه از همان دانلود می‌کند و اگر هشِ مرجع داشته باشد فایل را تأیید می‌کند.", "en": "Have another direct link? (HTTPS only) The app downloads from it and verifies the file if a reference hash exists."},
+    "ai.helper.custom_hint": {"fa": "لینکِ مستقیمِ دیگری داری؟ (فقط لینکِ امن، با https) برنامه از همان دانلود می‌کند و اگر اثرانگشتِ مرجعِ فایل را داشته باشد، سالم‌بودنش را هم می‌سنجد.", "en": "Have another direct link? (HTTPS only) The app downloads from it and verifies the file if a reference hash exists."},
     "ai.helper.custom_label": {"fa": "لینکِ دانلودِ دلخواه", "en": "Custom download link"},
     "ai.helper.custom_go": {"fa": "دانلود از این لینک", "en": "Download from this link"},
     "ai.helper.mirror_hint": {"fa": "آینه‌ی شخصی (اختیاری): نامِ دامنه‌ای که ساختارِ Hugging Face دارد، مثلاً my-mirror.example.com — هر خط یکی (حداکثر ۳). بعد از منبعِ رسمی امتحان می‌شود.", "en": "Personal mirror (optional): a domain that mirrors Hugging Face's layout, e.g. my-mirror.example.com — one per line (max 3). Tried after the official source."},
@@ -309,10 +309,10 @@ STRINGS: dict[str, dict[str, str]] = {
     # --- وضعیتِ آمادگیِ موتور (ai_engine.engine_readiness) ---
     "ai.ready.none": {"fa": "هوش مصنوعی هنوز تنظیم نشده است.", "en": "The AI is not configured yet."},
     "ai.ready.no_model_selected": {"fa": "هنوز هیچ مدلی انتخاب نکردی — از فهرستِ مدل‌ها یکی را دانلود کن.", "en": "No model selected yet — download one from the model list."},
-    "ai.ready.path_invalid": {"fa": "مسیرِ مدلی که داده‌ای یک فایلِ GGUFِ معتبر نیست (نه پوشه، نه پیوند).",
+    "ai.ready.path_invalid": {"fa": "مسیرِ مدلی که داده‌ای یک فایلِ مدلِ معتبر نیست (نه پوشه، نه پیوند).",
                               "en": "The model path you set is not a valid GGUF file (not a folder, not a link)."},
     "ai.ready.not_downloaded": {"fa": "فایلِ مدلِ انتخابی هنوز دانلود نشده؛ در صفحه‌ی «هوش مصنوعی» دانلودش کن.", "en": "The selected model file is not downloaded yet — download it on the AI page."},
-    "ai.ready.llama_missing": {"fa": "ماشینِ اجرای مدل (llama-cpp) روی این سیستم نصب نیست.", "en": "The model runtime (llama-cpp) is not installed on this machine."},
+    "ai.ready.llama_missing": {"fa": "بخشِ اجرای مدل روی این سیستم نصب نیست.", "en": "The model runtime (llama-cpp) is not installed on this machine."},
     "ai.ready.file_invalid": {"fa": "فایلِ مدلِ انتخابی کامل یا معتبر نیست؛ دوباره دانلودش کن.", "en": "The selected model file is incomplete or invalid; download it again."},
     "ai.ready.ok": {"fa": "هوش مصنوعیِ محلی آماده است ✅", "en": "The local AI is ready ✅"},
 
@@ -337,9 +337,9 @@ STRINGS: dict[str, dict[str, str]] = {
     "ai_setup.adv_threads_label": {"fa": "تعدادِ هسته‌هایِ پردازنده برای مدل (threads؛ پیشنهادی را عوض نکن)", "en": "CPU cores used by the model (threads; keep the suggested value)"},
     "ai_setup.adv_gpu_label": {"fa": "لایه‌هایِ GPU", "en": "GPU layers"},
     "ai_setup.adv_gpu_auto": {"fa": "۰ = خودکار: از خودِ موتور پرسیده می‌شه (بیلدِ رسمیِ برنامه CPU است)", "en": "0 = auto: the engine is asked (the official build is CPU-only)"},
-    "ai_setup.adv_gpu_hint": {"fa": "فقط وقتی زیادش کن که خودت بیلدِ CUDA را نصب کرده باشی؛ وگرنه مدل در رم جا نمی‌شه.", "en": "Raise it only if you installed a CUDA build yourself; otherwise the model will not fit in RAM."},
+    "ai_setup.adv_gpu_hint": {"fa": "فقط وقتی زیادش کن که «شتابِ گرافیکی» را نصب کرده باشی؛ وگرنه مدل در رم جا نمی‌شود.", "en": "Raise it only if you installed a CUDA build yourself; otherwise the model will not fit in RAM."},
     "ai_setup.adv_gpu_no_cuda": {
-        "fa": "⚠️ بیلدِ نصب‌شدهی llama.cpp روی این سیستم CUDA ندارد؛ با این عددِ بالا، محاسبه همان‌جا روی CPU می‌مونه و فقط ریسکِ جا‌نشدنِ مدل در رم زیاد می‌شه. راهنما: «CUDA را فعال کنم» در صفحه‌ی هوش مصنوعی.",
+        "fa": "⚠️ شتابِ گرافیکی روی این سیستم فعال نیست؛ با این عددِ بالا محاسبه همچنان روی پردازنده می‌ماند و فقط احتمالِ جا‌نشدنِ مدل در رم بیشتر می‌شود. اول در صفحه‌ی هوش مصنوعی «شتابِ گرافیکی» را نصب کن.",
         "en": "⚠️ The llama.cpp build installed on this system has no CUDA; with a high value here the work still runs on the CPU and you only raise the risk of the model not fitting in RAM. See the “Enable CUDA” article on the AI page.",
     },
     "ai_setup.adv_kill_label": {"fa": "خاموش‌کردنِ اضطراریِ همه‌ی پاسخ‌های AI", "en": "Emergency stop for all AI replies"},
@@ -349,21 +349,21 @@ STRINGS: dict[str, dict[str, str]] = {
     "ai_setup.adv_saved": {"fa": "✅ ذخیره شد.", "en": "✅ Saved."},
     "ai_setup.adv_bad": {"fa": "«{label}» باید عددِ معتبر باشد.", "en": "“{label}” must be a valid number."},
 
-    # --- یادداشتِ شفافِ GPU: بیلدِ رسمیِ برنامه محاسبه را روی CPU انجام می‌دهد ---
+    # --- یادداشتِ GPU: بدونِ کارت روی CPU؛ با کارتِ NVIDIA از کارتِ «شتابِ گرافیکی» نصب می‌شود ---
     "ai.local.gpu_note_none": {
         "fa": "کارتِ گرافیکِ مجزا پیدا نشد (یا یکپارچه است)؛ محاسبه رویِ پردازنده (CPU) انجام می‌شه — کندتر ولی رویِ هر سیستمی کار می‌کنه.",
         "en": "No dedicated GPU found (or integrated only); computing runs on the CPU — slower but works on any system.",
     },
     "ai.local.gpu_note_nvidia": {
-        "fa": "کارتِ NVIDIA پیدا شد؛ اما بیلدِ رسمیِ این برنامه محاسبه را رویِ CPU انجام می‌دهد. کاربرانِ حرفه‌ای می‌تونن بیلدِ CUDA را خودشون نصب کنن.",
-        "en": "An NVIDIA card was detected, but the official build of this app computes on the CPU. Power users can install a CUDA build themselves.",
+        "fa": "کارتِ NVIDIA پیدا شد. برای پاسخِ سریع‌تر، در کارتِ «شتابِ گرافیکی» پایین‌تر دکمه‌ی نصب را بزن؛ بدونِ اجازه‌ی تو چیزی دانلود نمی‌شود.",
+        "en": "An NVIDIA card was found. For faster answers, press install in the “GPU acceleration” card below; nothing downloads without your permission.",
     },
     "ai.local.gpu_note_other": {
         "fa": "کارتِ گرافیکِ غیر-NVIDIA پیدا شد (مثلاً AMD یا Intel)؛ محاسبه رویِ CPU انجام می‌شه.",
         "en": "A non-NVIDIA GPU was detected (e.g. AMD or Intel); computing runs on the CPU.",
     },
     "ai.local.gpu_note_ready": {
-        "fa": "کارتِ NVIDIA پیدا شد و بیلدِ نصب‌شدهی llama.cpp هم GPU را می‌شناسه؛ از «پیشرفته» لایه‌ها را بالا ببر تا محاسبه رویِ کارت بیاد.",
+        "fa": "کارتِ NVIDIA پیدا شد و برنامه آن را می‌شناسد؛ از «پیشرفته» عددِ لایه‌ها را بالا ببر تا محاسبه رویِ کارت انجام شود.",
         "en": "An NVIDIA card was found and the installed llama.cpp build supports GPU offload — raise the layers under Advanced to compute on the card.",
     },
 
@@ -1156,8 +1156,8 @@ STRINGS: dict[str, dict[str, str]] = {
     "pay.bale.mode_auto": {"fa": "لینکِ پرداختِ خودِ بله (پیشنهادی)", "en": "Bale's own payment link (recommended)"},
     "pay.bale.mode_deeplink": {"fa": "لینکِ بازکردنِ رباتِ پرداخت", "en": "Link that opens the payment bot"},
     "pay.bale.mode_help": {
-        "fa": "با «لینکِ پرداختِ خودِ بله»، مشتری با یک کلیک به صفحه‌ی پرداختِ بله می‌رود؛ اگر بله این لینک را نداد، برنامه خودش به روشِ دوم برمی‌گردد. «لینکِ بازکردنِ رباتِ پرداخت» مشتری را به چتِ رباتِ پرداختِ تو می‌برد و فاکتور همان‌جا برایش می‌آید. اگر مطمئن نیستی، روشِ اول را نگه دار. (جزئیاتِ فنی: createInvoiceLink / ble.ir/<ربات>?start=pay_…)",
-        "en": "With “Bale's own payment link”, the customer goes to Bale's payment page in one tap; if Bale gives no link the app switches to the second way by itself. “Link that opens the payment bot” takes the customer to your payment bot chat, where the invoice arrives. If unsure, keep the first. (Technical: createInvoiceLink / ble.ir/<bot>?start=pay_…)",
+        "fa": "با «لینکِ پرداختِ خودِ بله»، مشتری با یک کلیک به صفحه‌ی پرداختِ بله می‌رود؛ اگر بله این لینک را نداد، برنامه خودش به روشِ دوم برمی‌گردد. «لینکِ بازکردنِ رباتِ پرداخت» مشتری را به چتِ رباتِ پرداختِ تو می‌برد و فاکتور همان‌جا برایش می‌آید. اگر مطمئن نیستی، روشِ اول را نگه دار.",
+        "en": "With “Bale's own payment link”, the customer goes to Bale's payment page in one tap; if Bale gives no link the app switches to the second way by itself. “Link that opens the payment bot” takes the customer to your payment bot chat, where the invoice arrives. If unsure, keep the first.",
     },
     "pay.receipt.title": {"fa": "رسیدِ کارت‌به‌کارت", "en": "Card-to-card receipts"},
     "pay.receipt.subtitle": {

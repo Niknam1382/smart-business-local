@@ -20,6 +20,7 @@ from app.core import modes, working_hours
 from app.screens import (bot_profile_card, common, customer_preview, gpu_card, quick_setup_card,
                           required_channels_card, texts_editor)
 from app.screens.common import card, page_header
+from app.screens.common import fit_width
 
 _S = {
     "title": ("تجربه‌ی ربات", "Bot experience"),
@@ -455,7 +456,7 @@ def build(page: ft.Page, lang: str, settings, save_callback, product_store, orde
     day_fields = {d: ft.TextField(key=f"wh_{d}", label=S(f"d.{d}", lang), border_radius=10, width=210, hint_text="09:00-17:00",
                                   value=", ".join((wh.get("days") or {}).get(d, []))) for d in ("sat", "sun", "mon", "tue", "wed", "thu", "fri")}
     h_message = ft.TextField(key="wh_message", label=S("h.message", lang), border_radius=10, value=str(wh.get("message", "")))
-    h_timeout = ft.TextField(key="wh_timeout", label=S("h.timeout", lang), border_radius=10, width=300, value=str(settings.handoff_timeout_hours))
+    h_timeout = ft.TextField(key="wh_timeout", label=S("h.timeout", lang), border_radius=10, width=fit_width(page, 300), value=str(settings.handoff_timeout_hours))
     sup_phone = ft.TextField(key="sup_phone", label=S("h.phone", lang), border_radius=10, width=240, value=str(settings.support_phone),
                               keyboard_type=ft.KeyboardType.PHONE)
     sup_note = ft.TextField(key="sup_note", label=S("h.phone_note", lang), border_radius=10, value=str(settings.support_direct_note))
@@ -499,9 +500,9 @@ def build(page: ft.Page, lang: str, settings, save_callback, product_store, orde
         return S("l.today", lang, calls=totals["ai_calls"], cap=cap, tokens=totals["tokens_est"], chats=totals["chats"])
 
     usage_info = ft.Text(usage_text(), key="lim_usage", size=13)
-    l_chat = ft.TextField(key="lim_per_chat", label=S("l.per_chat", lang), border_radius=10, width=320, value=str(settings.max_ai_messages_per_chat_per_day))
-    l_total = ft.TextField(key="lim_total", label=S("l.total", lang), border_radius=10, width=320, value=str(settings.max_ai_messages_per_day_total))
-    l_retention = ft.TextField(key="lim_retention", label=S("l.retention", lang), border_radius=10, width=320, value=str(settings.retention_days))
+    l_chat = ft.TextField(key="lim_per_chat", label=S("l.per_chat", lang), border_radius=10, width=fit_width(page, 320), value=str(settings.max_ai_messages_per_chat_per_day))
+    l_total = ft.TextField(key="lim_total", label=S("l.total", lang), border_radius=10, width=fit_width(page, 320), value=str(settings.max_ai_messages_per_day_total))
+    l_retention = ft.TextField(key="lim_retention", label=S("l.retention", lang), border_radius=10, width=fit_width(page, 320), value=str(settings.retention_days))
     l_note = note_control("lim_note")
 
     def toggle_kill(e=None) -> None:  # اثرِ فوری، بدونِ نیاز به دکمه‌ی «ذخیره»
@@ -591,10 +592,10 @@ def build(page: ft.Page, lang: str, settings, save_callback, product_store, orde
             def work() -> None:  # راه‌اندازیِ دوباره چند ثانیه طول می‌کشه — صفحه نباید یخ بزنه
                 try:
                     manager.restart()
-                    show(p_note, S("p.saved_restart", lang), True)
+                    text, good = S("p.saved_restart", lang), True
                 except Exception as exc:  # noqa: BLE001 — تنظیم ذخیره شد؛ فقط راه‌اندازیِ دوباره نشد
-                    show(p_note, S("p.restart_failed", lang, reason=str(exc)), False)
-                page.update()
+                    text, good = S("p.restart_failed", lang, reason=str(exc)), False
+                common.run_on_ui(page, lambda: (show(p_note, text, good), page.update()))
 
             page.run_thread(work)
         else:

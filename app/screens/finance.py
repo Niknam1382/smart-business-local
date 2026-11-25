@@ -22,6 +22,7 @@ from app.core.invoices import LABEL_PREFIX, MAX_LABEL_LEN, MAX_NAME_LEN, Invoice
 from app.core.settings import save_settings
 from app.screens import common
 from app.screens.discounts import parse_toman
+from app.screens.common import fit_width
 
 _S = {
     "title": ("مالی و فاکتور", "Finance & invoices"),
@@ -331,7 +332,7 @@ def build(page: ft.Page, lang: str, manager, settings, product_store=None) -> ft
     def order_lookup(order_id: int):
         return finance._orders.get(order_id)  # noqa: SLF001 — همان OrderStoreِ مدیر
 
-    search_tf = ft.TextField(key="fn_inv_search", label=S("inv_search", lang), width=340, border_radius=10, value=st["query"],
+    search_tf = ft.TextField(key="fn_inv_search", label=S("inv_search", lang), width=fit_width(page, 340), border_radius=10, value=st["query"],
                              on_submit=lambda e: (st.update(query=e.control.value or ""), render()))
 
     def invs() -> list:
@@ -362,7 +363,7 @@ def build(page: ft.Page, lang: str, manager, settings, product_store=None) -> ft
     acct_dd = ft.Dropdown(key="fn_led_account", label=S("led_account", lang), width=150, border_radius=10, value="cash",
                           options=[ft.DropdownOption(key=k, text=fin.ACCOUNT_LABEL_FA[k]) for k in fin.ACCOUNTS])
     date_tf = ft.TextField(key="fn_led_date", label=S("led_date", lang), width=200, border_radius=10)
-    note_tf = ft.TextField(key="fn_led_note", label=S("led_note", lang), width=300, border_radius=10, max_length=fin.MAX_NOTE)
+    note_tf = ft.TextField(key="fn_led_note", label=S("led_note", lang), width=fit_width(page, 300), border_radius=10, max_length=fin.MAX_NOTE)
     filter_dd = ft.Dropdown(key="fn_led_filter", label=S("led_filter", lang), width=160, border_radius=10, value=st["kind"] or "all",
                             options=[ft.DropdownOption(key="all", text=S("all", lang)), *[ft.DropdownOption(key=k, text=S(f"kind_{k}", lang)) for k in fin.KINDS]],
                             on_select=lambda e: (st.update(kind="" if e.control.value == "all" else e.control.value), render()))
@@ -466,16 +467,16 @@ def build(page: ft.Page, lang: str, manager, settings, product_store=None) -> ft
         "name": ft.TextField(key="fn_set_name", label=S("s_name", lang), width=260, border_radius=10, value=settings.invoice_seller_name),
         "legal": ft.TextField(key="fn_set_legal", label=S("s_legal", lang), width=260, border_radius=10, value=settings.invoice_seller_legal_name),
         "nid": ft.TextField(key="fn_set_nid", label=S("s_nid", lang), width=200, border_radius=10, value=settings.invoice_seller_national_id),
-        "addr": ft.TextField(key="fn_set_addr", label=S("s_addr", lang), width=420, border_radius=10, value=settings.invoice_seller_address),
+        "addr": ft.TextField(key="fn_set_addr", label=S("s_addr", lang), width=fit_width(page, 420), border_radius=10, value=settings.invoice_seller_address),
         "phone": ft.TextField(key="fn_set_phone", label=S("s_phone", lang), width=200, border_radius=10, value=settings.invoice_seller_phone),
-        "logo": ft.TextField(key="fn_set_logo", label=S("s_logo", lang), width=420, border_radius=10, value=settings.invoice_logo_path),
+        "logo": ft.TextField(key="fn_set_logo", label=S("s_logo", lang), width=fit_width(page, 420), border_radius=10, value=settings.invoice_logo_path),
         "color": ft.TextField(key="fn_set_color", label=S("s_color", lang), width=170, border_radius=10, value=settings.invoice_color),
-        "footer": ft.TextField(key="fn_set_footer", label=S("s_footer", lang), width=420, border_radius=10, value=settings.invoice_footer),
+        "footer": ft.TextField(key="fn_set_footer", label=S("s_footer", lang), width=fit_width(page, 420), border_radius=10, value=settings.invoice_footer),
         # --- قلم ۸: متن‌هایِ فاکتور (نامِ جایگزین، تشکر، سلبِ مسئولیت، برچسب‌هایِ مهم) ---
         "fallback": ft.TextField(key="fn_set_fallback", label=S("s_fallback", lang), width=260, border_radius=10, max_length=MAX_NAME_LEN,
                                  value=settings.invoice_seller_fallback),
-        "thanks": ft.TextField(key="fn_set_thanks", label=S("s_thanks", lang), width=420, border_radius=10, max_length=200, value=settings.invoice_thanks),
-        "disclaimer": ft.TextField(key="fn_set_disclaimer", label=S("s_disclaimer", lang), width=420, border_radius=10, min_lines=2, max_lines=4,
+        "thanks": ft.TextField(key="fn_set_thanks", label=S("s_thanks", lang), width=fit_width(page, 420), border_radius=10, max_length=200, value=settings.invoice_thanks),
+        "disclaimer": ft.TextField(key="fn_set_disclaimer", label=S("s_disclaimer", lang), width=fit_width(page, 420), border_radius=10, min_lines=2, max_lines=4,
                                    max_length=300, value=settings.invoice_disclaimer),
         "text_lang": ft.Dropdown(key="fn_set_text_lang", label=S("t_lang", lang), width=170, border_radius=10, value=invoice_text_lang_of(settings),
                                  options=[ft.DropdownOption(key=k, text="فارسی" if k == "fa" else "English") for k in ("fa", "en")]),

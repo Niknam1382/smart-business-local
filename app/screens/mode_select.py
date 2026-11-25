@@ -64,7 +64,7 @@ def build(page: ft.Page, lang: str, initial_mode, on_next, on_back) -> ft.Contro
         controls=[
             ft.Text(t("mode.title", lang), size=22, weight=ft.FontWeight.W_700),
             ft.Container(
-                width=420,
+                width=common.fit_width(page, 420),
                 content=ft.Text(
                     t("mode.subtitle", lang),
                     size=13,

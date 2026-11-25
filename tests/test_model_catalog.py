@@ -51,7 +51,8 @@ def test_the_catalog_declares_every_host_a_real_download_redirects_to():
 def test_the_unreachable_third_mirror_is_no_longer_offered():
     """``cache.fuyuan.top`` هیچ‌جا resolve نمی‌شد و فقط علتِ واقعیِ خطا را می‌پوشاند."""
     assert all("fuyuan" not in url for e in mc.entries() for url in e.urls)
-    assert [u.split("/")[2] for u in mc.entries()[0].urls] == list(mc.SOURCE_HOSTS)
+    first_verified = next(e for e in mc.entries() if e.verified)
+    assert [u.split("/")[2] for u in first_verified.urls] == list(mc.SOURCE_HOSTS)
 
 
 def test_entries_returns_a_copy_so_callers_cannot_mutate_the_catalog():

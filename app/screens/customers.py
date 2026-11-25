@@ -21,6 +21,7 @@ from app.core.paths import get_app_data_dir
 from app.i18n import STRINGS, t
 from app.screens import common
 from app.screens.common import card, page_header, screen_frame
+from app.screens.common import fit_width
 
 MAX_ROWS = 200
 _ORDER_ROWS = 5
@@ -180,7 +181,7 @@ def build(page: ft.Page, lang: str, manager, order_store=None, export_dir: Optio
             ft.Row(
                 wrap=True, spacing=theme.SPACE_MD, run_spacing=theme.SPACE_MD,
                 controls=[
-                    ft.TextField(key="customers_search", label=t("customers.search", lang), value=ui["search"], border_radius=theme.RADIUS_FIELD, width=340, on_change=on_search, prefix_icon=ft.Icons.SEARCH_ROUNDED),
+                    ft.TextField(key="customers_search", label=t("customers.search", lang), value=ui["search"], border_radius=theme.RADIUS_FIELD, width=fit_width(page, 340), on_change=on_search, prefix_icon=ft.Icons.SEARCH_ROUNDED),
                     dropdown("customers_filter", t("customers.filter", lang), [(f, t(f"customers.filter.{f}", lang)) for f in crm.FILTERS], ui["filter"], on_filter),
                     dropdown("customers_sort", t("customers.sort", lang), [(s_, t(f"customers.sort.{s_}", lang)) for s_ in crm.SORTS], ui["sort"], on_sort),
                     ft.OutlinedButton(key="customers_export", content=t("customers.export", lang), icon=ft.Icons.FILE_DOWNLOAD_ROUNDED, on_click=on_export),

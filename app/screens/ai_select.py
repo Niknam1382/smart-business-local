@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from pathlib import Path
@@ -23,8 +24,11 @@ import flet as ft
 
 from app import theme
 from app.core import ai_engine, downloader, hardware, model_catalog
+from app.core.friendly_errors import friendly_error
 from app.i18n import t
-from app.screens import common
+from app.screens import common, gpu_card
+
+logger = logging.getLogger(__name__)
 
 GIB = 1024**3
 MB = 1024**2
@@ -54,6 +58,26 @@ def _fmt_left(seconds: float) -> str:
     return f"{s // 60}:{s % 60:02d}"
 
 
+_SPEC_LABEL_WIDTH = 110
+_SPEC = {
+    "size": ("حجمِ دانلود", "Download size"),
+    "approx": (" (تقریبی)", " (approx.)"),
+    "ram": ("رمِ لازم", "RAM needed"),
+    "ram_val": ("حداقل {min} گیگ · راحت {good} گیگ", "at least {min} GB · comfortable {good} GB"),
+    "quality": ("کیفیتِ فارسی", "Persian quality"),
+    "speed": ("سرعت", "Speed"),
+    "gpu": ("کارتِ گرافیک", "Graphics card"),
+    "gpu_val": ("اختیاری؛ برایِ سرعتِ خوب حدودِ {vram} گیگ حافظه‌ی گرافیکی", "optional; about {vram} GB of video memory for good speed"),
+    "license": ("مجوز", "License"),
+}
+
+
+def _spec(key: str, lang: str, **kw) -> str:
+    fa, en = _SPEC[key]
+    text = en if lang == "en" else fa
+    return text.format(**kw) if kw else text
+
+
 def selected_model_name(settings) -> str:
     """نامِ قابل‌فهمِ مدلِ فعلی برایِ خطِ وضعیت (خالی یعنی انتخاب‌نشده)."""
     explicit = (getattr(settings, "model_file_path", "") or "").strip()
@@ -78,19 +102,10 @@ def build_hardware_block(page: ft.Page, lang: str, hw=None) -> ft.Control:
     disk = f"{hw.free_disk_gb:.1f} GB" if hw.free_disk_gb is not None else "—"
 
     def inline(label: str, value: str) -> ft.Control:
-        return ft.Row(
-            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-            controls=[
-                ft.Text(label, size=13, color=theme.text_secondary(page)),
-                ft.Text(value, size=13, weight=ft.FontWeight.W_500),
-            ],
-        )
+        return common.label_value(page, label, value)  # برچسب و مقدار کنارِ هم (۱٫۲٫۱)
 
     def stacked(label: str, value: str) -> ft.Control:
-        return ft.Column(spacing=2, controls=[
-            ft.Text(label, size=13, color=theme.text_secondary(page)),
-            ft.Text(value, size=13, weight=ft.FontWeight.W_500, selectable=True),
-        ])
+        return common.label_value(page, label, value, selectable=True)
 
     return ft.Column(
         spacing=10,
@@ -147,7 +162,7 @@ class ModelHub:
         self.settings = settings
         self.save = save_callback or (lambda: None)
         self.on_change = on_change  # مثلاً برایِ فعال‌کردنِ دکمه‌ی «بعدی» در آنبوردینگ
-        self.control = ft.Column(key="model_hub", spacing=12)
+        self.control = ft.Column(key="model_hub", spacing=12, horizontal_alignment=ft.CrossAxisAlignment.STRETCH)
         self._prog: dict = {}  # entry_id -> (bar, text, job)
         self._errors: dict = {}  # entry_id -> پیامِ خطایِ آخرین دانلود
         self._armed: dict = {}  # entry_id -> True (تأییدِ دو مرحله‌ایِ حذف)
@@ -244,8 +259,7 @@ class ModelHub:
             now = time.time()
             if now - job.get("painted", 0.0) >= 0.5:
                 job["painted"] = now
-                self.tick()
-                self._notify()
+                common.run_on_ui(self.page, self._paint)  # روی حلقه‌ی رابط؛ خطایش دانلود را نمی‌کُشد
 
         def worker() -> None:
             try:
@@ -256,6 +270,7 @@ class ModelHub:
                     on_progress=on_progress,
                     should_cancel=lambda: bool(job.get("cancel")),
                     allowed_hosts=allowed,
+                    use_curl_fallback=bool(entry.sha256),  # پشتیبانِ دوم فقط برایِ فایل‌هایِ دارایِ هشِ مرجع (۱٫۲٫۱)
                 )
                 job["status"] = "done"
             except downloader.DownloadCancelled:
@@ -264,8 +279,9 @@ class ModelHub:
                 job["status"] = "failed"
                 job["error"] = str(exc)
             except Exception as exc:  # noqa: BLE001 — هر crashِ غیرمنتظره باید به‌شکلِ خطا دیده بشه
+                logger.warning("دانلودِ مدل با خطایِ غیرمنتظره قطع شد", exc_info=True)
                 job["status"] = "failed"
-                job["error"] = type(exc).__name__
+                job["error"] = friendly_error(exc, self.lang)
             self._finish(key, job)
 
         self.page.run_thread(worker)
@@ -357,6 +373,13 @@ class ModelHub:
                 _JOBS.pop(key, None)
         if job["status"] == "failed":
             self._errors[job["entry"].id] = job["error"] or t("ai_setup.local.download_failed", self.lang)
+        common.run_on_ui(self.page, self._after_finish)
+
+    def _paint(self) -> None:
+        self.tick()
+        self._notify()
+
+    def _after_finish(self) -> None:
         self.render()
         self._notify()
 
@@ -392,8 +415,7 @@ class ModelHub:
                 result.value = t("ai.local.verify_fail", self.lang) + (f" ({message})" if message else "")
                 result.color = theme.DANGER
             self._verify_results[entry.id] = result
-            self._swap_verify(entry, result)
-            self._notify()
+            common.run_on_ui(self.page, lambda: (self._swap_verify(entry, result), self._notify()))
 
         self.page.run_thread(worker)
 
@@ -413,7 +435,7 @@ class ModelHub:
         settings = self.settings
         hw = self.hw()
         free = self.path_free_gb()
-        ranked = model_catalog.ranked_for(hw, path_free_gb=free)
+        ranked = model_catalog.ordered_for(hw, path_free_gb=free)  # از کوچک به بزرگ (۱٫۲٫۱)
         rec = model_catalog.recommend(hw, path_free_gb=free)
         imported = (settings.model_file_path or "").strip()
 
@@ -438,6 +460,32 @@ class ModelHub:
             text = f"{name} — {text}"
         return ft.Text(text, key="ai_status_line", size=12.5, color=color)
 
+    def _spec_table(self, entry) -> ft.Control:
+        """جدولِ مشخصاتِ کارت: «برچسب: مقدار» کنارِ هم و زیرِ هم، با ستونِ برچسبِ هم‌عرض در همه‌ی کارت‌ها (۱٫۲٫۱)."""
+        lang = self.lang
+        secondary = theme.text_secondary(self.page)
+
+        def row(key: str, value: str) -> ft.Control:
+            return ft.Row(
+                spacing=8,
+                vertical_alignment=ft.CrossAxisAlignment.START,
+                controls=[
+                    ft.Container(width=_SPEC_LABEL_WIDTH, content=ft.Text(_spec(key, lang), size=12, color=secondary)),
+                    ft.Text(value, size=12.5, expand=True),
+                ],
+            )
+
+        rows = [
+            row("size", f"{entry.size_gb:.2f} GB" + ("" if entry.verified else _spec("approx", lang))),
+            row("ram", _spec("ram_val", lang, min=f"{entry.min_ram_gb:g}", good=f"{entry.good_ram_gb:g}")),
+            row("quality", stars(entry.quality)),
+            row("speed", stars(entry.speed)),
+        ]
+        if entry.size_bytes >= 4 * (1024 ** 3):  # مدلِ بزرگ: روی کارتِ گرافیک خیلی سریع‌تر است
+            rows.append(row("gpu", _spec("gpu_val", lang, vram=f"{model_catalog.vram_hint_gb(entry):g}")))
+        rows.append(row("license", entry.license))
+        return ft.Column(key=f"specs_{entry.id}", spacing=3, controls=rows)
+
     def _model_card(self, entry, state: str, hw, free, is_rec: bool) -> ft.Control:  # noqa: C901
         lang = self.lang
         status, dest, job = self._status(entry)
@@ -446,7 +494,7 @@ class ModelHub:
             key=f"badge_{entry.id}",
             padding=ft.Padding.symmetric(horizontal=10, vertical=3),
             border_radius=20,
-            bgcolor=f"{badge_color}22",
+            bgcolor=theme.alpha(badge_color, 0x22),
             content=ft.Text(t(f"ai.local.state_{state}", lang), size=11.5, color=badge_color, weight=ft.FontWeight.W_600),
         )
         header = ft.Row(
@@ -458,11 +506,7 @@ class ModelHub:
                 badge,
             ],
         )
-        specs = ft.Text(
-            f"{entry.size_gb:.2f} GB · {t('ai.local.q_label', lang)} {stars(entry.quality)} · "
-            f"{t('ai.local.speed_label', lang)} {stars(entry.speed)} · {entry.license}",
-            size=12, color=theme.text_secondary(self.page),
-        )
+        specs = self._spec_table(entry)
         blurb = ft.Text(entry.blurb.get(lang, ""), size=12.5)
         reason = ft.Text(t(model_catalog.reason_for(hw, entry, path_free_gb=free), lang), size=12, color=badge_color)
 
@@ -478,11 +522,11 @@ class ModelHub:
         can_download = state in ("recommended", "ok", "tight")
 
         if status == "downloading" and job is not None:
-            bar = ft.ProgressBar(value=min(1.0, (job["done"] / job["total"]) if job["total"] else 0), width=360, color=theme.ACCENT)
+            bar = ft.ProgressBar(value=min(1.0, (job["done"] / job["total"]) if job["total"] else 0), color=theme.ACCENT)
             text = ft.Text("", size=12, key=f"prog_text_{entry.id}")
             busy = ft.Button(
                 content=ft.Text(t("ai.local.state_downloading", lang), size=14, weight=ft.FontWeight.W_600),
-                bgcolor=f"{theme.PRIMARY}66", color="#FFFFFF", height=46, disabled=True,
+                bgcolor=theme.alpha(theme.PRIMARY, 0x66), color="#FFFFFF", height=46, disabled=True,
             )
             busy.key = f"dl_btn_{entry.id}"
             body.extend([
@@ -715,6 +759,7 @@ def build(
     hub = ModelHub(page, lang, settings, save_callback, on_change=refresh_next)
     hw = hub.hw()
     hw_card = build_hardware_card(page, lang, hw, free_gb=hub.path_free_gb(), storage_dir=hub.settings.get_model_storage_dir())
+    gpu_section = gpu_card.build(page, lang, settings, save_callback)  # «شتابِ گرافیکی» همان ابتدایِ صفحه (۱٫۲٫۱)
 
     def go_next(_e=None) -> None:
         on_next()
@@ -743,7 +788,7 @@ def build(
         spacing=12,
         controls=[back_btn, skip_btn, next_btn],
     )
-    root = common.onboarding_frame(page, 2, 3, [header, hw_card, hub.control, footer])
+    root = common.onboarding_frame(page, 2, 3, [header, hw_card, gpu_section, hub.control, footer])
     hub.control.data = {"tick": hub.tick, "hub": hub}
     common.start_ticker(page, hub.control, hub.tick, seconds=2)
     return root

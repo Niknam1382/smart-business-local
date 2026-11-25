@@ -9,6 +9,7 @@ import flet as ft
 from app import theme
 from app.core import guide, troubleshoot
 from app.screens import common
+from app.screens.common import fit_width
 
 _S = {
     "title": ("راهنما", "Guide"), "subtitle": ("آموزش‌ها، سؤالاتِ متداول و عیب‌یابی — همه آفلاین.", "Tutorials, FAQ and troubleshooting — all offline."),
@@ -37,7 +38,7 @@ def build(page: ft.Page, lang: str, settings, manager=None, open_article: Option
     st = {"tab": "articles", "article": open_article if guide.by_id(open_article or "") else None, "query": "", "cat": None}
     header = common.page_header(page, ft.Icons.MENU_BOOK_ROUNDED, S("title", lang), S("subtitle", lang) + (" " + S("en_note", lang) if lang == "en" else ""))
     body = ft.Column(spacing=14, key="gd_body")
-    search_tf = ft.TextField(key="gd_search", hint_text=S("search", lang), prefix_icon=ft.Icons.SEARCH_ROUNDED, border_radius=12, width=420, autofocus=False,
+    search_tf = ft.TextField(key="gd_search", hint_text=S("search", lang), prefix_icon=ft.Icons.SEARCH_ROUNDED, border_radius=12, width=fit_width(page, 420), autofocus=False,
                              on_change=lambda e: set_query(e.control.value or ""))
 
     def set_query(q: str) -> None:
@@ -116,8 +117,14 @@ def build(page: ft.Page, lang: str, settings, manager=None, open_article: Option
                 findings = probe() if probe else troubleshoot.run_sync(settings, bots_running=bool(manager and manager.is_running()))
             except Exception as exc:  # noqa: BLE001
                 findings = [troubleshoot.Finding("error", troubleshoot.FAIL, "عیب‌یاب", f"اجرا نشد: {type(exc).__name__}")]
-            fix_out.controls = [fix_row(f) for f in findings]
-            page.update()
+            def paint() -> None:
+                fix_out.controls = [fix_row(f) for f in findings]
+                page.update()
+
+            if probe:
+                paint()
+            else:
+                common.run_on_ui(page, paint)
 
         if probe:
             work()

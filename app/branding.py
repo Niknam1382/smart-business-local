@@ -30,8 +30,8 @@ DARAMET_WEBINTENT_ENABLED = True
 DARAMET_MESSAGE_MAX = 100
 
 # نشانِ کوچکِ سازنده در بیوگرافیِ ربات (N17) — فقط همین یک جا؛ بدونِ متن در پیام‌ها/سفارش/پرداخت
-CREDIT_FA = "ساخته‌شده با کسب‌وکار هوشمند · github.com/niknam1382"
-CREDIT_EN = "Made with Smart Business · github.com/niknam1382"
+CREDIT_FA = "ساخته‌شده با کسب‌وکار هوشمند · github.com/Niknam1382/smart-business-local"
+CREDIT_EN = "Made with Smart Business · github.com/Niknam1382/smart-business-local"
 CREDIT_SEPARATOR = " · "
 
 # کلیدِ عمومیِ Ed25519 برای اعتبارِ فایلِ به‌روزرسانی؛ بعد از اجرای scripts/make_signing_key.py پر می‌شه.

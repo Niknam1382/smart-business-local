@@ -39,7 +39,7 @@ def nav_item(entry: NavEntry, active: str) -> ft.Control:
         border_radius=14,
         tooltip=entry.label,  # متنِ کامل (اگر در نوارِ باریک بریده شد) با نگه‌داشتنِ ماوس دیده می‌شود
         gradient=theme.hero_gradient() if is_active else None,
-        shadow=ft.BoxShadow(blur_radius=18, color=f"{theme.PRIMARY}66", offset=ft.Offset(0, 6)) if is_active else None,
+        shadow=ft.BoxShadow(blur_radius=18, color=theme.alpha(theme.PRIMARY, 0x66), offset=ft.Offset(0, 6)) if is_active else None,
         ink=True,
         on_click=entry.on_click,
         content=ft.Row(
@@ -94,7 +94,7 @@ def build(
         margin=ft.Margin(left=12, right=12, top=12, bottom=12),  # نوارِ شناور با گوشه‌های گرد
         border_radius=28,
         gradient=theme.sidebar_gradient(),
-        shadow=ft.BoxShadow(blur_radius=30, color="#10132B55", offset=ft.Offset(0, 12)),
+        shadow=ft.BoxShadow(blur_radius=30, color=theme.alpha(theme.SIDEBAR_GRADIENT_START, 0x55), offset=ft.Offset(0, 12)),
         padding=ft.Padding.symmetric(vertical=18),
         content=ft.Column(
             expand=True,

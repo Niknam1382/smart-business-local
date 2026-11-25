@@ -97,10 +97,9 @@ def build(
             try:
                 path = backup.create_backup(include_secrets=bool(secrets_switch.value), data_dir=data)
             except Exception as exc:  # noqa: BLE001
-                fail(exc)
+                common_screen.run_on_ui(page, lambda e=exc: fail(e))
                 return
-            refresh_backups()
-            say(t("data.backup.done", lang, path=str(path)))
+            common_screen.run_on_ui(page, lambda: (refresh_backups(), say(t("data.backup.done", lang, path=str(path)))))
 
         page.run_thread(work)
 
@@ -114,7 +113,7 @@ def build(
         label=t("data.restore.pick", lang),
         options=[],
         border_radius=10,
-        width=380,
+        width=common_screen.fit_width(page, 380),
     )
 
     def refresh_backups() -> None:
@@ -134,10 +133,9 @@ def build(
                 safety = backup.restore_backup(path, data_dir=data)
                 settings_module.reload_into(state)
             except Exception as exc:  # noqa: BLE001
-                fail(exc)
+                common_screen.run_on_ui(page, lambda e=exc: fail(e))
                 return
-            refresh_backups()
-            finish("restore", t("data.restore.done", lang, safety=str(safety) if safety else "—"))
+            common_screen.run_on_ui(page, lambda: (refresh_backups(), finish("restore", t("data.restore.done", lang, safety=str(safety) if safety else "—"))))
 
         page.run_thread(work)
 
@@ -176,9 +174,9 @@ def build(
             try:
                 path = backup.export_diagnostics(data_dir=data)
             except Exception as exc:  # noqa: BLE001
-                fail(exc)
+                common_screen.run_on_ui(page, lambda e=exc: fail(e))
                 return
-            say(t("data.diag.done", lang, path=str(path)))
+            common_screen.run_on_ui(page, lambda: say(t("data.diag.done", lang, path=str(path))))
 
         page.run_thread(work)
 
@@ -218,12 +216,16 @@ def build(
                 backup_path = backup.factory_reset(data_dir=data, keep_models=keep_models, make_backup=make_backup)
                 settings_module.reload_into(state)
             except Exception as exc:  # noqa: BLE001
-                fail(exc)
+                common_screen.run_on_ui(page, lambda e=exc: fail(e))
                 return
-            reset_confirm.value = ""
-            reset_button.disabled = True
-            refresh_backups()
-            finish("reset", t("data.reset.done", lang, backup=str(backup_path) if backup_path else "—"))
+
+            def paint() -> None:
+                reset_confirm.value = ""
+                reset_button.disabled = True
+                refresh_backups()
+                finish("reset", t("data.reset.done", lang, backup=str(backup_path) if backup_path else "—"))
+
+            common_screen.run_on_ui(page, paint)
 
         page.run_thread(work)
 
@@ -243,11 +245,15 @@ def build(
                 stop_bots()
                 backup_path = backup.shop_data_reset(data_dir=data, make_backup=make_backup)
             except Exception as exc:  # noqa: BLE001
-                fail(exc)
+                common_screen.run_on_ui(page, lambda e=exc: fail(e))
                 return
-            shop_reset_confirm.value = ""
-            refresh_backups()
-            finish("shop_reset", t("data.shopreset.done", lang, backup=str(backup_path) if backup_path else "—"))
+
+            def paint() -> None:
+                shop_reset_confirm.value = ""
+                refresh_backups()
+                finish("shop_reset", t("data.shopreset.done", lang, backup=str(backup_path) if backup_path else "—"))
+
+            common_screen.run_on_ui(page, paint)
 
         page.run_thread(work)
 

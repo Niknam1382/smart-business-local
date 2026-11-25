@@ -106,8 +106,9 @@ def test_support_form_and_credit_never_appear_in_bot_facing_modules():
 
 def test_credit_texts_fit_telegram_short_description_with_room_for_seller():
     for credit in (branding.CREDIT_FA, branding.CREDIT_EN):
-        assert len(credit.encode("utf-16-le")) // 2 <= 60  # حدودِ ۵۰ کاراکتر (سهمِ فروشنده ≈ ۶۰ از ۱۲۰)
-        assert "github.com/niknam1382" in credit
+        assert len(credit.encode("utf-16-le")) // 2 <= 75  # نشانِ بیو: متنِ کوتاه + لینکِ مخزن (سهمِ فروشنده ≈ ۴۴ از ۱۲۰)
+        assert "github.com/Niknam1382/smart-business-local" in credit
+        assert "github.com/niknam1382/" not in credit and credit.count("github.com") == 1
 
 
 # ------------------------------------------------------------- نمادها (N4) ----

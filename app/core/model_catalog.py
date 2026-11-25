@@ -217,6 +217,50 @@ ENTRIES: list[ModelEntry] = [
     # (حجم تقریبی). کارتشان «تأییدنشده» نشان داده می‌شود، پیشنهادِ خودکار نمی‌شوند و هشِ واقعیِ فایل پس از دانلود
     # با «راستی‌آزمایی» نمایش داده می‌شود تا با صفحه‌ی مخزن مقایسه کنی.
     ModelEntry(
+        id="qwen25-05b",
+        family="Qwen2.5",
+        params="0.5B",
+        quant="Q4_K_M",
+        label={"fa": "فوق‌سبک", "en": "Ultra-light"},
+        blurb={
+            "fa": "کوچک‌ترین گزینه (زیرِ ۱ میلیارد پارامتر) برای سیستم‌هایِ خیلی ضعیف یا فقط برایِ امتحانِ سریعِ برنامه. "
+                  "فارسی‌اش ساده است؛ فقط برایِ پاسخ‌هایِ کوتاه و تکراری.",
+            "en": "The smallest option (under 1 billion parameters) for very weak PCs or a quick trial. "
+                  "Basic Persian; only for short, repetitive answers.",
+        },
+        quality=1,
+        speed=5,
+        repo="Qwen/Qwen2.5-0.5B-Instruct-GGUF",
+        filename="qwen2.5-0.5b-instruct-q4_k_m.gguf",
+        sha256="",
+        size_bytes=400_000_000,
+        min_ram_gb=2.0,
+        good_ram_gb=3.0,
+        verified=False,
+    ),
+    ModelEntry(
+        id="qwen3-06b",
+        family="Qwen3",
+        params="0.6B",
+        quant="Q8_0",
+        label={"fa": "فوق‌سبک", "en": "Ultra-light"},
+        blurb={
+            "fa": "مدلِ کوچکِ نسلِ تازه‌یِ Qwen (زیرِ ۱ میلیارد پارامتر)؛ کمی دقیق‌تر از ۰٫۵B ولی هنوز فقط برایِ کارهایِ ساده. "
+                  "ممکن است پیش از پاسخ «فکر» کند؛ برنامه آن بخش را حذف می‌کند.",
+            "en": "A small current-generation Qwen (under 1 billion parameters); a bit sharper than 0.5B but still for simple jobs only. "
+                  "It may “think” before answering; the app strips that part.",
+        },
+        quality=1,
+        speed=5,
+        repo="Qwen/Qwen3-0.6B-GGUF",
+        filename="Qwen3-0.6B-Q8_0.gguf",
+        sha256="",
+        size_bytes=640_000_000,
+        min_ram_gb=2.5,
+        good_ram_gb=4.0,
+        verified=False,
+    ),
+    ModelEntry(
         id="qwen25-15b",
         family="Qwen2.5",
         params="1.5B",
@@ -343,8 +387,23 @@ ENTRIES: list[ModelEntry] = [
 ]
 
 
+# ۱٫۲٫۱: فهرست همیشه «از کوچک به بزرگ» است (اول رمِ لازم، بعد حجمِ فایل) تا کاربر بداند از کجا شروع کند.
+ENTRIES.sort(key=lambda e: (e.min_ram_gb, e.size_bytes))
+
+
 def entries() -> list:
     return list(ENTRIES)
+
+
+def ordered_for(hw: HardwareInfo, path_free_gb: Optional[float] = None) -> list:
+    """همه‌ی مدل‌ها از کوچک به بزرگ، هرکدام با وضعیتِ برازش: ``[(ModelEntry, state), ...]``."""
+    return [(e, fit_state(hw, e, path_free_gb)) for e in ENTRIES]
+
+
+def vram_hint_gb(entry: ModelEntry) -> float:
+    """حافظه‌ی گرافیکیِ تقریبی که برایِ اجرایِ کاملِ مدل روی کارت لازم است (وزن + ~۲۰٪ + زمینه)؛ رُندشده به ۰٫۵."""
+    need = entry.size_bytes / _GIB * 1.2 + 0.6
+    return max(1.0, round(need * 2) / 2)
 
 
 _HOST_RE = re.compile(r"^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,24}$")

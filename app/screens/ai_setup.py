@@ -13,6 +13,7 @@ polled می‌شه.
 
 from __future__ import annotations
 
+import logging
 import threading
 from pathlib import Path
 
@@ -21,20 +22,23 @@ import flet as ft
 from app import theme
 from app.core import ai_engine, downloader, hardware, model_catalog, model_mover
 from app.i18n import t
-from app.screens import ai_select, common
+from app.screens import ai_select, common, gpu_card
+
+logger = logging.getLogger(__name__)
 
 
 def build(page: ft.Page, lang: str, settings, save_callback) -> ft.Control:
     hub = ai_select.ModelHub(page, lang, settings, save_callback)
     hw = hub.hw()
     hw_card = ai_select.build_hardware_card(page, lang, hw, free_gb=hub.path_free_gb())
+    gpu_section = gpu_card.build(page, lang, settings, save_callback)  # «شتابِ گرافیکی» همان ابتدایِ صفحه (۱٫۲٫۱)
     advanced = _AdvancedSection(page, lang, settings, save_callback, hub)
     test_card = _build_test_section(page, lang, settings)
 
     root = common.screen_frame(
         page,
         common.page_header(page, ft.Icons.SMART_TOY_ROUNDED, t("ai_setup.title", lang), t("ai_setup.subtitle", lang)),
-        [hw_card, hub.control, test_card, advanced.control],
+        [hw_card, gpu_section, hub.control, test_card, advanced.control],
         key="ai_setup_frame",
     )
     hub.control.data = {"tick": hub.tick, "hub": hub}
@@ -66,18 +70,21 @@ def _build_test_section(page: ft.Page, lang: str, settings) -> ft.Control:
                 ok, text = False, t("ai_setup.test.error_prefix", lang) + str(exc)
             except Exception as exc:  # noqa: BLE001 — هیچ crashِ داخلِ llama نباید صفحه را ببندد
                 ok, text = False, t("ai_setup.test.error_prefix", lang) + type(exc).__name__
-            finally:
-                spinner.visible = False
             if not ok and not text.startswith(t("ai_setup.test.error_prefix", lang)):
                 text = t("ai_setup.test.error_prefix", lang) + text
-            result.value = text
-            result.color = theme.SUCCESS if ok else theme.DANGER
             try:
                 if engine is not None:
                     engine.unload()
             except Exception:  # noqa: BLE001
                 pass
-            page.update()
+
+            def paint() -> None:  # نقاشی فقط روی حلقه‌ی رابط (۱٫۲٫۱)
+                spinner.visible = False
+                result.value = text
+                result.color = theme.SUCCESS if ok else theme.DANGER
+                page.update()
+
+            common.run_on_ui(page, paint)
 
         page.run_thread(worker)
 
@@ -336,28 +343,37 @@ class _AdvancedSection:
             pct = int(done * 100 / total) if total else 0
             if pct != getattr(self, "_last_pct", -1):
                 self._last_pct = pct
-                self._show(t("model_move.moving", lang, pct=pct), True)
-                try:
+
+                def paint() -> None:
+                    self._show(t("model_move.moving", lang, pct=pct), True)
                     self.page.update()
-                except Exception:  # noqa: BLE001
-                    pass
+
+                common.run_on_ui(self.page, paint)  # از تردِ کپی مستقیم نقاشی نمی‌کنیم (۱٫۲٫۱)
 
         def work() -> None:
+            failure = None
             try:
                 model_mover.move_model(old_file, new_dir, progress=progress)
             except model_mover.MoveError as exc:
                 key = f"model_move.err.{exc.code}"
                 reason = t(key, lang) if exc.code in ("no_space", "not_writable", "cancelled") else t("model_move.err.other", lang)
-                self._show(t("model_move.error", lang, reason=reason), False)
+                failure = t("model_move.error", lang, reason=reason)
+            except Exception:  # noqa: BLE001 — خطای ناشناخته هم باید قفلِ «در حالِ انتقال» را باز کند
+                logger.warning("انتقالِ مدل ناموفق بود", exc_info=True)
+                failure = t("model_move.error", lang, reason=t("model_move.err.other", lang))
+
+            def paint() -> None:
                 self._moving = False
+                if failure is not None:
+                    self._show(failure, False)
+                else:
+                    self.hub.render()
+                    self.refresh_storage()
+                    self._show(t("model_move.done", lang), True)
+                    self._ask_delete_old(old_file)
                 self.page.update()
-                return
-            self._moving = False
-            self.hub.render()
-            self.refresh_storage()
-            self._show(t("model_move.done", lang), True)
-            self._ask_delete_old(old_file)
-            self.page.update()
+
+            common.run_on_ui(self.page, paint)
 
         threading.Thread(target=work, name="smart-business-model-move", daemon=True).start()
 

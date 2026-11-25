@@ -49,6 +49,7 @@ from app.core.proxy_pool import (
 from app.i18n import STRINGS, t
 from app.screens.common import StatusChip, card, page_header, section_header
 from app.screens.live import LiveRefresher
+from app.screens.common import fit_width
 
 PLATFORMS = ("telegram", "bale")  # قلم ۲۴: بله هم پیام‌رسانِ ربات است، هم (جدا از این) درگاهِ پرداخت
 _ICONS = {"telegram": ft.Icons.SEND_ROUNDED, "bale": ft.Icons.CHAT_BUBBLE_ROUNDED}
@@ -158,7 +159,7 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple[f
 
     sub_url = ft.TextField(key="proxy_sub_url", label=SB("url"), value=settings.get_telegram_proxy_sub_url(), password=True, can_reveal_password=True,
                            text_align=ft.TextAlign.LEFT, border_radius=10)
-    sub_hours = ft.TextField(key="proxy_sub_hours", label=SB("hours"), value=str(settings.telegram_proxy_sub_hours), border_radius=10, width=300)
+    sub_hours = ft.TextField(key="proxy_sub_hours", label=SB("hours"), value=str(settings.telegram_proxy_sub_hours), border_radius=10, width=fit_width(page, 300))
     sub_status = ft.Text("", key="proxy_sub_status", size=12, color=theme.text_secondary(page))
     proxy_info = ft.Text("", key="proxy_info", size=12, color=theme.text_secondary(page))
 
@@ -582,7 +583,7 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple[f
         visible=bool(bale_pay_needed),
         padding=ft.Padding.symmetric(horizontal=16, vertical=12),
         border_radius=12,
-        bgcolor=f"{theme.ACCENT}14",
+        bgcolor=theme.alpha(theme.ACCENT, 0x14),
         border=ft.Border.all(1, theme.ACCENT_DARK),
         content=ft.Row(
             spacing=10,

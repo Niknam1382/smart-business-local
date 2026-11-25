@@ -84,7 +84,7 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager=None) -> ft
         visible=False,
         padding=12,
         border_radius=10,
-        bgcolor=f"{theme.ACCENT}1A",
+        bgcolor=theme.alpha(theme.ACCENT, 0x1A),
         content=ft.Column(spacing=8, controls=[ft.Text(S("confirm.title", lang), size=13, weight=ft.FontWeight.W_600), confirm_existing, ft.Text(S("confirm.body", lang), size=12, color=secondary), ft.Row(spacing=8, controls=[confirm_yes, confirm_no])]),
     )
 

@@ -831,6 +831,7 @@ def install(
                 item["urls"], dest_zip,
                 expected_sha256=item["sha256"], expected_size=part.size_bytes,
                 on_progress=on_progress, should_cancel=cancel_cb, allowed_hosts=set(ALLOWED_HOSTS),
+                use_curl_fallback=True,  # پشتیبانِ دوم (ویندوز)؛ هشِ مرجع الزامی است (۱٫۲٫۱)
             )
             done_before = base + part.size_bytes
             names, _bytes = _extract_dlls(dest_zip, pack_dir(target.key))

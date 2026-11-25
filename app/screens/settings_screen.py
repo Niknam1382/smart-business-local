@@ -27,7 +27,7 @@ def _row(page: ft.Page, icon: str, title: str, value: str, button_text: str, on_
                         width=38,
                         height=38,
                         border_radius=10,
-                        bgcolor=f"{theme.PRIMARY}12",
+                        bgcolor=theme.alpha(theme.PRIMARY, 0x12),
                         alignment=ft.Alignment.CENTER,
                         content=ft.Icon(icon, size=19, color=theme.PRIMARY),
                     ),
@@ -83,7 +83,7 @@ def build(
                             width=38,
                             height=38,
                             border_radius=10,
-                            bgcolor=f"{theme.PRIMARY}12",
+                            bgcolor=theme.alpha(theme.PRIMARY, 0x12),
                             alignment=ft.Alignment.CENTER,
                             content=ft.Icon(ft.Icons.LANGUAGE_ROUNDED, size=19, color=theme.PRIMARY),
                         ),
@@ -102,12 +102,12 @@ def build(
                         common.secondary(
                             "فارسی",
                             on_click=lambda e: on_change_language("fa"),
-                            bgcolor=f"{theme.ACCENT}22" if lang == "fa" else None,
+                            bgcolor=theme.alpha(theme.ACCENT, 0x22) if lang == "fa" else None,
                         ),
                         common.secondary(
                             "English",
                             on_click=lambda e: on_change_language("en"),
-                            bgcolor=f"{theme.ACCENT}22" if lang == "en" else None,
+                            bgcolor=theme.alpha(theme.ACCENT, 0x22) if lang == "en" else None,
                         ),
                     ],
                 ),
@@ -159,7 +159,7 @@ def build(
                                     key=f"close_{value}",
                                     size="sm",
                                     on_click=lambda e, v=value: on_change_close(v),
-                                    bgcolor=f"{theme.ACCENT}22" if state.close_action == value else None,
+                                    bgcolor=theme.alpha(theme.ACCENT, 0x22) if state.close_action == value else None,
                                 )
                                 for value in ("ask", "hide", "quit")
                             ],

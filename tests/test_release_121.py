@@ -2,13 +2,12 @@
 
 import hashlib
 import re
-import subprocess
 from pathlib import Path
 
 import pytest
 from fake_page import FakePage
 
-from app import branding, i18n, theme
+from app import i18n, theme
 from app.core import bot_profile, downloader as dl
 from app.screens import common
 

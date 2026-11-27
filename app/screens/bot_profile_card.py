@@ -24,10 +24,10 @@ ICON_SOURCE = Path(__file__).resolve().parents[2] / "assets" / "icons" / "app-ic
 _S = {
     "title": ("پروفایلِ ربات (بیوگرافی)", "Bot profile (bio)"),
     "intro": (
-        "این برنامه یک خطِ کوچکِ اعتبار («ساخته‌شده با کسب‌وکار هوشمند») به بیوگرافیِ ربات اضافه می‌کنه تا مشتری‌ها بدونن ربات با چه ابزاری ساخته شده. "
-        "فقط همین خط، فقط در بیوگرافی؛ هیچ‌چیزِ دیگه‌ای در پیام‌ها، سفارش‌ها و پرداخت‌ها اضافه نمی‌شه. متنِ خودت رو می‌تونی کنارش بنویسی.",
-        "This app adds one small credit line (“Made with Smart Business”) to the bot's bio so customers know what it was built with. "
-        "Only that line, only in the bio; nothing is added to messages, orders or payments. You can write your own text next to it.",
+        "این برنامه فقط لینکِ مخزنِ برنامه را به انتهایِ بیوگرافیِ ربات اضافه می‌کند. "
+        "فقط همین لینک، فقط در بیوگرافیِ ربات؛ هیچ‌چیزِ دیگری در پیام‌ها، سفارش‌ها و پرداخت‌ها اضافه نمی‌شود. متنِ خودت را می‌توانی کنارش بنویسی.",
+        "This app only appends the app's repository link to the end of the bot's bio. "
+        "Only that link, only in the bot's bio; nothing is added to messages, orders or payments. You can write your own text next to it.",
     ),
     "text": ("متنِ بیوگرافیِ شما", "Your bio text"),
     "credit": ("خطِ اعتبار (قفل‌شده)", "Credit line (locked)"),
@@ -139,14 +139,19 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager=None) -> ft
         def work() -> None:
             try:
                 manager.sync_profiles_now()
-                say(done_text or S("saved", lang), True)
+                text = done_text or S("saved", lang)
             except BotManagerError:
-                say(S("saved_later", lang), True)
+                text = S("saved_later", lang)
             except Exception:  # noqa: BLE001
                 logger.warning("همگام‌سازیِ بیوگرافی از UI ناموفق بود", exc_info=True)
-                say(S("saved_later", lang), True)
-            refresh_status()
-            page.update()
+                text = S("saved_later", lang)
+
+            def paint() -> None:  # نقاشی فقط روی حلقه‌ی رابط (۱٫۲٫۲)
+                say(text, True)
+                refresh_status()
+                page.update()
+
+            common.run_on_ui(page, paint)
 
         if manager is None:
             say(S("saved_later", lang), True)

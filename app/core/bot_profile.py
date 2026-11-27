@@ -84,7 +84,9 @@ def credit(lang: str = "fa") -> str:
 
 
 def known_credits() -> tuple:
-    return (branding.CREDIT_FA, branding.CREDIT_EN)
+    """همه‌ی شکل‌هایِ خطِ اعتبار (جدید + قدیمی)، بلندترین اول تا «متنِ همراه + لینک» کاملاً برداشته شود."""
+    found = {branding.CREDIT_FA, branding.CREDIT_EN, *branding.LEGACY_CREDITS}
+    return tuple(sorted(found, key=len, reverse=True))
 
 
 def has_credit(text: Optional[str]) -> bool:

@@ -68,22 +68,24 @@ def test_shows_data_location_and_mode():
     assert not hasattr(paths, "PORTABLE_FLAG_NAME") and not hasattr(paths, "PORTABLE_DIR_NAME")
 
 
-def test_backup_button_creates_zip_with_secrets_by_default_and_lists_it():
+def test_backup_button_creates_zip_without_secrets_by_default_and_lists_it():
+    # ۱٫۲٫۲: پیش‌فرضِ امن — توکن‌ها و کلید فقط وقتی که کاربر خودش روشن کند در پشتیبان می‌آیند
     data, state, page, control, _ = make()
+    assert find(control, "backup_secrets").value is False
     fire(find(control, "backup_now"), "on_click")
     [zip_path] = list((data / "backups").glob("*.zip"))
     assert str(zip_path) in result_text(control)
-    assert backup.inspect_backup(zip_path)["includes_secrets"] is True
+    assert backup.inspect_backup(zip_path)["includes_secrets"] is False
     assert [o.text for o in find(control, "restore_pick").options] == [zip_path.name], "فهرستِ بازگردانی نو شد"
 
 
-def test_backup_without_secrets_when_switch_is_off():
+def test_backup_with_secrets_only_when_the_switch_is_turned_on():
     data, state, page, control, _ = make()
-    find(control, "backup_secrets").value = False
+    find(control, "backup_secrets").value = True
     fire(find(control, "backup_now"), "on_click")
     [zip_path] = list((data / "backups").glob("*.zip"))
     with zipfile.ZipFile(zip_path) as zf:
-        assert "secret.key" not in zf.namelist()
+        assert "secret.key" in zf.namelist()
 
 
 def test_restore_requires_a_choice():

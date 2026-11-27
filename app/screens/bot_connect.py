@@ -36,7 +36,7 @@ from app.core.adapter_common import (
     STATE_ERROR,
     AdapterStatus,
 )
-from app.core import proxy_subscription
+from app.core import model_catalog, proxy_subscription
 from app.core.bot_manager import BotManagerError
 from app.core.proxy_pool import (
     ProxyFormatError,
@@ -47,7 +47,7 @@ from app.core.proxy_pool import (
     proxy_config_from_text,
 )
 from app.i18n import STRINGS, t
-from app.screens.common import StatusChip, card, page_header, section_header
+from app.screens.common import StatusChip, card, page_header, run_on_ui, section_header
 from app.screens.live import LiveRefresher
 from app.screens.common import fit_width
 
@@ -207,8 +207,8 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple[f
         save_sub()
 
         def work() -> None:
-            refresh_sub_status(manager.refresh_proxy_subscription_sync())
-            page.update()
+            outcome = manager.refresh_proxy_subscription_sync()
+            run_on_ui(page, lambda: (refresh_sub_status(outcome), page.update()))  # نقاشی روی حلقه‌ی رابط (۱٫۲٫۲)
 
         page.run_thread(work)
 
@@ -277,22 +277,26 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple[f
                 results = {}
             ranked = sorted(results.items(), key=lambda kv: (kv[1] is None, kv[1] if kv[1] is not None else 0.0))
             alive = sum(1 for _, ms in ranked if ms is not None)
-            if ranked:
-                proxy_field.value = "\n".join(url for url, _ in ranked)
-                save_proxy()
-            if alive:
-                detail = "  ".join(
-                    f"{'✓' if ms is not None else '✗'} {mask_credentials(url)}"
-                    + (f" {ms:.0f}ms" if ms is not None else "")
-                    for url, ms in ranked[:4]
-                )
-                proxy_rank_result.value = t("bots.proxy.rank_done", lang, ok=alive, total=len(ranked)) + "  " + detail
-                proxy_rank_result.color = theme.SUCCESS
-            else:
-                proxy_rank_result.value = t("bots.proxy.rank_none", lang)
-                proxy_rank_result.color = theme.DANGER
-            rank_button.disabled = False
-            page.update()
+
+            def paint() -> None:  # نقاشی فقط روی حلقه‌ی رابط (۱٫۲٫۲)
+                if ranked:
+                    proxy_field.value = "\n".join(url for url, _ in ranked)
+                    save_proxy()
+                if alive:
+                    detail = "  ".join(
+                        f"{'✓' if ms is not None else '✗'} {mask_credentials(url)}"
+                        + (f" {ms:.0f}ms" if ms is not None else "")
+                        for url, ms in ranked[:4]
+                    )
+                    proxy_rank_result.value = t("bots.proxy.rank_done", lang, ok=alive, total=len(ranked)) + "  " + detail
+                    proxy_rank_result.color = theme.SUCCESS
+                else:
+                    proxy_rank_result.value = t("bots.proxy.rank_none", lang)
+                    proxy_rank_result.color = theme.DANGER
+                rank_button.disabled = False
+                page.update()
+
+            run_on_ui(page, paint)
 
         page.run_thread(worker)
 
@@ -362,19 +366,22 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple[f
                     result = asyncio.run(telegram_adapter.check_token(token, single, **extra))
             except Exception as exc:  # noqa: BLE001
                 result = AdapterStatus(state=STATE_ERROR, error=str(exc)[:200], error_code=ERR_UNEXPECTED)
-            ui["testing"][platform] = False
-            if result.connected:
-                # تست موفق یعنی توکن (و پروکسی) درسته → همون‌جا ذخیره می‌شه
-                if platform == "telegram":
-                    save_proxy()
-                save_token(platform)
-                ui["test"][platform] = (
-                    "✓ " + t("bots.test_ok", lang, username=result.username or "?"),
-                    theme.SUCCESS,
-                )
-            else:
-                ui["test"][platform] = ("✗ " + error_text(platform, result, lang), theme.DANGER)
-            render()
+            def paint() -> None:  # نقاشی فقط روی حلقه‌ی رابط (۱٫۲٫۲)
+                ui["testing"][platform] = False
+                if result.connected:
+                    # تست موفق یعنی توکن (و پروکسی) درسته → همون‌جا ذخیره می‌شه
+                    if platform == "telegram":
+                        save_proxy()
+                    save_token(platform)
+                    ui["test"][platform] = (
+                        "✓ " + t("bots.test_ok", lang, username=result.username or "?"),
+                        theme.SUCCESS,
+                    )
+                else:
+                    ui["test"][platform] = ("✗ " + error_text(platform, result, lang), theme.DANGER)
+                render()
+
+            run_on_ui(page, paint)
 
         page.run_thread(worker)
 
@@ -414,6 +421,7 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple[f
         render()
 
         def worker() -> None:
+            error = None
             try:
                 if action == "stop":
                     manager.stop()
@@ -421,14 +429,20 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple[f
                     manager.restart()
                 else:
                     manager.start()
-                ui["needs_restart"] = False
             except BotManagerError as exc:
-                ui["run_error"] = str(exc)
+                error = str(exc)
             except Exception as exc:  # noqa: BLE001
-                ui["run_error"] = str(exc)[:200]
-            finally:
+                error = str(exc)[:200]
+
+            def paint() -> None:  # نقاشی فقط روی حلقه‌ی رابط (۱٫۲٫۲)
+                if error is None:
+                    ui["needs_restart"] = False
+                else:
+                    ui["run_error"] = error
                 ui["busy"] = None
-            render()
+                render()
+
+            run_on_ui(page, paint)
 
         page.run_thread(worker)
 
@@ -445,6 +459,12 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple[f
         t("bots.run.needs_restart", lang), size=12, color=theme.ACCENT_DARK, visible=False
     )
     run_error_text = ft.Text("", size=12, color=theme.DANGER, visible=False)
+    # ۱٫۲٫۲: مدلِ زیرِ ۱ میلیارد پارامتر برایِ جواب‌دادن به مشتری کافی نیست؛ پیش از روشن‌کردنِ ربات صریح بگو
+    _entry = model_catalog.get_entry(getattr(settings, "model_id", "") or "")
+    trial_model_note = ft.Text(
+        t("bots.trial_model_warning", lang), key="trial_model_warning", size=12.5, color=theme.WARNING,
+        visible=model_catalog.is_trial_only(_entry) and not settings.model_file_path,
+    )
 
     def on_autostart(value: bool) -> None:
         settings.bot_autostart = bool(value)
@@ -656,6 +676,7 @@ def build(page: ft.Page, lang: str, settings, save_callback, manager) -> tuple[f
                     controls=[run_status_text, run_button],
                 ),
                 restart_note,
+                trial_model_note,
                 run_error_text,
                 ft.Text(t("bots.run.note", lang), size=12, color=theme.text_secondary(page)),
                 ft.Text(t("bots.run.credit_note", lang), key="bots_credit_note", size=12, color=theme.text_secondary(page)),

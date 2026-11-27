@@ -770,8 +770,8 @@ STRINGS: dict[str, dict[str, str]] = {
     "data.error": {"fa": "ناموفق: {error}", "en": "Failed: {error}"},
     "data.backup.title": {"fa": "پشتیبان‌گیری", "en": "Backup"},
     "data.backup.secrets": {
-        "fa": "توکن‌ها و کلیدها هم توی پشتیبان باشن (برای انتقال به سیستمِ دیگه لازمه؛ فایل رو جای امن نگه دار)",
-        "en": "Include tokens and keys in the backup (needed to move to another computer; keep the file safe)",
+        "fa": "توکن‌ها و کلیدها هم در پشتیبان باشند ⚠️ هر کسی این فایل را داشته باشد به ربات‌ها و پرداختِ تو دسترسی دارد؛ فقط برایِ انتقال به کامپیوترِ دیگر روشنش کن و فایل را جایِ امن نگه دار",
+        "en": "Include tokens and keys in the backup ⚠️ anyone with this file can control your bots and payments; turn it on only to move to another computer and keep the file safe",
     },
     "data.backup.now": {"fa": "ساخت پشتیبان", "en": "Create backup"},
     "data.backup.done": {"fa": "پشتیبان ساخته شد: {path}", "en": "Backup created: {path}"},
@@ -870,6 +870,30 @@ STRINGS: dict[str, dict[str, str]] = {
     "support.profile": {"fa": "باز کردنِ صفحه‌ی حمایت", "en": "Open the support page"},
     "update.banner": {"fa": "نسخه‌ی {version} منتشر شده.", "en": "Version {version} is available."},
     "update.changes": {"fa": "تغییرات و دانلود", "en": "Changes & download"},
+    "update.manual_reason.unsigned": {
+        "fa": "نصبِ خودکار فعال نیست، چون این نسخه هنوز امضا نشده است. از «مشاهده تغییرات» فایلِ نصب را دستی بگیر.",
+        "en": "Automatic install is off because this release is not signed yet. Use “View changes” to download the installer by hand.",
+    },
+    "update.manual_reason.no_asset": {
+        "fa": "فایلِ نصبِ این نسخه هنوز در صفحه‌یِ انتشار نیست؛ کمی بعد دوباره امتحان کن.",
+        "en": "The installer for this release is not on the release page yet; try again in a little while.",
+    },
+    "update.manual_reason.no_key": {
+        "fa": "این برنامه کلیدِ بررسیِ امضا ندارد، پس نصبِ خودکار خاموش است. فایل را دستی بگیر.",
+        "en": "This app has no signature-check key, so automatic install is off. Download the file by hand.",
+    },
+    "update.manual_reason.source": {
+        "fa": "نصبِ خودکار فقط در نسخه‌یِ نصب‌شده‌یِ ویندوز کار می‌کند.",
+        "en": "Automatic install only works in the installed Windows version.",
+    },
+    "update.manual_reason.not_writable": {
+        "fa": "پوشه‌یِ برنامه قابلِ نوشتن نیست، پس نصبِ خودکار ممکن نیست. فایل را دستی نصب کن.",
+        "en": "The app folder is not writable, so automatic install is not possible. Install the file by hand.",
+    },
+    "bots.trial_model_warning": {
+        "fa": "⚠️ مدلِ هوش مصنوعیِ انتخاب‌شده خیلی کوچک است (زیرِ ۱ میلیارد پارامتر) و فقط برایِ امتحانِ نصب خوب است. برایِ جواب‌دادن به مشتری و سؤال‌هایِ قیمت و موجودی یک مدلِ بزرگ‌تر از صفحه‌یِ «هوش مصنوعی» انتخاب کن.",
+        "en": "⚠️ The selected AI model is very small (under 1 billion parameters) and is only good for testing the install. To answer customers and price/stock questions, pick a larger model on the “AI” page.",
+    },
     "update.later": {"fa": "بعداً", "en": "Later"},
     "update.install": {"fa": "نصبِ به‌روزرسانی", "en": "Install update"},
     "update.download_verified": {"fa": "دانلودِ فایلِ تأییدشده", "en": "Download verified file"},

@@ -129,6 +129,42 @@ def section_header(icon: str, text: str) -> ft.Control:
     )
 
 
+def show_notice(page: ft.Page, title: str, text: str, ok_label: str = "باشه", key: str = "notice_dialog") -> bool:
+    """پنجره‌ی اطلاع‌رسانیِ ساده (یک دکمه). ``True`` اگر نمایش داده شد؛ هرگز exception نمی‌دهد (۱٫۲٫۲)."""
+
+    def close(_e=None) -> None:
+        pop = getattr(page, "pop_dialog", None)
+        if callable(pop):
+            try:
+                pop()
+                return
+            except Exception:  # noqa: BLE001
+                pass
+        dialog.open = False
+        page.update()
+
+    dialog = ft.AlertDialog(
+        key=key,
+        modal=True,
+        title=ft.Text(title, weight=ft.FontWeight.W_700),
+        content=ft.Container(width=fit_width(page, 440), content=ft.Text(text, size=13, selectable=True)),
+        actions=[ft.TextButton(key=f"{key}_ok", content=ok_label, on_click=close)],
+        actions_alignment=ft.MainAxisAlignment.END,
+    )
+    show = getattr(page, "show_dialog", None)
+    try:
+        if callable(show):
+            show(dialog)
+        else:
+            overlay = getattr(page, "overlay", None)
+            if isinstance(overlay, list):
+                overlay.append(dialog)
+                page.update()
+    except Exception:  # noqa: BLE001
+        return False
+    return True
+
+
 LABEL_WIDTH = 120  # عرضِ ستونِ برچسب در ردیف‌هایِ «برچسب: مقدار»؛ در همه‌ی صفحه‌ها یکسان
 
 

@@ -49,7 +49,7 @@ class FakePack:
         if self.error:
             raise self.GpuPackError(self.error)
         if progress_cb:
-            progress_cb(1, 2)
+            progress_cb(1, 2, "download")  # install واقعی سه آرگومان می‌دهد: (done, total, phase)
         return self.result
 
     def uninstall(self, cuda="", settings=None, keep_cache=False):

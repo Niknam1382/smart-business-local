@@ -175,7 +175,7 @@ def download(
         for url in urls:
             host = urllib.parse.urlparse(url).hostname or url
             try:
-                return _download_with_curl(curl, url, dest, part, expected_sha256, expected_size, on_progress, should_cancel, timeout)
+                return _download_with_curl(curl, url, dest, part, expected_sha256, expected_size, on_progress, should_cancel, timeout, allowed_hosts)
             except DownloadCancelled:
                 raise
             except IntegrityError:
@@ -217,17 +217,18 @@ def _curl_reason(code: int) -> str:
 
 
 def _download_with_curl(curl: str, url: str, dest: Path, part: Path, expected_sha256: str, expected_size: int,
-                        on_progress, should_cancel, timeout: float) -> Path:
+                        on_progress, should_cancel, timeout: float, allowed_hosts: Optional[set] = None) -> Path:
     """پشتیبانِ دوم (ویندوز): ``curl.exe`` با ادامه از ``.part``؛ پیشرفت از حجمِ ``.part``؛ SHA-256 الزامی."""
     if urllib.parse.urlparse(url).scheme != "https":
         raise DownloadError("فقط آدرسِ امن (https) پذیرفته می‌شود")
     command = [
         curl, "--proto", "=https", "--proto-redir", "=https", "-L", "-C", "-", "--fail", "--silent", "--show-error",
-        "--connect-timeout", str(int(max(5, timeout))), "--retry", "2", "-A", USER_AGENT, "-o", str(part), url,
+        "--connect-timeout", str(int(max(5, timeout))), "--retry", "2", "-A", USER_AGENT, "-o", str(part),
+        "-w", "%{url_effective}", url,
     ]
     flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     try:
-        proc = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, creationflags=flags)
+        proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, creationflags=flags)
     except OSError as exc:
         raise DownloadError(f"curl اجرا نشد ({_reason(exc)})") from exc
     total = expected_size
@@ -251,6 +252,18 @@ def _download_with_curl(curl: str, url: str, dest: Path, part: Path, expected_sh
             proc.kill()
     if proc.returncode != 0:
         raise DownloadError(_curl_reason(int(proc.returncode)))
+    # آدرسِ نهاییِ بعد از redirectها هم باید از میزبان‌هایِ مجاز باشد (مثلِ مسیرِ اصلی)
+    final_url = ""
+    try:
+        out = getattr(proc, "stdout", None)
+        final_url = (out.read() or b"").decode("utf-8", "replace").strip() if out is not None else ""
+    except Exception:  # noqa: BLE001
+        final_url = ""
+    if allowed_hosts and final_url:
+        final_host = (urllib.parse.urlparse(final_url).hostname or "").lower()
+        if final_host and final_host not in {h.lower() for h in allowed_hosts}:
+            _drop(part)
+            raise DownloadError(f"آدرسِ نهاییِ دانلود ({final_host}) جزوِ منبع‌هایِ مجاز نیست")
     downloaded = part.stat().st_size if part.exists() else 0
     if on_progress is not None:
         on_progress(downloaded, total or downloaded)

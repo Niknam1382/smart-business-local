@@ -56,6 +56,21 @@ jobs:
           mkdir -p logs
           python -m pytest -ra --tb=short --color=no 2>&1 | tee logs/pytest.log \
             || { bash scripts/ci_fail_report.sh "pytest" logs/pytest.log; exit 1; }
+      # نسخه‌هایِ دقیقِ همین اجرایِ سبز؛ برایِ پین‌کردنِ بیلدِ انتشار (docs/RELEASING.md ← «پینِ وابستگی‌ها»)
+      - name: Save dependency versions
+        if: success()
+        shell: bash
+        run: |
+          mkdir -p logs
+          python -m pip freeze --exclude-editable > logs/freeze.txt
+      - name: Upload dependency versions
+        if: success()
+        uses: actions/upload-artifact@v7
+        with:
+          name: deps-freeze
+          path: logs/freeze.txt
+          if-no-files-found: ignore
+          retention-days: 30
       - name: Upload pytest log
         if: failure()
         uses: actions/upload-artifact@v7

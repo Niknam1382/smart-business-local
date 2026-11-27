@@ -47,11 +47,14 @@ def build(page: ft.Page, lang: str, footprint: DataFootprint, on_continue, on_fr
         set_status(t("found.working", lang), ok=True)
 
         def work() -> None:
+            def safe_status(text: str, ok: bool = True) -> None:
+                common.run_on_ui(page, lambda: set_status(text, ok=ok))  # نقاشی فقط روی حلقه‌ی رابط (۱٫۲٫۲)
+
             try:
-                on_fresh_start(set_status)
+                on_fresh_start(safe_status)
             except Exception as exc:  # noqa: BLE001 — پیامِ روشن، نه کرش
-                lock(False)
-                set_status(t("found.error", lang, error=friendly_error(exc, lang)), ok=False)
+                error_text = t("found.error", lang, error=friendly_error(exc, lang))
+                common.run_on_ui(page, lambda: (lock(False), set_status(error_text, ok=False)))
 
         page.run_thread(work)
 

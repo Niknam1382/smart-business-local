@@ -72,6 +72,22 @@ def _remember(mapping: dict, key, value, limit: int = MAX_TRACKED_CHATS) -> None
         mapping.pop(oldest, None)
 
 
+AI_REPLY_TIMEOUT_SECONDS = 150.0  # بیشتر از این، به مشتری «شلوغ است، کمی بعد» گفته می‌شود (مدلِ کند/گیرکرده)
+BUSY_REPLY = "الان درخواستِ زیادی دارم و پاسخ‌دادن کمی طول کشید 🙏 لطفاً چند دقیقه‌ی دیگر دوباره بپرس."
+
+
+class AiReplyTimeout(Exception):
+    """مدل در سقفِ زمان پاسخ نداد (کار در پس‌زمینه ادامه می‌دهد)."""
+
+
+def _swallow_task_result(task) -> None:
+    """خطایِ taskِ رهاشده (بعد از timeout) نباید «Task exception was never retrieved» بسازد."""
+    try:
+        task.exception()
+    except (asyncio.CancelledError, Exception):  # noqa: BLE001
+        pass
+
+
 class RateLimiter:
     """پنجره‌ی لغزان: حداکثر ``max_events`` رویداد در هر ``window_seconds`` برای هر کلید."""
 
@@ -508,28 +524,33 @@ class ConversationPipeline:
             cache_key = AnswerCache.key(getattr(engine, "model_id", ""), system_prompt, history, merged_text)
             cached = self._cache.get(cache_key) or ""
             if not cached:
-                if qa_path:
+                async def compute():
+                    if qa_path:
 
-                    async def call_engine(sys_prompt, hist, user_msg, specs, tool_messages):
-                        if getattr(engine, "concurrent_safe", False):
-                            return await asyncio.to_thread(engine.chat_tools, sys_prompt, hist, user_msg, specs, tool_messages)
-                        async with self._engine_lock:
-                            return await asyncio.to_thread(engine.chat_tools, sys_prompt, hist, user_msg, specs, tool_messages)
+                        async def call_engine(sys_prompt, hist, user_msg, specs, tool_messages):
+                            if getattr(engine, "concurrent_safe", False):
+                                return await asyncio.to_thread(engine.chat_tools, sys_prompt, hist, user_msg, specs, tool_messages)
+                            async with self._engine_lock:
+                                return await asyncio.to_thread(engine.chat_tools, sys_prompt, hist, user_msg, specs, tool_messages)
 
-                    with ai_usage.bind(platform, chat_id, "qa"):  # N1: مصرف به همین چت نسبت داده می‌شه (contextvar تا داخلِ thread می‌رسه)
-                        agent_reply = await self._qa_agent.respond(
-                            call_engine, platform, chat_id, system_prompt, history, merged_text, can_suggest=mode.cart,
-                        )
-                    reply, outbox = agent_reply.text, agent_reply.outbox
-                elif getattr(engine, "concurrent_safe", False):
-                    with ai_usage.bind(platform, chat_id, "chat"):
-                        reply = await asyncio.to_thread(engine.chat, system_prompt, history, merged_text)
-                else:
+                        with ai_usage.bind(platform, chat_id, "qa"):  # N1: مصرف به همین چت نسبت داده می‌شه (contextvar تا داخلِ thread می‌رسه)
+                            agent_reply = await self._qa_agent.respond(
+                                call_engine, platform, chat_id, system_prompt, history, merged_text, can_suggest=mode.cart,
+                            )
+                        return agent_reply.text, agent_reply.outbox
+                    if getattr(engine, "concurrent_safe", False):
+                        with ai_usage.bind(platform, chat_id, "chat"):
+                            return await asyncio.to_thread(engine.chat, system_prompt, history, merged_text), []
                     async with self._engine_lock:
                         with ai_usage.bind(platform, chat_id, "chat"):
-                            reply = await asyncio.to_thread(engine.chat, system_prompt, history, merged_text)
+                            return await asyncio.to_thread(engine.chat, system_prompt, history, merged_text), []
+
+                reply, outbox = await self._bounded(compute())
             else:
                 reply = cached
+        except AiReplyTimeout:
+            logger.warning("پاسخِ مدل برای %s/%s بیش از %s ثانیه طول کشید؛ به مشتری «شلوغ است» گفته شد", platform, chat_id, self._reply_timeout())
+            reply = BUSY_REPLY
         except ai_engine.AiEngineError as exc:
             logger.error("خطای AI برای %s/%s: %s", platform, chat_id, exc)
             reply = self._error_reply
@@ -569,6 +590,24 @@ class ConversationPipeline:
             logger.exception("ارسال پاسخ به %s/%s ناموفق بود", platform, chat_id)
         if self._limits is not None:
             await self._limits.maybe_alert()
+
+    def _reply_timeout(self) -> float:
+        """سقفِ انتظارِ مشتری برایِ پاسخِ مدل (ثانیه)؛ از ``settings.ai_reply_timeout`` اگر باشد، وگرنه پیش‌فرض."""
+        try:
+            value = float(getattr(self._settings, "ai_reply_timeout", AI_REPLY_TIMEOUT_SECONDS))
+        except (TypeError, ValueError):
+            return AI_REPLY_TIMEOUT_SECONDS
+        return value if value > 0 else AI_REPLY_TIMEOUT_SECONDS
+
+    async def _bounded(self, coro):
+        """اجرای کارِ مدل با سقفِ زمان، **بدونِ رها کردنِ قفلِ موتور**: کار در یک task جدا می‌ماند (shield)،
+        پس تردِ مدل تا پایان قفل را نگه می‌دارد (llama thread-safe نیست) ولی مشتری دیگر بی‌نهایت منتظر نمی‌ماند (۱٫۲٫۲)."""
+        task = asyncio.ensure_future(coro)
+        task.add_done_callback(_swallow_task_result)
+        try:
+            return await asyncio.wait_for(asyncio.shield(task), timeout=self._reply_timeout())
+        except asyncio.TimeoutError as exc:
+            raise AiReplyTimeout() from exc
 
     def _qa_enabled(self, engine, mode) -> bool:
         """پرسش‌وپاسخِ فقط‌خواندنی (حالت‌های دکمه‌ای) — فقط وقتی موتور ابزار بفهمه."""

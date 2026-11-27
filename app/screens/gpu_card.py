@@ -57,7 +57,7 @@ _S = {
     "offer_title": ("کارتِ گرافیکِ NVIDIA پیدا شد", "An NVIDIA graphics card was found"),
     "offer_body": (
         "کارتِ «{gpu}» روی این سیستم هست. برایِ پاسخ‌هایِ سریع‌تر و فشارِ کمترِ پردازنده می‌توانیم «بسته‌یِ شتاب» را "
-        "دانلود و فعال کنیم (حدود {mb} مگابایت، از انتشارِ رسمیِ llama.cpp، با راستی‌آزمایی). بدونِ اجازه‌یِ تو چیزی دانلود "
+        "دانلود و فعال کنیم (حدود {mb} مگابایت، از منبعِ رسمی، با بررسیِ سالم‌بودنِ فایل). بدونِ اجازه‌یِ تو چیزی دانلود "
         "نمی‌شود؛ اگر الان نخواهی، همان پردازنده کار می‌کند و هر وقت خواستی از «تجربه‌یِ ربات» می‌توانی نصبش کنی.",
         "Your “{gpu}” card is available. For faster answers and less CPU load we can download and enable the acceleration "
         "pack (about {mb} MB, from the official llama.cpp release, verified). Nothing downloads without your permission; "
@@ -160,7 +160,7 @@ def build(page: ft.Page, lang: str, settings, save_callback, pack=None) -> ft.Co
             result, error = None, None
             try:
                 result = g.install(settings=settings, cuda=cuda_dd.value or "",
-                                   progress_cb=lambda done, total: _tick(done, total),
+                                   progress_cb=lambda done, total, phase="download": _tick(done, total),
                                    cancel_cb=lambda: ui["cancel"])
             except g.GpuPackError as exc:
                 error = str(exc)

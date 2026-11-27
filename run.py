@@ -53,6 +53,11 @@ if __name__ == "__main__":
     from app.core import app_mutex
     from app.main import main
 
+    from app.core import single_instance
+
+    if single_instance.acquire() == single_instance.BUSY:  # ۱٫۲٫۲: نسخه‌ی دوم باز نمی‌شود
+        single_instance.notify_busy()
+        sys.exit(0)
     app_mutex.acquire()  # نشانه برای نصب‌کننده‌ی ویندوز (AppMutex)؛ در بقیه‌ی سیستم‌ها بی‌اثر
     ft.run(
         main,

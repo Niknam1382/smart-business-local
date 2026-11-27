@@ -265,26 +265,37 @@ def build(page: ft.Page, lang: str, manager, settings, product_store=None) -> ft
             try:
                 out = manager.send_invoice(inv_id)
             except Exception as exc:  # noqa: BLE001 — BotManagerError (ربات خاموش) و غیره
-                say(str(exc) or S("send_off", lang), False)
+                message, ok = str(exc) or S("send_off", lang), False
             else:
                 why = out.split(":", 1)[1] if ":" in out else ""
-                say(S("sent_ok", lang) if out == "sent" else S("send_skip", lang, why=why or out), out == "sent")
-            render()
-            page.update()
+                message, ok = (S("sent_ok", lang) if out == "sent" else S("send_skip", lang, why=why or out)), out == "sent"
+
+            def paint() -> None:  # نقاشی فقط روی حلقه‌ی رابط (۱٫۲٫۲)
+                say(message, ok)
+                render()
+                page.update()
+
+            common.run_on_ui(page, paint)
 
         page.run_thread(work)
 
     def do_pdf(inv_id: int) -> None:
         def work() -> None:
             inv = invoices.store.get(inv_id)
+            folder = None
             try:
                 path = invoices.ensure_pdf(inv)
+                message, ok, folder = S("pdf_ok", lang, path=path), True, path.parent
             except Exception as exc:  # noqa: BLE001
-                say(str(exc), False)
-            else:
-                say(S("pdf_ok", lang, path=path), True)
-                common.open_folder(path.parent)
-            page.update()
+                message, ok = str(exc), False
+
+            def paint() -> None:  # نقاشی فقط روی حلقه‌ی رابط (۱٫۲٫۲)
+                say(message, ok)
+                if folder is not None:
+                    common.open_folder(folder)
+                page.update()
+
+            common.run_on_ui(page, paint)
 
         page.run_thread(work)
 
@@ -300,11 +311,16 @@ def build(page: ft.Page, lang: str, manager, settings, product_store=None) -> ft
         def work() -> None:
             try:
                 cn = invoices.credit_note(inv_id, cogs_back=back)
-                say(S("credit_done", lang, number=cn.number), True)
+                message, ok = S("credit_done", lang, number=cn.number), True
             except InvoiceError as exc:
-                say(str(exc), False)
-            render()
-            page.update()
+                message, ok = str(exc), False
+
+            def paint() -> None:  # نقاشی فقط روی حلقه‌ی رابط (۱٫۲٫۲)
+                say(message, ok)
+                render()
+                page.update()
+
+            common.run_on_ui(page, paint)
 
         page.run_thread(work)
 
@@ -317,15 +333,20 @@ def build(page: ft.Page, lang: str, manager, settings, product_store=None) -> ft
         def work() -> None:
             order = order_lookup(int(raw)) if raw.isdigit() else None
             if order is None:
-                say(S("bad", lang, label=S("issue_order", lang)), False)
+                message, ok = S("bad", lang, label=S("issue_order", lang)), False
             else:
                 try:
                     inv = invoices.issue(order)
-                    say(S("issued", lang, number=inv.number), True)
+                    message, ok = S("issued", lang, number=inv.number), True
                 except InvoiceError as exc:
-                    say(str(exc), False)
-            render()
-            page.update()
+                    message, ok = str(exc), False
+
+            def paint() -> None:  # نقاشی فقط روی حلقه‌ی رابط (۱٫۲٫۲)
+                say(message, ok)
+                render()
+                page.update()
+
+            common.run_on_ui(page, paint)
 
         page.run_thread(work)
 
@@ -432,14 +453,19 @@ def build(page: ft.Page, lang: str, manager, settings, product_store=None) -> ft
                 path = report_pdf.write_pdf(data, digits=settings.invoice_digits or "fa",
                                             paper=settings.invoice_paper or "A4",
                                             brand=settings.invoice_color or "#1F6FEB") if fmt == "pdf" else report_xlsx.write_xlsx(data)
+                message, ok, folder = S("report_done", lang, n=data.count, path=str(path)), True, path.parent
             except report_xlsx.ReportError as exc:  # «چیزی برای خروجی گرفتن نیست» و خطایِ PDF
-                say(str(exc), False)
+                message, ok, folder = str(exc), False, None
             except (OSError, ValueError) as exc:
-                say(S("report_failed", lang, error=str(exc)), False)
-            else:
-                say(S("report_done", lang, n=data.count, path=str(path)), True)
-                common.open_folder(path.parent)
-            page.update()
+                message, ok, folder = S("report_failed", lang, error=str(exc)), False, None
+
+            def paint() -> None:  # نقاشی فقط روی حلقه‌ی رابط (۱٫۲٫۲)
+                say(message, ok)
+                if folder is not None:
+                    common.open_folder(folder)
+                page.update()
+
+            common.run_on_ui(page, paint)
 
         page.run_thread(work)
 
@@ -550,14 +576,20 @@ def build(page: ft.Page, lang: str, manager, settings, product_store=None) -> ft
         روی تردِ پس‌زمینه می‌رود و نتیجه/خطا صادقانه به فارسی همان‌جا نوشته می‌شود."""
 
         def work() -> None:
+            folder = None
             try:
                 path = invoices.preview()
+                message, ok, folder = S("preview_done", lang, path=path), True, path.parent
             except Exception as exc:  # noqa: BLE001 — نبودِ فونت/هاردِ پر = پیامِ فارسی، نه کرش
-                say(S("preview_failed", lang, error=str(exc) or type(exc).__name__), False)
-            else:
-                say(S("preview_done", lang, path=path), True)
-                common.open_folder(path.parent)
-            page.update()
+                message, ok = S("preview_failed", lang, error=str(exc) or type(exc).__name__), False
+
+            def paint() -> None:  # نقاشی فقط روی حلقه‌ی رابط (۱٫۲٫۲)
+                say(message, ok)
+                if folder is not None:
+                    common.open_folder(folder)
+                page.update()
+
+            common.run_on_ui(page, paint)
 
         page.run_thread(work)
 

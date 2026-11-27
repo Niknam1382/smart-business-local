@@ -45,6 +45,9 @@ _MUTED = (120, 120, 120)
 _INK = (28, 28, 30)
 _LINE = (214, 214, 214)
 _ZEBRA = (247, 246, 243)
+_PAID = (22, 132, 84)  # ۱٫۲٫۲: نشانِ «پرداخت‌شده» روی فاکتورِ فروش
+_REFUND = (190, 56, 48)  # نشانِ «برگشتی» روی فاکتورِ برگشتی
+_STATUS_LABEL = {"paid": ("پرداخت‌شده", "Paid"), "refund": ("برگشت‌خورده", "Refunded")}
 
 
 class InvoicePdfError(Exception):
@@ -183,6 +186,11 @@ def money(n: int, digits: str = "fa") -> str:
 
 def _num(value, digits: str) -> str:
     return jalali.fa_digits(str(value)) if digits == "fa" else str(value)
+
+
+def _darken(rgb: tuple, factor: float = 0.72) -> tuple:
+    """همان رنگ با روشنیِ کمتر (برایِ نوارِ باریکِ زیرِ سربرگ)؛ همیشه سه عددِ ۰..۲۵۵."""
+    return tuple(max(0, min(255, int(round(channel * factor)))) for channel in rgb)
 
 
 def _hex_rgb(color: str):
@@ -384,6 +392,9 @@ class _InvoicePDF:
             pdf.set_xy(12, top + 13)
             pdf.set_font("V", "", self.small)
             pdf.cell(self.w - 6, 5, sub, align="R", new_x="LMARGIN", new_y="NEXT")
+        # نوارِ باریکِ تیره‌تر زیرِ سربرگ: فاکتور «تمام‌شده» و حرفه‌ای‌تر دیده می‌شود (۱٫۲٫۲)
+        pdf.set_fill_color(*_darken(self.brand))
+        pdf.rect(12, top + 20, self.w, 1.4, style="F")
         pdf.set_y(top + 23)
         if seller.get("preview"):  # فاکتورِ تستی: رویِ همانِ فاکتور هم معلوم باشد که نمونه است
             self.text(self._l("preview"), self.small, bold=True, color=self.brand, height=5.4)
@@ -465,6 +476,15 @@ class _InvoicePDF:
         pdf.set_font("V", "B", 12)
         pdf.set_text_color(*self.brand)
         pdf.cell(geo["card_w"] - 8, 6, clean(title), align="R")
+        # نشانِ وضعیت (پرداخت‌شده / برگشتی) در گوشه‌یِ چپِ کارت — ۱٫۲٫۲ (در فاکتورِ تستی هم دیده می‌شود)
+        pill_w = 24.0 if self.paper == "A4" else 19.0
+        fa_text, en_text = _STATUS_LABEL["refund" if inv.is_credit else "paid"]
+        pdf.set_fill_color(*(_REFUND if inv.is_credit else _PAID))
+        pdf.rect(geo["card_x"] + 4, y0 + 3.2, pill_w, 6.2, style="F")
+        pdf.set_xy(geo["card_x"] + 4, y0 + 3.2)
+        pdf.set_font("V", "B", self.small - 0.5)
+        pdf.set_text_color(255, 255, 255)
+        pdf.cell(pill_w, 6.2, en_text if self.lang == "en" else fa_text, align="C")
         pdf.set_xy(geo["card_x"] + 4, y0 + 11)
         pdf.set_font("V", "", self.small)
         pdf.set_text_color(*_INK)

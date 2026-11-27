@@ -255,8 +255,31 @@ def main(
                 state.ensure_default_prompt()
                 save()
             show_home()
+            warn_key_problem()  # کلیدِ رمزنگاریِ خراب/گم‌شده (۱٫۲٫۲)
             # پیشنهادِ خودکارِ شتابِ گرافیکی (فقط اگر کارتِ NVIDIA هست و بسته نصب نیست؛ با اجازه‌ی صریح)
             gpu_offer.maybe_offer(page, state.language, state, save)
+
+    def warn_key_problem() -> None:
+        """اگر فایلِ کلیدِ رمزنگاری خراب بود یا مقدارِ رمزشده باز نشد، یک‌بار و با زبانِ ساده خبر بده."""
+        from app.core import crypto
+        from app.screens import common as common_screen
+
+        code = crypto.problem()
+        if not code:
+            return
+        fa = state.language == "fa"
+        title = "کلیدِ رمزنگاری مشکل دارد" if fa else "The encryption key has a problem"
+        text = (
+            "توکن ربات‌ها و رمزهایِ ذخیره‌شده باز نشدند، چون کلیدِ رمزنگاریِ این کامپیوتر خراب یا عوض شده بود.\n\n"
+            "چه کار کنم؟ توکن ربات‌ها و کلیدها را دوباره در برنامه وارد کن. اگر پشتیبانِ کاملِ قبلی را داری "
+            "(با گزینه‌یِ «توکن‌ها هم باشند»)، از «وضعیتِ داده‌ها» برش گردان. اطلاعاتِ فروشگاه (محصولات و سفارش‌ها) سالم است."
+            if fa else
+            "Saved bot tokens and secrets could not be opened because this computer's encryption key was damaged or changed.\n\n"
+            "What to do: enter your bot tokens and keys again. If you have an earlier full backup (made with tokens included), "
+            "restore it from Data status. Your shop data (products and orders) is intact."
+        )
+        crypto.clear_problem()
+        common_screen.show_notice(page, title, text, ok_label="باشه" if fa else "OK", key="crypto_problem_dialog")
 
     def show_data_found(footprint: data_probe.DataFootprint) -> None:
         def on_continue() -> None:
@@ -272,7 +295,9 @@ def main(
             settings_module.reload_into(state)
             state.data_acknowledged = True
             save()
-            route()
+            from app.screens import common as common_screen
+
+            common_screen.run_on_ui(page, route)  # ساختِ صفحه فقط روی حلقه‌ی رابط (۱٫۲٫۲)
 
         set_content(data_found.build(page, state.language, footprint, on_continue, on_fresh_start))
 

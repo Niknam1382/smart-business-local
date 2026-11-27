@@ -232,7 +232,8 @@ class AppSettings:
     invoice_seller_fallback: str = ""  # اگر «نامِ فروشگاه» خالی بود، همین نوشته می‌شه
     invoice_digits: str = "fa"  # fa | en
     invoice_auto_send: str = "after_confirm"  # off | after_confirm (پیش‌فرض: فاکتورِ PDF بعد از تأییدِ سفارش برای مشتری می‌رود)
-    invoice_send_owner_copy: bool = False
+    invoice_send_owner_copy: bool = True  # ۱٫۲٫۲: فاکتورِ PDF هم برایِ خریدار هم یک نسخه برایِ فروشنده می‌رود
+    invoice_defaults_v122: bool = False  # مهاجرتِ یک‌باره: ارسالِ خودکار + نسخه‌یِ فروشنده در ارتقا از نسخه‌هایِ قبلی روشن می‌شود
     finance_fee_bp_bale_pay: int = 0  # کارمزدِ درگاه (basis point؛ ۱٪ = ۱۰۰)
     finance_unit: str = "toman"  # toman | irr (فقط نمایش)
     finance_manager_access: bool = False  # مالک می‌تونه دسترسیِ «مالی» را به نقشِ «مدیر» بده
@@ -405,6 +406,12 @@ def _migrate_keys(data: dict) -> dict:
         data["model_id"] = _LEGACY_TIERS[data["model_id"]]
     for gone in _LEGACY_IGNORED:
         data.pop(gone, None)
+    if not data.get("invoice_defaults_v122"):
+        # ۱٫۲٫۲: فاکتورِ PDF باید برایِ خریدار و فروشنده برود. این فقط یک‌بار اعمال می‌شود؛ بعدش هر انتخابی که
+        # مالک در «فاکتورها ← تنظیمات» بکند محترم است.
+        data["invoice_auto_send"] = "after_confirm"
+        data["invoice_send_owner_copy"] = True
+        data["invoice_defaults_v122"] = True
     return data
 
 

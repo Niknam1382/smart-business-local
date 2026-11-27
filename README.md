@@ -17,7 +17,7 @@ The AI is a local model, so there is no server to rent, no API bill, and no cust
 ![Runs from source on macOS](https://img.shields.io/badge/macOS-from%20source-orange)
 ![AI](https://img.shields.io/badge/AI-local%20GGUF%20only-green)
 ![Messenger](https://img.shields.io/badge/messenger-Telegram-2CA5E0)
-![Version](https://img.shields.io/badge/version-1.2.1-informational)
+![Version](https://img.shields.io/badge/version-1.2.2-informational)
 
 [English](#english) · [فارسی](#فارسی) · [Download](#download) · [Changelog](CHANGELOG.md) · [Roadmap](docs/ROADMAP.md) · [License](LICENSE)
 
@@ -73,6 +73,7 @@ runs on it too (llama.cpp, GGUF files).
 | 🚀 **What 1.1.0 added** | One build that can compute on your NVIDIA card (a SHA-256-verified accelerator pack it downloads itself, with an automatic rollback to CPU), a button-driven control panel for operational settings, an order workspace to message a customer, send them a file and close the order, per-customer AI limits with a top-consumers view, editable invoice texts plus a sample invoice, a card-to-card step that asks only for the receipt, and a ✕ that finally does what you chose. |
 | 🛡️ **What 1.2.0 changed** | Updating no longer asks existing users to “start fresh”; settings, databases, the key and the downloaded model stay put, a full backup is taken on the first run of each new version, an already-downloaded model is re-attached if its selection was lost, “Quit completely” now stops the bots, saves and really closes, and model-download errors say what went wrong. Release builds now fail if tests fail. (Window closing, speed and layout still need on-device verification; macOS is not shipped.) |
 | 🔧 **What 1.2.1 changed** | Model downloads now try every source one after another (and, on Windows, a second download method as a backup) and tell you which source failed and why; the model list runs from smallest to largest with the RAM each needs, including two tiny models; the GPU card sits at the top of the model page; one steady look (equal-width cards, readable scrollbars, no stray yellow); plainer texts; and the bot bio link now points to this repository. Updating keeps your data, as in 1.2.0. (Real-Windows checks of the new look and downloads are still yours to confirm.) |
+| 🧰 **What 1.2.2 changed** | One window only (a second copy refuses to open); a damaged encryption key no longer crashes the app; the PDF invoice now goes to the buyer and a copy to the seller by default, with a status badge and a cleaner header; the GPU pack install and the model downloads no longer fail on the progress bar; the bot bio is only the repository link (Bale has no bio); the app explains why one-click update is off; slow model answers time out politely instead of stalling every customer; backups leave tokens out by default; tiny models are labelled test-only. Updating keeps your data. (Real-Windows checks are still yours to confirm.) |
 
 ### Download
 
@@ -244,7 +245,7 @@ died (let Docker restart it), `2` no bot configured, `3` data written by a newer
 
 ### Project status
 
-**The current release is 1.2.1** (the first public line was 1.0.0): local-only AI, Telegram and Bale as chat messengers (an optional, independent Bale
+**The current release is 1.2.2** (the first public line was 1.0.0): local-only AI, Telegram and Bale as chat messengers (an optional, independent Bale
 chat on top of it), Bale Pay as the only gateway
 besides card-to-card, a four-button customer menu and a central prompt studio. The version string lives in
 `app/version.py` and a release tag must match it; see [CHANGELOG](CHANGELOG.md) for what shipped and what was cut. The
@@ -303,6 +304,7 @@ with a small amount before you take real money. Bugs and ideas: Issues.
 | 🚀 **۱.۱.۰ چه اضافه کرد** | یک نصب که می‌تواند روی کارتِ NVIDIA حساب کند (بستهٔ شتاب با راستی‌آزماییِ SHA-256 که خودش دانلود می‌کند و اگر بیلد نپذیرفت خودکار به CPU برمی‌گردد)، کنترل‌پنلِ دکمه‌ایِ تنظیماتِ عملیاتی، میزِ کارِ سفارش برای پیام دادن به مشتری، فرستادنِ فایل و بستنِ سفارش، سقفِ هوش مصنوعی برای هر مشتری با نمایِ پرمصرف‌ها، متن‌هایِ قابل‌ویرایشِ فاکتور به‌همراه فاکتورِ نمونه، مرحلهٔ کارت‌به‌کارت که جز رسید چیزی نمی‌خواهد، و ✕ای که سرانجام همان کاری را می‌کند که خودت انتخاب کرده‌ای. |
 | 🛡️ **۱.۲.۰ چه چیزی را تغییر داد** | آپدیت دیگر از کاربرِ موجود «شروعِ تازه» نمی‌پرسد؛ تنظیمات، دیتابیس‌ها، کلید و مدلِ دانلودشده می‌مانند، در اولین اجرای هر نسخه یک پشتیبانِ کامل گرفته می‌شود، مدلِ دانلودشده‌ای که انتخابش از تنظیمات افتاده دوباره وصل می‌شود، «خروجِ کامل» ربات‌ها را متوقف و اطلاعات را ذخیره می‌کند و برنامه را واقعاً می‌بندد و خطای دانلودِ مدل می‌گوید چه شده است. ساختِ انتشار با شکستِ تست متوقف می‌شود. (بستنِ پنجره، سرعتِ مدل و چیدمانِ رابط هنوز روی دستگاهِ واقعی تأیید می‌شود؛ macOS منتشر نمی‌شود.) |
 | 🔧 **۱.۲.۱ چه چیزی را تغییر داد** | دانلودِ مدل حالا همه‌ی منبع‌ها را پشتِ هم امتحان می‌کند (و در ویندوز یک روشِ دوم هم به‌عنوانِ پشتیبان دارد) و اگر نشد می‌گوید کدام منبع چه شد؛ فهرستِ مدل‌ها از کوچک به بزرگ است و رمِ لازمِ هر مدل کنارش نوشته شده، با دو مدلِ خیلی کوچک؛ کارتِ «شتابِ گرافیکی» بالایِ صفحه‌یِ مدل‌ها آمده؛ ظاهر یکدست‌تر شده (کارت‌هایِ هم‌عرض، اسکرولِ خوانا، بدونِ زردِ بی‌مورد)؛ متن‌ها ساده‌تر شده‌اند و لینکِ بیوِ ربات به همین مخزن می‌رود. آپدیت مثلِ ۱.۲.۰ اطلاعاتت را نگه می‌دارد. (دیدنِ ظاهر و دانلودِ تازه روی ویندوزِ واقعی هنوز با خودت است.) |
+| 🧰 **۱.۲.۲ چه چیزی را تغییر داد** | فقط یک پنجره باز می‌شود (نسخه‌یِ دوم باز نمی‌شود)؛ کلیدِ رمزنگاریِ خراب دیگر برنامه را از کار نمی‌اندازد؛ فاکتورِ PDF به‌طورِ پیش‌فرض برایِ خریدار و یک نسخه برایِ فروشنده می‌رود، با نشانِ وضعیت و سربرگِ مرتب‌تر؛ نصبِ بسته‌یِ گرافیک و دانلودِ مدل دیگر با نوارِ پیشرفت نمی‌شکنند؛ بیوگرافیِ ربات فقط لینکِ مخزن است (بله بیوگرافی ندارد)؛ برنامه می‌گوید چرا «نصبِ یک‌کلیکی» خاموش است؛ پاسخِ کندِ مدل به‌جایِ معطل‌کردنِ همه‌یِ مشتری‌ها مؤدبانه تمام می‌شود؛ پشتیبان به‌طورِ پیش‌فرض بدونِ توکن است؛ مدل‌هایِ خیلی کوچک «فقط آزمایشی» برچسب خورده‌اند. آپدیت اطلاعاتت را نگه می‌دارد. (دیدنِ نتیجه روی ویندوزِ واقعی هنوز با خودت است.) |
 
 ### دانلود
 
@@ -470,7 +472,7 @@ docker compose up -d                                   # پوشه‌ی ./data ر
 
 ### وضعیتِ پروژه
 
-این **نسخه‌ی ۱.۲.۱ است** (نخستین انتشارِ عمومی ۱.۰.۰ بود): هوش مصنوعی فقط محلی، تلگرام و بله هر دو پیام‌رسانِ گفتگو (چتِ بله اختیاری و مستقل)، بله‌پی تنها درگاهِ علاوه بر
+این **نسخه‌ی ۱.۲.۲ است** (نخستین انتشارِ عمومی ۱.۰.۰ بود): هوش مصنوعی فقط محلی، تلگرام و بله هر دو پیام‌رسانِ گفتگو (چتِ بله اختیاری و مستقل)، بله‌پی تنها درگاهِ علاوه بر
 کارت‌به‌کارت، منویِ مشتری با دقیقاً چهار دکمه و یک استودیویِ مرکزیِ پرامپت. عددِ نسخه در فایلِ `app/version.py` زندگی
 می‌کند و تگِ انتشار باید همان باشد؛ چه چیزی آمد و چه چیزی حذف شد را در [CHANGELOG](CHANGELOG.md) بخوان.
 مجموعه‌تستِ خودکار (۲۳۲۶ تست در ۱۱۱ فایل) روی سرورهایِ جعلیِ تلگرام و درگاهِ بله اجرا می‌شود و فروشگاه، پرداخت، رسید،

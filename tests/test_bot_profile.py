@@ -40,7 +40,7 @@ def test_compose_joins_with_the_fixed_separator_and_credit_only_when_empty():
 
 def test_seller_share_boundary_is_measured_in_utf16_units():
     limit = bot_profile.seller_limit("fa")
-    assert 40 <= limit <= 70  # ۱٫۲٫۱: نشانِ بیو = متنِ کوتاه + لینکِ مخزن → سهمِ فروشنده ≈ ۴۴
+    assert 70 <= limit <= 80  # ۱٫۲٫۱: نشانِ بیو = فقط لینکِ مخزن → سهمِ فروشنده ≈ ۷۵
     assert bot_profile.utf16_len(compose("a" * limit, "fa")) == bot_profile.SHORT_MAX
     with pytest.raises(BioTooLong) as exc:
         compose("a" * (limit + 1), "fa")

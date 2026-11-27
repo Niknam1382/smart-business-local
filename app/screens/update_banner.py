@@ -110,7 +110,7 @@ def build(
             result = installer.install(info, progress, before_handoff=before_handoff)
         except update_install.InstallError as exc:
             resume()
-            code = exc.code
+            code = exc.code  # exc پس از بلوکِ except پاک می‌شود؛ پس مقدارش را جدا نگه می‌داریم
             if code == "cancelled":
                 common.run_on_ui(page, lambda: goto("idle", error=""))
             else:
@@ -179,7 +179,13 @@ def build(
             label = "update.download_verified" if download_only else "update.install"
             buttons.append(common.primary(t(label, lang), key="update_install", size="sm", on_click=on_install))
         buttons.append(later)
-        return _line(ft.Icons.SYSTEM_UPDATE_ALT_ROUNDED, theme.INFO, t("update.banner", lang, version=info.version), buttons)
+        message = t("update.banner", lang, version=info.version)
+        if availability is not None and availability.mode == update_install.MODE_MANUAL:
+            # ۱٫۲٫۲: چرا نصبِ خودکار نیست؟ به زبانِ ساده، به‌جای اینکه فقط دکمه‌ی «مشاهده» بیاید
+            reason_key = f"update.manual_reason.{availability.reason}"
+            if reason_key in STRINGS:
+                message = f"{message}\n{t(reason_key, lang)}"
+        return _line(ft.Icons.SYSTEM_UPDATE_ALT_ROUNDED, theme.INFO, message, buttons)
 
     def render() -> None:
         holder.content = body()

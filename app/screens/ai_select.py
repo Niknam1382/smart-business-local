@@ -407,15 +407,20 @@ class ModelHub:
 
         def worker() -> None:
             ok, message = downloader.verify_file(dest, entry.sha256)
-            if ok:
-                result.value = t("ai.local.verify_ok", self.lang) if entry.verified else t("ai.local.verify_hash_only", self.lang, hash=message)
-                result.color = theme.SUCCESS if entry.verified else theme.WARNING
-                result.selectable = True
-            else:
-                result.value = t("ai.local.verify_fail", self.lang) + (f" ({message})" if message else "")
-                result.color = theme.DANGER
-            self._verify_results[entry.id] = result
-            common.run_on_ui(self.page, lambda: (self._swap_verify(entry, result), self._notify()))
+
+            def paint() -> None:  # نقاشی فقط روی حلقه‌ی رابط (۱٫۲٫۲)
+                if ok:
+                    result.value = t("ai.local.verify_ok", self.lang) if entry.verified else t("ai.local.verify_hash_only", self.lang, hash=message)
+                    result.color = theme.SUCCESS if entry.verified else theme.WARNING
+                    result.selectable = True
+                else:
+                    result.value = t("ai.local.verify_fail", self.lang) + (f" ({message})" if message else "")
+                    result.color = theme.DANGER
+                self._verify_results[entry.id] = result
+                self._swap_verify(entry, result)
+                self._notify()
+
+            common.run_on_ui(self.page, paint)
 
         self.page.run_thread(worker)
 

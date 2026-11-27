@@ -79,6 +79,33 @@ def _detect_cpu_model() -> str:
     return _platform.processor() or ""
 
 
+_VIRTUAL_GPU_HINTS = ("microsoft basic", "remote display", "virtual", "vmware", "hyper-v", "parsec", "displaylink")
+
+
+def _gpu_rank(name: str) -> int:
+    """هرچه بزرگ‌تر، برایِ اجرایِ مدل بهتر: NVIDIA > AMD مجزا > AMD/Intel توکار > بقیه > مجازی."""
+    low = name.lower()
+    if any(h in low for h in _VIRTUAL_GPU_HINTS):
+        return 0
+    if any(k in low for k in ("nvidia", "geforce", "rtx", "gtx", "quadro", "tesla")):
+        return 5
+    if "radeon" in low and any(k in low for k in (" rx ", "rx ", "pro ", "xt", "vega")):
+        return 4
+    if "radeon" in low or "amd" in low:
+        return 3
+    if "intel" in low:
+        return 2
+    return 1
+
+
+def pick_best_gpu(names: list) -> str:
+    """در لپ‌تاپِ دوکارته معمولاً اولین کارتِ ویندوز گرافیکِ توکار است؛ بهترین کارت را برمی‌گزیند (۱٫۲٫۲)."""
+    cleaned = [n.strip() for n in names if n and n.strip()]
+    if not cleaned:
+        return ""
+    return max(cleaned, key=_gpu_rank)  # max اولین مقدارِ برابر را نگه می‌دارد؛ ترتیبِ اصلی در تساوی حفظ می‌شود
+
+
 def _detect_gpu() -> tuple[str, Optional[float]]:
     """برمی‌گردونه: (نام کارت گرافیک، مقدار VRAM به گیگابایت یا None)."""
     nvidia_smi = shutil.which("nvidia-smi")
@@ -89,6 +116,14 @@ def _detect_gpu() -> tuple[str, Optional[float]]:
         )
         if out:
             first_line = out.splitlines()[0]
+            if len(out.splitlines()) > 1:  # چند کارتِ NVIDIA: همانی که حافظه‌ی بیشتری دارد
+                def _mem(line: str) -> float:
+                    try:
+                        return float(line.rsplit(",", 1)[1])
+                    except (IndexError, ValueError):
+                        return 0.0
+
+                first_line = max(out.splitlines(), key=_mem)
             parts = [p.strip() for p in first_line.split(",")]
             if len(parts) == 2:
                 try:
@@ -103,10 +138,11 @@ def _detect_gpu() -> tuple[str, Optional[float]]:
                 "powershell",
                 "-NoProfile",
                 "-Command",
-                "(Get-CimInstance Win32_VideoController | Select-Object -First 1 -ExpandProperty Name)",
+                "(Get-CimInstance Win32_VideoController | ForEach-Object { $_.Name })",
             ],
             timeout=5,
         )
+        name = pick_best_gpu(name.splitlines()) if name else ""
         if name:
             return name, None
 

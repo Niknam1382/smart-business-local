@@ -127,17 +127,20 @@ def build(page: ft.Page, lang: str, manager, order_store=None, export_dir: Optio
             try:
                 data = report_xlsx.customers_report(query(), shop_name=report_xlsx.shop_name_of(manager))
                 path = report_pdf.write_pdf(data) if fmt == "pdf" else report_xlsx.write_xlsx(data)
+                message, ok, folder = t("customers.export_done", lang, n=data.count, path=str(path)), True, path.parent
             except report_xlsx.ReportError as exc:  # «چیزی برای خروجی گرفتن نیست» و خطایِ PDF
-                say(str(exc), ok=False)
-                ui["export_dir"] = ""
+                message, ok, folder = str(exc), False, None
             except OSError as exc:
-                say(t("customers.export_failed", lang, error=str(exc)), ok=False)
-                ui["export_dir"] = ""
-            else:
-                say(t("customers.export_done", lang, n=data.count, path=str(path)))
-                ui["export_dir"] = str(path.parent)
-                common.open_folder(path.parent)
-            refresh()
+                message, ok, folder = t("customers.export_failed", lang, error=str(exc)), False, None
+
+            def paint() -> None:  # نقاشی فقط روی حلقه‌ی رابط (۱٫۲٫۲)
+                say(message, ok=ok)
+                ui["export_dir"] = str(folder) if folder is not None else ""
+                if folder is not None:
+                    common.open_folder(folder)
+                refresh()
+
+            common.run_on_ui(page, paint)
 
         page.run_thread(work)
 
@@ -264,11 +267,15 @@ def build(page: ft.Page, lang: str, manager, order_store=None, export_dir: Optio
             def work() -> None:
                 try:
                     manager.send_to_customer_sync(platform, user_id, text)  # N6: همان قوانینِ صفحه‌ی گفتگوها (بلاک/لغو/پیشوند/نقشِ owner)
+                    message, ok = t("customers.sent", lang), True
                 except BotManagerError as exc:
-                    say(t("customers.send_failed", lang, error=str(exc)), ok=False)
-                else:
-                    say(t("customers.sent", lang))
-                refresh()
+                    message, ok = t("customers.send_failed", lang, error=str(exc)), False
+
+                def paint() -> None:  # نقاشی فقط روی حلقه‌ی رابط (۱٫۲٫۲)
+                    say(message, ok=ok)
+                    refresh()
+
+                common.run_on_ui(page, paint)
 
             page.run_thread(work)
 

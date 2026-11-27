@@ -334,7 +334,11 @@ def build(
             return
         render_list()
         page.update()
-        page.run_thread(lambda: (notify_customer(order, "reject"), render_list(), page.update()))
+        def reject_then_paint() -> None:
+            notify_customer(order, "reject")  # شبکه: روی تردِ پس‌زمینه
+            run_on_ui(page, lambda: (render_list(), page.update()))  # نقاشی: روی حلقه‌ی رابط (۱٫۲٫۲)
+
+        page.run_thread(reject_then_paint)
 
     def notify_shipment(order: Order) -> None:
         """اعلانِ «ارسال شد» دقیقاً مثلِ تایید: وضعیت در دیتابیس *قبلاً* ثبت شده؛ شکستِ ارسال
@@ -367,7 +371,11 @@ def build(
         should_notify = (bool(state) and state != previous_state and settings is not None
                          and bool(getattr(settings, "notify_on_fulfillment", True)))
         if should_notify:
-            page.run_thread(lambda: (notify_shipment(order), render_list(), page.update()))
+            def ship_then_paint() -> None:
+                notify_shipment(order)  # شبکه: روی تردِ پس‌زمینه
+                run_on_ui(page, lambda: (render_list(), page.update()))  # نقاشی: روی حلقه‌ی رابط (۱٫۲٫۲)
+
+            page.run_thread(ship_then_paint)
 
     def fulfillment_block(order: Order) -> ft.Control:
         """کارتِ «ارسال» روی سفارشِ تأییدشده: دکمه‌های رو‌به‌جلو + فیلدِ کد رهگیری + خطِ وضعیت."""
@@ -458,15 +466,22 @@ def build(
             try:
                 manager.send_to_customer_sync(order.platform, order.chat_id, text)
             except BotManagerError as exc:
-                say(error=_s("desk.send_failed", lang, reason=str(exc)))
+                note = _s("desk.send_failed", lang, reason=str(exc))
+                run_on_ui(page, lambda: say(error=note))
+                return
             except Exception as exc:  # noqa: BLE001 — شکستِ ارسال هرگز «موفق» حساب نمی‌شود
                 logger.exception("ارسالِ پیامِ ادمین از صفحه‌ی سفارش‌ها ناموفق بود")
-                say(error=_s("desk.send_failed", lang, reason=f"{type(exc).__name__}: {exc}"))
-            else:
+                note = _s("desk.send_failed", lang, reason=f"{type(exc).__name__}: {exc}")
+                run_on_ui(page, lambda: say(error=note))
+                return
+
+            def paint() -> None:  # نقاشی فقط روی حلقه‌ی رابط (۱٫۲٫۲)
                 field = desk_fields.get(order_id)
                 if field is not None:
                     field.value = ""
                 say(notice=_s("desk.sent", lang, id=order.id))
+
+            run_on_ui(page, paint)
 
         page.run_thread(work)
 
@@ -494,18 +509,25 @@ def build(
             try:
                 manager.send_file_to_customer_sync(order.platform, order.chat_id, path, caption)
             except BotManagerError as exc:
-                say(error=_s("desk.file_failed", lang, reason=str(exc)))
+                note = _s("desk.file_failed", lang, reason=str(exc))
+                run_on_ui(page, lambda: say(error=note))
+                return
             except Exception as exc:  # noqa: BLE001
                 logger.exception("ارسالِ فایل به مشتری از صفحه‌ی سفارش‌ها ناموفق بود")
-                say(error=_s("desk.file_failed", lang, reason=type(exc).__name__))
-            else:
+                note = _s("desk.file_failed", lang, reason=type(exc).__name__)
+                run_on_ui(page, lambda: say(error=note))
+                return
+            name = Path(path).name
+
+            def paint() -> None:  # نقاشی فقط روی حلقه‌ی رابط (۱٫۲٫۲)
                 if field is not None:
                     field.value = ""
-                name = Path(path).name
                 if caption:
                     say(notice=_s("desk.file_sent", lang, name=name, caption=caption, id=order.id))
                 else:
                     say(notice=_s("desk.file_sent_plain", lang, name=name, id=order.id))
+
+            run_on_ui(page, paint)
 
         page.run_thread(work)
 
@@ -1023,21 +1045,28 @@ def build(
         صفحه، سفارش‌های بسته‌شده را ندارد."""
 
         def work() -> None:
+            folder = None
             try:
                 data = report_xlsx.orders_report(visible_orders(),
                                                  shop_name=report_xlsx.shop_name_of(settings or manager))
                 path = report_pdf.write_pdf(data) if fmt == "pdf" else report_xlsx.write_xlsx(data)
+                result = ("", _s("export.done", lang, n=data.count, path=str(path)))
+                folder = path.parent
             except report_xlsx.ReportError as exc:  # «چیزی برای خروجی گرفتن نیست» / شکستِ PDF
-                ui["error"], ui["notice"] = str(exc), ""
+                result = (str(exc), "")
             except OSError as exc:
-                ui["error"], ui["notice"] = _s("export.failed", lang, error=str(exc)), ""
+                result = (_s("export.failed", lang, error=str(exc)), "")
             except Exception as exc:  # noqa: BLE001 — دیتابیسِ سفارش‌ها در حالتِ مشاوره ممکن است نباشد
-                ui["error"], ui["notice"] = _s("export.failed", lang, error=type(exc).__name__), ""
-            else:
-                ui["error"], ui["notice"] = "", _s("export.done", lang, n=data.count, path=str(path))
-                open_folder(path.parent)
-            render_list()
-            page.update()
+                result = (_s("export.failed", lang, error=type(exc).__name__), "")
+
+            def paint() -> None:  # نقاشی فقط روی حلقه‌ی رابط (۱٫۲٫۲)
+                ui["error"], ui["notice"] = result
+                if folder is not None:
+                    open_folder(folder)
+                render_list()
+                page.update()
+
+            run_on_ui(page, paint)
 
         page.run_thread(work)
 

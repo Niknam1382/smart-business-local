@@ -88,7 +88,7 @@ def build(
     )
 
     # ------------------------------------------------------------ پشتیبان
-    secrets_switch = ft.Switch(key="backup_secrets", label=t("data.backup.secrets", lang), value=True)
+    secrets_switch = ft.Switch(key="backup_secrets", label=t("data.backup.secrets", lang), value=False)  # ۱٫۲٫۲: پیش‌فرضِ امن
 
     def on_backup(e=None) -> None:
         working()

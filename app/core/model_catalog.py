@@ -223,10 +223,10 @@ ENTRIES: list[ModelEntry] = [
         quant="Q4_K_M",
         label={"fa": "فوق‌سبک", "en": "Ultra-light"},
         blurb={
-            "fa": "کوچک‌ترین گزینه (زیرِ ۱ میلیارد پارامتر) برای سیستم‌هایِ خیلی ضعیف یا فقط برایِ امتحانِ سریعِ برنامه. "
-                  "فارسی‌اش ساده است؛ فقط برایِ پاسخ‌هایِ کوتاه و تکراری.",
-            "en": "The smallest option (under 1 billion parameters) for very weak PCs or a quick trial. "
-                  "Basic Persian; only for short, repetitive answers.",
+            "fa": "فقط برایِ امتحانِ سریعِ نصب و سیستم‌هایِ خیلی ضعیف (زیرِ ۱ میلیارد پارامتر). "
+                  "برایِ ربات فروشگاه کافی نیست: فارسی‌اش ضعیف است، سؤالِ قیمت و موجودی را اغلب اشتباه جواب می‌دهد و جدی نباید به مشتری جواب بدهد.",
+            "en": "Only for a quick install test or very weak PCs (under 1 billion parameters). "
+                  "Not enough for a shop bot: weak Persian, often wrong on price and stock questions, not meant to answer customers.",
         },
         quality=1,
         speed=5,
@@ -245,10 +245,10 @@ ENTRIES: list[ModelEntry] = [
         quant="Q8_0",
         label={"fa": "فوق‌سبک", "en": "Ultra-light"},
         blurb={
-            "fa": "مدلِ کوچکِ نسلِ تازه‌یِ Qwen (زیرِ ۱ میلیارد پارامتر)؛ کمی دقیق‌تر از ۰٫۵B ولی هنوز فقط برایِ کارهایِ ساده. "
-                  "ممکن است پیش از پاسخ «فکر» کند؛ برنامه آن بخش را حذف می‌کند.",
-            "en": "A small current-generation Qwen (under 1 billion parameters); a bit sharper than 0.5B but still for simple jobs only. "
-                  "It may “think” before answering; the app strips that part.",
+            "fa": "مدلِ کوچکِ نسلِ تازه‌یِ Qwen (زیرِ ۱ میلیارد پارامتر)؛ کمی دقیق‌تر از ۰٫۵B ولی باز هم فقط برایِ امتحان. "
+                  "برایِ ربات فروشگاه کافی نیست و ممکن است پیش از پاسخ «فکر» کند؛ برنامه آن بخش را حذف می‌کند.",
+            "en": "A small current-generation Qwen (under 1 billion parameters); a bit sharper than 0.5B but still for testing only. "
+                  "Not enough for a shop bot, and it may “think” before answering; the app strips that part.",
         },
         quality=1,
         speed=5,
@@ -398,6 +398,17 @@ def entries() -> list:
 def ordered_for(hw: HardwareInfo, path_free_gb: Optional[float] = None) -> list:
     """همه‌ی مدل‌ها از کوچک به بزرگ، هرکدام با وضعیتِ برازش: ``[(ModelEntry, state), ...]``."""
     return [(e, fit_state(hw, e, path_free_gb)) for e in ENTRIES]
+
+
+def is_trial_only(entry: Optional[ModelEntry]) -> bool:
+    """مدل‌هایِ زیرِ ۱ میلیارد پارامتر فقط «امتحانِ نصب» هستند، نه جواب‌دادن به مشتریِ واقعی (۱٫۲٫۲)."""
+    if entry is None:
+        return False
+    match = re.match(r"\s*([0-9]+(?:\.[0-9]+)?)\s*([BbMm])", entry.params or "")
+    if not match:
+        return False
+    value = float(match.group(1))
+    return value < 1.0 if match.group(2).lower() == "b" else True
 
 
 def vram_hint_gb(entry: ModelEntry) -> float:

@@ -73,7 +73,7 @@ def maybe_offer(page: ft.Page, lang: str, settings, save, pack=None, once: bool 
         save()
         close()
 
-    def tick(done: int, total: int) -> None:
+    def tick(done: int, total: int, phase: str = "download") -> None:
         def paint() -> None:
             bar.value = (done / total) if total else 0.0
             bar.visible = True

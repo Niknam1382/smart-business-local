@@ -1077,6 +1077,8 @@ class BotManager:
 
     async def _sync_profile_for(self, platform: str, adapter) -> Optional[bot_profile.SyncReport]:
         """``None`` = هنوز وصل نشده (دورِ بعد دوباره). هرگز exception نمی‌ده."""
+        if platform != "telegram":  # بله بیوگرافیِ ربات ندارد؛ فقط تلگرام (۱٫۲٫۱)
+            return None
         settings = self._settings
         maker = getattr(adapter, "profile_client", None)
         client = maker() if callable(maker) else None
